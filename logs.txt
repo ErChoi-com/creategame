@@ -1,0 +1,14 @@
+08-03-2025    
+    To use, do these commands in terminal
+
+    python -m http.server 8000
+
+    click on http://localhost:8000/index.html
+
+08-05-2025
+    Switched back to three.js from WebAssembly with C++. Too many dependencies
+
+
+
+
+(erased all the text pulls)
