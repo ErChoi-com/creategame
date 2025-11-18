@@ -1,0 +1,271 @@
+# Kronos Crypto Price Trend Prediction Configuration
+
+# Random seed for reproducibility
+seed: 42
+
+# Data Configuration
+data:
+  exchange: "binance"
+  symbols:
+    - "BTCUSDT"
+    - "ETHUSDT"
+  interval: "1m"  # 1-minute candlesticks
+  lookback_days: 730  # 2 years (fallback to 365 if needed)
+  data_dir: "data"
+  storage_format: "parquet"  # or "csv"
+
+  # API settings
+  api:
+    rate_limit_per_minute: 1200
+    max_retries: 5
+    retry_backoff_factor: 2
+    timeout_seconds: 30
+
+# Labeling Configuration
+labeling:
+  horizon_minutes: 10  # Predict 10 minutes ahead
+  threshold_pct: 0.001  # 0.1% threshold (tau)
+  num_classes: 3  # 3-class (UP/DOWN/FLAT) or 2-class (UP/DOWN)
+  use_binary: false  # Set to true for 2-class (ignores FLAT)
+
+# Feature Engineering
+features:
+  # Price-based features
+  log_returns:
+    windows: [1, 3, 5, 10, 15, 30]  # minutes
+
+  rolling_stats:
+    windows: [5, 10, 30, 60]  # minutes
+    stats: ["mean", "std", "min", "max"]
+
+  z_scores:
+    windows: [10, 30, 60]
+
+  # Volatility features
+  volatility:
+    atr_windows: [5, 10, 14, 30]
+    realized_vol_windows: [5, 10, 30, 60]
+
+  # Momentum indicators
+  momentum:
+    rsi_windows: [7, 14, 21]
+    macd:
+      fast: 12
+      slow: 26
+      signal: 9
+    stochastic:
+      k_window: 14
+      d_window: 3
+
+  # Volume features
+  volume:
+    vwap_windows: [10, 30, 60]
+    volume_zscore_windows: [10, 30, 60]
+
+  # Microstructure
+  microstructure:
+    high_low_range: true
+    close_open_spread: true
+    candle_body_ratio: true
+
+# Model Configuration
+models:
+  # Primary model family (can be: lightgbm, xgboost, random_forest, catboost)
+  primary: "lightgbm"
+
+  # Class imbalance handling
+  handle_imbalance: true
+  class_weight: "balanced"  # or null for no weighting
+
+  # Base parameters (before tuning)
+  lightgbm:
+    objective: "multiclass"
+    num_class: 3
+    metric: "multi_logloss"
+    boosting_type: "gbdt"
+    num_leaves: 31
+    max_depth: -1
+    learning_rate: 0.05
+    n_estimators: 100
+    min_child_samples: 20
+    subsample: 0.8
+    colsample_bytree: 0.8
+    verbosity: -1
+    n_jobs: -1
+
+  xgboost:
+    objective: "multi:softmax"
+    num_class: 3
+    eval_metric: "mlogloss"
+    max_depth: 6
+    learning_rate: 0.05
+    n_estimators: 100
+    min_child_weight: 1
+    subsample: 0.8
+    colsample_bytree: 0.8
+    n_jobs: -1
+
+  random_forest:
+    n_estimators: 100
+    max_depth: 10
+    min_samples_split: 20
+    min_samples_leaf: 10
+    max_features: "sqrt"
+    n_jobs: -1
+
+# Backtesting Configuration
+backtest:
+  method: "walk_forward"  # expanding or rolling
+
+  # Walk-forward parameters
+  train_months: 12  # Initial training window
+  valid_months: 1   # Validation window
+  step_months: 1    # Slide window by this amount
+
+  # Alternative: expanding window
+  expanding:
+    min_train_months: 6
+    valid_months: 1
+
+  # Prevent data leakage
+  feature_lag: 0  # Additional lag to ensure no look-ahead
+
+  # Optional trading simulation
+  trading_sim:
+    enabled: false
+    fee_pct: 0.0004  # 0.04% per side
+    position_size: 1.0  # 1x leverage
+
+# Hyperparameter Optimization
+tuning:
+  framework: "optuna"  # or "random_search"
+  objective: "accuracy"  # maximize accuracy on validation
+  n_trials: 100
+  timeout_hours: null  # No timeout, run all trials
+  n_jobs: 4  # Parallel trials
+
+  # Early stopping
+  early_stopping:
+    enabled: true
+    patience: 20  # Stop if no improvement for 20 trials
+
+  # Search spaces per model
+  search_space:
+    lightgbm:
+      num_leaves:
+        type: "int"
+        low: 15
+        high: 255
+      max_depth:
+        type: "int"
+        low: 3
+        high: 12
+      learning_rate:
+        type: "loguniform"
+        low: 0.001
+        high: 0.2
+      min_child_samples:
+        type: "int"
+        low: 20
+        high: 500
+      subsample:
+        type: "uniform"
+        low: 0.6
+        high: 1.0
+      colsample_bytree:
+        type: "uniform"
+        low: 0.6
+        high: 1.0
+      reg_alpha:
+        type: "loguniform"
+        low: 1e-8
+        high: 10.0
+      reg_lambda:
+        type: "loguniform"
+        low: 1e-8
+        high: 10.0
+
+    xgboost:
+      max_depth:
+        type: "int"
+        low: 3
+        high: 12
+      learning_rate:
+        type: "loguniform"
+        low: 0.001
+        high: 0.2
+      min_child_weight:
+        type: "int"
+        low: 1
+        high: 10
+      subsample:
+        type: "uniform"
+        low: 0.6
+        high: 1.0
+      colsample_bytree:
+        type: "uniform"
+        low: 0.6
+        high: 1.0
+      gamma:
+        type: "loguniform"
+        low: 1e-8
+        high: 1.0
+      reg_alpha:
+        type: "loguniform"
+        low: 1e-8
+        high: 10.0
+      reg_lambda:
+        type: "loguniform"
+        low: 1e-8
+        high: 10.0
+
+# Reporting Configuration
+reporting:
+  output_dir: "reports"
+  artifacts_dir: "artifacts"
+
+  # What to include
+  include:
+    dataset_summary: true
+    class_distribution: true
+    best_params: true
+    per_fold_metrics: true
+    aggregated_metrics: true
+    confusion_matrices: true
+    feature_importance: true
+    trading_sim: false  # Only if enabled in backtest
+
+  # Export formats
+  formats:
+    - "html"
+    - "markdown"
+
+  # Metrics to report
+  metrics:
+    - "accuracy"
+    - "balanced_accuracy"
+    - "precision_macro"
+    - "recall_macro"
+    - "f1_macro"
+    - "mcc"  # Matthews Correlation Coefficient
+
+  # Plots to generate
+  plots:
+    confusion_matrix: true
+    feature_importance: true
+    accuracy_over_time: true
+    class_distribution: true
+    equity_curve: false  # Only if trading_sim enabled
+
+# Logging Configuration
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  log_dir: "logs"
+  log_to_file: true
+  log_to_console: true
+
+# Compute Configuration
+compute:
+  use_gpu: false  # Set to true if GPU available for XGBoost/LightGBM
+  n_jobs: -1  # Use all CPU cores (-1)
+  memory_limit_gb: null  # Set to limit memory usage
