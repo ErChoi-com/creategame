@@ -1,10 +1,11 @@
-.PHONY: help install data features train backtest tune report clean all
+.PHONY: help install test data features train backtest tune report clean all
 
 # Default target
 help:
 	@echo "Kronos Crypto Price Trend Prediction - Available targets:"
 	@echo ""
 	@echo "  make install    - Install dependencies"
+	@echo "  make test       - Run test suite"
 	@echo "  make data       - Download and prepare Binance data"
 	@echo "  make features   - Generate features from raw data"
 	@echo "  make train      - Train base model (simple split)"
@@ -21,6 +22,12 @@ install:
 	@echo "Installing dependencies..."
 	pip install -r requirements.txt
 	@echo "Dependencies installed successfully"
+
+# Run test suite
+test:
+	@echo "Running test suite..."
+	python tests/test_all.py
+	@echo "All tests completed"
 
 # Download and prepare data
 data:
