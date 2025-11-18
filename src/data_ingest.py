@@ -2,6 +2,7 @@
 Data Ingestion Module for Binance Historical Data
 
 Fetches historical OHLCV data from Binance with retry logic and rate limiting.
+Enhanced with type hints, validation, and progress tracking.
 """
 
 import os
@@ -9,12 +10,51 @@ import time
 import logging
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Tuple
 import pandas as pd
 import numpy as np
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+
+try:
+    from tqdm import tqdm
+    HAS_TQDM = True
+except ImportError:
+    HAS_TQDM = False
+
+try:
+    from utils import (
+        validate_dataframe,
+        check_data_quality,
+        print_header,
+        print_section,
+        format_number,
+        ensure_directory,
+    )
+    HAS_UTILS = True
+except ImportError:
+    HAS_UTILS = False
+    # Fallback implementations
+    def ensure_directory(path):
+        path = Path(path)
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+    def format_number(num, decimals=2):
+        return f"{num:,.{decimals}f}"
+    def print_header(text, char="=", width=60):
+        print(f"\n{char * width}\n{text.center(width)}\n{char * width}\n")
+    def print_section(text, char="-", width=60):
+        print(f"\n{text}\n{char * width}")
+    def validate_dataframe(df, required_columns, min_rows=0, check_nulls=True):
+        if df is None or len(df) == 0:
+            return False, "DataFrame is empty"
+        missing = set(required_columns) - set(df.columns)
+        if missing:
+            return False, f"Missing columns: {missing}"
+        return True, "Valid"
+    def check_data_quality(df, column="close"):
+        return {"null_count": df[column].isna().sum(), "time_gaps": 0}
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +63,7 @@ class BinanceDataFetcher:
     """Fetch historical kline data from Binance API with retry and rate limiting."""
 
     BASE_URL = "https://api.binance.com/api/v3"
+    INTERVALS = ["1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "8h", "12h", "1d"]
 
     def __init__(self, config: Dict):
         """
@@ -30,12 +71,32 @@ class BinanceDataFetcher:
 
         Args:
             config: Configuration dictionary
+
+        Raises:
+            ValueError: If configuration is invalid
         """
         self.config = config
         self.data_config = config["data"]
         self.api_config = self.data_config["api"]
+
+        # Validate configuration
+        self._validate_config()
+
         self.session = self._create_session()
         self.rate_limit_delay = 60.0 / self.api_config["rate_limit_per_minute"]
+        self.last_request_time = 0
+
+    def _validate_config(self) -> None:
+        """Validate data configuration."""
+        if not self.data_config.get("symbols"):
+            raise ValueError("No symbols specified in data configuration")
+
+        interval = self.data_config.get("interval", "1m")
+        if interval not in self.INTERVALS:
+            raise ValueError(f"Invalid interval: {interval}. Must be one of {self.INTERVALS}")
+
+        if self.data_config.get("lookback_days", 0) <= 0:
+            raise ValueError("lookback_days must be positive")
 
     def _create_session(self) -> requests.Session:
         """Create a requests session with retry logic."""
@@ -97,7 +158,7 @@ class BinanceDataFetcher:
             raise
 
     def fetch_historical_data(
-        self, symbol: str, start_date: datetime, end_date: datetime
+        self, symbol: str, start_date: datetime, end_date: datetime, show_progress: bool = True
     ) -> pd.DataFrame:
         """
         Fetch all historical data for a symbol between start and end dates.
@@ -106,13 +167,19 @@ class BinanceDataFetcher:
             symbol: Trading pair symbol
             start_date: Start date
             end_date: End date
+            show_progress: Whether to show progress bar
 
         Returns:
             DataFrame with OHLCV data
+
+        Raises:
+            ValueError: If date range is invalid
+            requests.exceptions.RequestException: If API request fails
         """
-        logger.info(
-            f"Fetching {symbol} data from {start_date.date()} to {end_date.date()}"
-        )
+        if start_date >= end_date:
+            raise ValueError("start_date must be before end_date")
+
+        logger.info(f"Fetching {symbol} data from {start_date.date()} to {end_date.date()}")
 
         interval = self.data_config["interval"]
         all_klines = []
@@ -121,13 +188,27 @@ class BinanceDataFetcher:
         start_ms = int(start_date.timestamp() * 1000)
         end_ms = int(end_date.timestamp() * 1000)
 
+        # Calculate total number of requests needed (approximate)
+        interval_ms = self._interval_to_milliseconds(interval)
+        total_bars = (end_ms - start_ms) // interval_ms
+        total_requests = int(np.ceil(total_bars / 1000))
+
         # Binance limits to 1000 records per request
-        # For 1m interval, 1000 minutes ≈ 16.7 hours
         limit = 1000
         current_start = start_ms
 
-        while current_start < end_ms:
-            try:
+        # Progress bar
+        if HAS_TQDM and show_progress:
+            pbar = tqdm(
+                total=total_requests,
+                desc=f"Fetching {symbol}",
+                unit="req",
+            )
+        else:
+            pbar = None
+
+        try:
+            while current_start < end_ms:
                 klines = self.fetch_klines(
                     symbol=symbol,
                     interval=interval,
@@ -145,23 +226,52 @@ class BinanceDataFetcher:
                 # Update start time to the last kline's close time + 1ms
                 current_start = klines[-1][6] + 1
 
-                logger.debug(
-                    f"Fetched {len(klines)} klines, total: {len(all_klines)}"
-                )
+                if pbar:
+                    pbar.update(1)
 
                 # Check if we've reached the end
                 if len(klines) < limit:
                     break
 
-            except Exception as e:
-                logger.error(f"Error during fetch loop: {e}")
-                raise
+        finally:
+            if pbar:
+                pbar.close()
 
         # Convert to DataFrame
         df = self._klines_to_dataframe(all_klines)
-        logger.info(f"Fetched {len(df)} records for {symbol}")
+        logger.info(f"Fetched {format_number(len(df), 0)} records for {symbol}")
+
+        # Validate data quality
+        if HAS_UTILS:
+            quality = check_data_quality(df)
+            if quality["null_count"] > 0:
+                logger.warning(f"Found {quality['null_count']} null values in close prices")
+            if quality.get("time_gaps", 0) > 0:
+                logger.warning(f"Found {quality['time_gaps']} gaps in time series")
 
         return df
+
+    def _interval_to_milliseconds(self, interval: str) -> int:
+        """
+        Convert interval string to milliseconds.
+
+        Args:
+            interval: Interval string (e.g., '1m', '1h', '1d')
+
+        Returns:
+            Interval in milliseconds
+        """
+        unit = interval[-1]
+        value = int(interval[:-1])
+
+        if unit == 'm':
+            return value * 60 * 1000
+        elif unit == 'h':
+            return value * 60 * 60 * 1000
+        elif unit == 'd':
+            return value * 24 * 60 * 60 * 1000
+        else:
+            raise ValueError(f"Unknown interval unit: {unit}")
 
     def _klines_to_dataframe(self, klines: List[List]) -> pd.DataFrame:
         """
@@ -173,6 +283,9 @@ class BinanceDataFetcher:
         Returns:
             DataFrame with processed OHLCV data
         """
+        if not klines:
+            return pd.DataFrame()
+
         df = pd.DataFrame(
             klines,
             columns=[
@@ -205,7 +318,12 @@ class BinanceDataFetcher:
         df = df.sort_values("open_time").reset_index(drop=True)
 
         # Remove duplicates
+        duplicates_before = len(df)
         df = df.drop_duplicates(subset=["open_time"], keep="first")
+        duplicates_removed = duplicates_before - len(df)
+
+        if duplicates_removed > 0:
+            logger.warning(f"Removed {duplicates_removed} duplicate records")
 
         return df
 

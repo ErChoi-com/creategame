@@ -1,0 +1,162 @@
+# Quick Test Configuration
+# Use this for fast testing with minimal data
+
+seed: 42
+
+data:
+  exchange: "binance"
+  symbols:
+    - "BTCUSDT"  # Single symbol for faster testing
+  interval: "1m"
+  lookback_days: 30  # Only 30 days
+  data_dir: "data"
+  storage_format: "parquet"
+
+  api:
+    rate_limit_per_minute: 1200
+    max_retries: 3  # Fewer retries
+    retry_backoff_factor: 2
+    timeout_seconds: 30
+
+labeling:
+  horizon_minutes: 10
+  threshold_pct: 0.001
+  num_classes: 3
+  use_binary: false
+
+features:
+  log_returns:
+    windows: [1, 5, 10, 30]  # Fewer windows
+
+  rolling_stats:
+    windows: [10, 30]  # Reduced from [5, 10, 30, 60]
+    stats: ["mean", "std"]
+
+  z_scores:
+    windows: [30]
+
+  volatility:
+    atr_windows: [14]  # Single window
+    realized_vol_windows: [30]
+
+  momentum:
+    rsi_windows: [14]  # Single window
+    macd:
+      fast: 12
+      slow: 26
+      signal: 9
+    stochastic:
+      k_window: 14
+      d_window: 3
+
+  volume:
+    vwap_windows: [30]
+    volume_zscore_windows: [30]
+
+  microstructure:
+    high_low_range: true
+    close_open_spread: true
+    candle_body_ratio: true
+
+models:
+  primary: "lightgbm"
+  handle_imbalance: true
+  class_weight: "balanced"
+
+  lightgbm:
+    objective: "multiclass"
+    num_class: 3
+    metric: "multi_logloss"
+    boosting_type: "gbdt"
+    num_leaves: 31
+    max_depth: -1
+    learning_rate: 0.05
+    n_estimators: 50  # Reduced from 100
+    min_child_samples: 20
+    subsample: 0.8
+    colsample_bytree: 0.8
+    verbosity: -1
+    n_jobs: -1
+
+backtest:
+  method: "walk_forward"
+  train_months: 2  # Smaller window
+  valid_months: 1
+  step_months: 1
+
+  expanding:
+    min_train_months: 2
+    valid_months: 1
+
+  feature_lag: 0
+
+  trading_sim:
+    enabled: false
+    fee_pct: 0.0004
+    position_size: 1.0
+
+tuning:
+  framework: "optuna"
+  objective: "accuracy"
+  n_trials: 10  # Much fewer trials
+  timeout_hours: null
+  n_jobs: 1
+
+  early_stopping:
+    enabled: true
+    patience: 5
+
+  search_space:
+    lightgbm:
+      num_leaves:
+        type: "int"
+        low: 20
+        high: 100  # Narrower range
+      max_depth:
+        type: "int"
+        low: 3
+        high: 8
+      learning_rate:
+        type: "loguniform"
+        low: 0.01
+        high: 0.1
+
+reporting:
+  output_dir: "reports"
+  artifacts_dir: "artifacts"
+  include:
+    dataset_summary: true
+    class_distribution: true
+    best_params: true
+    per_fold_metrics: true
+    aggregated_metrics: true
+    confusion_matrices: true
+    feature_importance: true
+    trading_sim: false
+  formats:
+    - "html"
+    - "markdown"
+  metrics:
+    - "accuracy"
+    - "balanced_accuracy"
+    - "precision_macro"
+    - "recall_macro"
+    - "f1_macro"
+    - "mcc"
+  plots:
+    confusion_matrix: true
+    feature_importance: true
+    accuracy_over_time: true
+    class_distribution: true
+    equity_curve: false
+
+logging:
+  level: "INFO"
+  log_dir: "logs"
+  log_to_file: true
+  log_to_console: true
+
+compute:
+  use_gpu: false
+  n_jobs: -1
+  memory_limit_gb: null

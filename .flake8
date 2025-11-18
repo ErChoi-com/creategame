@@ -1,0 +1,45 @@
+[flake8]
+# Configuration for flake8 linter
+
+# Maximum line length
+max-line-length = 100
+
+# Exclude directories
+exclude =
+    .git,
+    __pycache__,
+    .venv,
+    venv,
+    build,
+    dist,
+    *.egg-info,
+    .tox,
+    data,
+    artifacts,
+    reports,
+    logs
+
+# Ignore specific error codes
+ignore =
+    E203,  # Whitespace before ':' (conflicts with black)
+    E501,  # Line too long (handled by black)
+    W503,  # Line break before binary operator (conflicts with black)
+    E731,  # Do not assign a lambda expression (sometimes useful)
+
+# Maximum complexity
+max-complexity = 15
+
+# Enable specific checks
+select = C,E,F,W,B,B950
+
+# Show source code for errors
+show-source = True
+
+# Show error codes
+show-pep8 = True
+
+# Count errors
+count = True
+
+# Statistics
+statistics = True

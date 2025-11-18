@@ -1,0 +1,187 @@
+# Production Configuration
+# Use this for serious backtesting with maximum data and thorough optimization
+
+seed: 42
+
+data:
+  exchange: "binance"
+  symbols:
+    - "BTCUSDT"
+    - "ETHUSDT"
+    - "BNBUSDT"
+    - "SOLUSDT"
+  interval: "1m"
+  lookback_days: 730  # 2 years
+  data_dir: "data"
+  storage_format: "parquet"
+
+  api:
+    rate_limit_per_minute: 1200
+    max_retries: 5
+    retry_backoff_factor: 2
+    timeout_seconds: 30
+
+labeling:
+  horizon_minutes: 10
+  threshold_pct: 0.001  # 0.1%
+  num_classes: 3
+  use_binary: false
+
+features:
+  log_returns:
+    windows: [1, 3, 5, 10, 15, 30, 60]  # Comprehensive
+
+  rolling_stats:
+    windows: [5, 10, 30, 60, 120]
+    stats: ["mean", "std", "min", "max"]
+
+  z_scores:
+    windows: [10, 30, 60]
+
+  volatility:
+    atr_windows: [5, 10, 14, 30]
+    realized_vol_windows: [5, 10, 30, 60]
+
+  momentum:
+    rsi_windows: [7, 14, 21]
+    macd:
+      fast: 12
+      slow: 26
+      signal: 9
+    stochastic:
+      k_window: 14
+      d_window: 3
+
+  volume:
+    vwap_windows: [10, 30, 60]
+    volume_zscore_windows: [10, 30, 60]
+
+  microstructure:
+    high_low_range: true
+    close_open_spread: true
+    candle_body_ratio: true
+
+models:
+  primary: "lightgbm"
+  handle_imbalance: true
+  class_weight: "balanced"
+
+  lightgbm:
+    objective: "multiclass"
+    num_class: 3
+    metric: "multi_logloss"
+    boosting_type: "gbdt"
+    num_leaves: 31
+    max_depth: -1
+    learning_rate: 0.03
+    n_estimators: 200  # More estimators
+    min_child_samples: 50  # Higher for more data
+    subsample: 0.8
+    colsample_bytree: 0.8
+    reg_alpha: 0.1
+    reg_lambda: 0.1
+    verbosity: -1
+    n_jobs: -1
+
+backtest:
+  method: "expanding"  # Use expanding window for production
+  train_months: 12
+  valid_months: 1
+  step_months: 1
+
+  expanding:
+    min_train_months: 12
+    valid_months: 1
+
+  feature_lag: 0
+
+  trading_sim:
+    enabled: true  # Enable trading simulation
+    fee_pct: 0.0004  # 0.04% per side
+    position_size: 1.0
+
+tuning:
+  framework: "optuna"
+  objective: "accuracy"
+  n_trials: 200  # Extensive search
+  timeout_hours: 24  # 24 hour limit
+  n_jobs: 4  # Parallel trials
+
+  early_stopping:
+    enabled: true
+    patience: 30
+
+  search_space:
+    lightgbm:
+      num_leaves:
+        type: "int"
+        low: 15
+        high: 255
+      max_depth:
+        type: "int"
+        low: 3
+        high: 15  # Deeper trees
+      learning_rate:
+        type: "loguniform"
+        low: 0.001
+        high: 0.2
+      min_child_samples:
+        type: "int"
+        low: 20
+        high: 1000  # Wider range
+      subsample:
+        type: "uniform"
+        low: 0.6
+        high: 1.0
+      colsample_bytree:
+        type: "uniform"
+        low: 0.6
+        high: 1.0
+      reg_alpha:
+        type: "loguniform"
+        low: 1e-8
+        high: 10.0
+      reg_lambda:
+        type: "loguniform"
+        low: 1e-8
+        high: 10.0
+
+reporting:
+  output_dir: "reports"
+  artifacts_dir: "artifacts"
+  include:
+    dataset_summary: true
+    class_distribution: true
+    best_params: true
+    per_fold_metrics: true
+    aggregated_metrics: true
+    confusion_matrices: true
+    feature_importance: true
+    trading_sim: true  # Include trading metrics
+  formats:
+    - "html"
+    - "markdown"
+  metrics:
+    - "accuracy"
+    - "balanced_accuracy"
+    - "precision_macro"
+    - "recall_macro"
+    - "f1_macro"
+    - "mcc"
+  plots:
+    confusion_matrix: true
+    feature_importance: true
+    accuracy_over_time: true
+    class_distribution: true
+    equity_curve: true  # Show equity curve
+
+logging:
+  level: "INFO"
+  log_dir: "logs"
+  log_to_file: true
+  log_to_console: true
+
+compute:
+  use_gpu: false  # Set to true if GPU available
+  n_jobs: -1  # Use all cores
+  memory_limit_gb: null
