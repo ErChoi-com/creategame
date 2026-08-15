@@ -84,6 +84,21 @@ const indispensable = {
   ...base,
   name: 'The Indispensable One',
   chooseRole(game, board) {
+    // The commitment that defines this playstyle: the property comes first,
+    // every time, whatever else is on the board that quarter.
+    const installment = board.find((r) => r.franchiseInstallment
+      && game.blocksBooked + r.blocks <= 4);
+    if (installment) return installment;
+    // And once there is a property, the calendar is kept clear for it: this
+    // playstyle turns down work that would put it out of the next one.
+    if (game.franchise && !game.franchise.writtenOut
+        && game.franchise.installments < game.franchise.maxInstallments) {
+      const compatible = board.filter((r) => r.blocks <= 1
+        && game.blocksBooked + r.blocks <= 2
+        && !(r.union && game.actor.unionCredits < 3));
+      if (!compatible.length) return null;
+      return compatible.sort((x, y) => y.chance - x.chance)[0];
+    }
     let best = null, bestScore = -Infinity;
     for (const r of board) {
       if (game.blocksBooked + r.blocks > 4) continue;
@@ -145,6 +160,10 @@ function profile(policy, n) {
     // Career shape, not size: how many lanes did this person actually work in?
     range: mean(games.map((g) => Object.values(g.actor.genreCredits)
       .filter((n) => n >= 2).length)),
+    // How typecast you end up. Not an Ambition, but it is the thing a
+    // vanishing is actually for — you come back readable as something else —
+    // and no other axis records it.
+    legibility: mean(games.map((g) => g.legibility)),
     // The six things §0.4 says a career can be for. Scoring the playstyles
     // against the game's own declared win conditions is the only fair test of
     // whether they are really different careers.
@@ -179,7 +198,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const rows = POLICIES.map((p) => profile(p, n));
 
   console.log(`\n=== AGENCY AUDIT (${n} careers per playstyle) ===\n`);
-  const head = ['playstyle', 'active', 'peakHeat', 'notices', 'prestige', 'earn med', 'earn p90', 'wins/100', 'range', 'favours', 'levers'];
+  const head = ['playstyle', 'active', 'peakHeat', 'notices', 'prestige', 'earn med', 'earn p90', 'wins/100', 'legible', 'favours', 'levers'];
   console.log(head[0].padEnd(30) + head.slice(1).map((h) => h.padStart(9)).join(''));
   for (const r of rows) {
     console.log(
@@ -191,7 +210,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       + `$${r.earnMed.toFixed(1)}`.padStart(9)
       + `$${r.earnP90.toFixed(0)}`.padStart(9)
       + r.wins.toFixed(0).padStart(9)
-      + r.range.toFixed(1).padStart(9)
+      + r.legibility.toFixed(0).padStart(9)
       + r.favours.toFixed(1).padStart(9)
       + r.levers.toFixed(1).padStart(9),
     );
@@ -232,22 +251,28 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 
   // (c) and each is a materially different career from the plain one
   const plainRow = rows[0];
-  // Shape axes: the six declared win conditions, plus two the Ambitions do not
-  // cover — how many lanes you worked in, and how big your best years got.
+  // Shape axes: the six declared win conditions, plus three the Ambitions do
+  // not cover — how many lanes you worked in, how typecast you ended up (the
+  // thing a vanishing is actually for), and how big your best years got.
   const shapeAxes = [
     ...axes.map((a) => [AMBITIONS[a].label, (r) => val(r, a)]),
     ['range of work', (r) => r.range],
+    ['how typecast', (r) => r.legibility],
     ['top-end money', (r) => r.earnP90],
   ];
+  // "Materially different" is a fifth: a playstyle that moves an outcome by
+  // less than that is a preference, not a strategy.
+  const MATERIAL = 0.20;
   const divergence = rows.slice(1).map((r) => {
     const diffs = shapeAxes.filter(([, get]) => {
       const base = Math.abs(get(plainRow)) + 1e-6;
-      return Math.abs(get(r) - get(plainRow)) / base > 0.25;
+      return Math.abs(get(r) - get(plainRow)) / base > MATERIAL;
     }).map(([label]) => label);
     return { name: r.name, axes: diffs };
   });
+  console.log(`   materially different (>${(MATERIAL * 100).toFixed(0)}%) from a career that just takes the best job going:`);
   for (const d of divergence) {
-    console.log(`   ${d.name.padEnd(30)} differs from plain on: ${d.axes.join(', ') || 'nothing'}`);
+    console.log(`   ${d.name.padEnd(30)} ${d.axes.join(', ') || 'nothing'}`);
   }
   const allDiverge = divergence.every((d) => d.axes.length >= 2);
   const noDominance = dominators.length === 0 && alsoRans.length === 0

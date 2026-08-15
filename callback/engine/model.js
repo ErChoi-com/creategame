@@ -22,7 +22,7 @@ export const K = {
   // FIX-1 the ladder. Gains carry a base term (working at all is worth
   // something), are re-centred below the median outcome, and decay is
   // proportional rather than a flat −9 so the meters find an equilibrium.
-  heatBase: 7.0,
+  heatBase: 7.9,
   heatRoiCoef: 9.0,
   heatRoiCentre: 0.90,
   heatAudCoef: 0.20,
@@ -72,13 +72,16 @@ export const K = {
   scaleFeeBase: 0.03,         // union scale, roughly
   scaleFeeCoef: 0.038,       // and what the film's size adds to it
 
-  grossPointsDivisor: 150,
+  grossPointsDivisor: 52,
   grossPointsMax: 0.20,      // first-dollar gross, stars only
   quoteExp: 0.070,            // steepness of the top of the market
-  buzzCentre: 59,
-  winBase: 0.16,
+  buzzCentre: 57,
+  winBase: 0.18,
 
   paletteScale: 0.32,
+  franchiseKeepDecay: 1.2,    // identification lost per year while you keep doing them
+  franchiseSkipDecay: 6.5,    // and per year while you do not
+
   contrastBudgetDivisor: 28,
   landmarkCoherenceGate: 60,
 };

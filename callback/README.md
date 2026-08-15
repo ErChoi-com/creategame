@@ -57,12 +57,12 @@ population against the document's own targets:
 ```
 metric                                       target (14.9)  measured
 Median career length (years active)          26 yrs         32 yrs     PASS
-Careers reaching Heat > 80                   ~18%           14%        PASS
-Careers with zero nominations                ~55%           49%        PASS
-Award wins per 100 careers                   21             11         PASS
-Median lifetime earnings                     $6-11M         $9.0M      PASS
-Top-decile lifetime earnings                 $90M+          $96M       PASS
-Careers with a lead role after 42            ~30%           37%        PASS
+Careers reaching Heat > 80                   ~18%           18%        PASS
+Careers with zero nominations                ~55%           45%        PASS
+Award wins per 100 careers                   21             15         PASS
+Median lifetime earnings                     $6-11M         $9.3M      PASS
+Top-decile lifetime earnings                 $90M+          $167M      PASS
+Careers with a lead role after 42            ~30%           40%        PASS
 ```
 
 `agency.mjs` holds the three claims the breadth depends on: a career that never opens the moves

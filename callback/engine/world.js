@@ -334,7 +334,7 @@ export class World {
     // §4.9 the cliff. Lead offers thin out from the early forties, and only
     // standing buys you past it — which is what makes the pivot to character
     // and authority roles a real strategic problem rather than a mood.
-    const ageLead = clamp(1 - Math.max(0, (actor.age - 40)) * 0.105, 0.07, 1) + 0.26 * s;
+    const ageLead = clamp(1 - Math.max(0, (actor.age - 40)) * 0.115, 0.06, 1) + 0.22 * s;
     const billing = opts.billing || rng.weighted([
       ['lead', (0.04 + 1.30 * Math.pow(s, 1.8)) * ageLead],
       ['supporting', 0.34 + 0.30 * s],

@@ -11,8 +11,10 @@ document, why, and which check holds it in place.
 Run the checks:
 
 ```bash
-node callback/sim/career-sim.mjs 3000     # §14.9 — 7/7
+node callback/sim/career-sim.mjs 3000     # §14.9 whole-career targets — 7/7
 node callback/sim/subsystems.mjs          # §14.1, §5.3-5.6, §9.3 — 16/16
+node callback/sim/agency.mjs              # the design rules in Part 0 — 4/4
+node callback/sim/replay-test.mjs         # saves rebuild the same career — 25/25
 ```
 
 ---
@@ -98,18 +100,76 @@ no interface, and not one line of the game's prose.
 
 ---
 
+## What was added after the model worked
+
+The corrections above make a career happen. These make it a game you can sit
+down and play, and each one came with a check that holds it.
+
+### The pull layer (Part 6), and the audit that keeps it free
+
+Some thirty verbs — get work you were not offered, change the project you are
+on, change your own standing, change other people, change the market, change
+the rules — none of them ever prompted. Favours are tokens attached to named
+people; scarcity accrues while you are away; indispensability builds by doing
+the same property again and pays in money and approvals; positions (guild
+office, a jury seat, a production company, teaching, a board seat) grant levers
+rather than obligations.
+
+`sim/agency.mjs` holds the three claims that licence the breadth, and it found
+real faults in all three:
+
+| Claim | What it caught |
+|---|---|
+| A career that never opens the menu still meets §14.9 | — held from the start |
+| No playstyle dominates the six Ambitions | The Author won all six until producing carried real risk; the producer share was dead code and the stake was never paid |
+| Year 45 pushes no more prompts than year 15 | Prompts grew 7 → 11. Prep and stance asked about things a veteran has answered a hundred times, and the season interrupted when there was nothing to decide |
+
+### Saves, as a journal
+
+Every mutating call goes through `Game.call()` and lands in a list. The engine
+is deterministic from its seed, so that list *is* the save file. Verified two
+ways: `sim/replay-test.mjs` rebuilds 25 careers and compares fingerprints, and
+`sim/save-test.mjs` reloads a real browser mid-career and checks the recorded
+history survives. This is what caught the trades panel consuming the game's
+randomness outside the journal — a bug no amount of reading the code would
+have surfaced.
+
+### Content, and the faults reading it exposed
+
+Ten on-set moments drawn by what the production actually is, eight life events
+fired by what is true about you, headlines drawn per outcome shape, eight ways
+to be turned down, milestones for the turns a career has, and a trade paper
+once a year so the world is legible as something moving on its own.
+
+`sim/transcript.mjs` prints a whole career as prose. Reading one is how the
+following were found, none of which the aggregate numbers showed:
+
+- The lifestyle ratchet charged the annual floor on every payment *and* again
+  at year end: a career could finish $865M in debt on $583M of earnings.
+- Careers never faded, because offer counts were rounded — a rate of 1.2 a
+  quarter meant exactly one offer, forever.
+- The bit-to-supporting bridge was centred at 51 Notices against a population
+  averaging 49, so ordinary good work never accumulated any. Recognition now
+  fades as your own standing rises, which is what it was always for.
+- Two films in one career could share a title, so the log read as though a
+  picture was reviewed before it was cast.
+- A life event could strand you in an open-ended hiatus with no way out.
+- One scandal could be defended repeatedly, farming favours from a single story.
+
 ## What is not built
 
 Named honestly, because the review's complaint about this document was that it never was:
 
 - **The director and the studio careers** (Parts 7 and 8). The actor spine is complete; the
   director exists only as an NPC with attributes, a temperament and an affinity toward you.
-- **Leverage** (Part 6). Favours accrue from generosity on set and are spendable nowhere yet.
+- **The rest of Part 6.** Approvals exist but only two of the four do anything;
+  information is collected and can only be leaked; blacklisting and the
+  reconciliation broker are implemented but thinly.
 - **Festivals, territories, strikes, technology eras, likeness rights** (Part 10) and
   **health, addiction, family, politics** (Part 11) beyond the health/condition curve and the
   going-broke ratchet.
-- **Awards as a campaign.** The season resolves, and `runAwardsSeason()` accepts campaign spend
-  and category fraud, but the UI never offers either — it is a system without a screen.
+- **Deals as negotiation.** Fee, billing, gross points and the holdout resolve;
+  options, pay-or-play and the fee-for-approvals trade do not.
 - **Deals.** Fee, billing and gross points resolve; options, pay-or-play and approvals do not.
 
 The scope estimate in review §8 (4–6 years, 15–25 people for the full document) stands. What is

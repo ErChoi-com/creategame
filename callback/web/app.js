@@ -31,6 +31,12 @@ function act(name, args = []) {
   return out;
 }
 
+// A handle for tooling: the screenshot pass and the save test drive the real
+// game object rather than guessing at the DOM. Harmless in play.
+function expose() {
+  window.__callback = { get game() { return game; }, screens: { screenQuarter, screenYearSummary } };
+}
+
 function persist() {
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(game.save())); } catch { /* full or blocked */ }
 }
@@ -102,7 +108,9 @@ function drawState() {
   const g = game;
   const amb = g.ambitionReport();
   const bits = [
-    ['Ambition', `${amb.label} — ${amb.value} (${amb.grade.toLowerCase()})`],
+    ['Ambition', amb.value === '—'
+      ? `${amb.label} — too early to say`
+      : `${amb.label} — ${amb.value} (${amb.grade.toLowerCase()})`],
     ['Standing', g.standing.toFixed(0)],
     ['Legibility', `${g.legibility.toFixed(0)} — ${g.legibility < 36 ? 'unreadable'
       : g.legibility > 70 ? 'typecast' : 'known for a few things'}`],
@@ -257,6 +265,7 @@ function screenCreate() {
           });
           game.say(`${BACKGROUNDS[picked].label}. ${game.year}. Nobody knows your name yet.`);
           persist();
+          expose();
           screenQuarter();
         },
       }, 'Start working')),
@@ -268,6 +277,7 @@ function screenCreate() {
 function resume(saved) {
   try {
     game = Game.load(saved);
+    expose();
     game.say('You pick it up where you left it.', 'note');
     if (game.over) return screenObituary();
     screenQuarter(game.board.length === 0);
@@ -339,6 +349,7 @@ function screenQuarter(fresh = true, flash = null) {
             : r.path === 'offer' ? 'offer, no audition' : 'audition'),
         el('span', { class: 'tag' }, `fit ${r.fit.toFixed(0)}`),
         el('span', { class: 'tag' }, `they want someone about ${r.charAge}`),
+        r.unknownLead ? el('span', { class: 'tag hot' }, 'they want an unknown — five-picture deal') : null,
         r.takeScale ? el('span', { class: 'tag good' }, 'you offered to do it for scale') : null,
         r.publicCampaign ? el('span', { class: 'tag warn' }, 'you said publicly you want it') : null,
         r.nonUnionNote ? el('span', { class: 'tag warn' }, 'non-union') : null,
@@ -674,6 +685,34 @@ function screenLifeEvent(event, before) {
   });
 }
 
+// What the season did, said as a scene rather than a log line.
+function seasonCard() {
+  const season = game.lastSeason;
+  if (!season || !season.contenders) return null;
+  const { results, contenders, spent } = season;
+  const won = results.filter((r) => r.won);
+  const nominated = results.filter((r) => !r.won);
+  const lines = [];
+  if (!results.length) {
+    lines.push(contenders === 1
+      ? 'One eligible performance and no nominations. The season happened to other people.'
+      : `${contenders} eligible performances and nothing came of any of them.`);
+  }
+  for (const r of won) {
+    lines.push(`You won, for ${r.title}${r.category === 'supporting' ? ', in supporting' : ''}.`
+      + (r.narratives.length ? ` The story they told about it: ${r.narratives.join('; ').toLowerCase()}.` : ''));
+  }
+  for (const r of nominated) {
+    lines.push(`Nominated for ${r.title}${r.category === 'supporting' ? ', in supporting' : ''}.`
+      + (r.rival ? ` ${r.rival} won it.` : ''));
+  }
+  if (spent > 0) lines.push(`You spent $${spent.toFixed(1)}M of your own money on the campaign.`);
+  return el('div', {}, [
+    el('h3', { class: 'section' }, 'The season'),
+    el('div', { class: 'card trades' }, lines.map((t) => el('p', {}, t))),
+  ]);
+}
+
 function screenYearSummary(before, flash) {
   clear();
   const a = game.actor;
@@ -691,6 +730,7 @@ function screenYearSummary(before, flash) {
       el('div', {}, `${money(game.money.net)} banked. Your life costs ${money(game.money.floor)} a year now.`),
       a.health < 60 ? el('div', {}, 'Your body is keeping a list.') : null,
     ),
+    seasonCard(),
     el('h3', { class: 'section' }, 'The trades'),
     el('div', { class: 'card trades' }, game.tradePaper().map((t) => el('p', {}, t))),
     el('button', { class: 'primary', onclick: () => screenQuarter() }, `On to ${game.year}`),

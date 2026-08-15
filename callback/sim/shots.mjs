@@ -34,9 +34,25 @@ for (let i = 0; i < 900 && want.size; i++) {
   }
   await p.waitForTimeout(4);
 }
+// A year with a season in it, and the side screens.
+for (let i = 0; i < 600; i++) {
+  const h2 = ((await p.textContent('h2').catch(() => '')) || '').trim();
+  if (/is over$/.test(h2) && (await p.$('text=The season'))) { await shot('11-season'); break; }
+  const prim = await p.$('button.primary');
+  if (prim && await prim.isEnabled()) await prim.click();
+  else {
+    const adv = await p.$('button:has-text("Let the quarter go by")');
+    if (adv) await adv.click(); else break;
+  }
+  await p.waitForTimeout(3);
+}
 const rolo = await p.$('button:has-text("The Rolodex")');
 if (rolo) { await rolo.click(); await p.waitForTimeout(80); await shot('07-rolodex'); await p.click('button.primary'); }
 const ord = await p.$('button:has-text("Standing orders")');
 if (ord) { await ord.click(); await p.waitForTimeout(80); await shot('08-orders'); }
+// narrow layout
+await p.setViewportSize({ width: 430, height: 900 });
+await p.waitForTimeout(120);
+await shot('12-mobile');
 console.log('shots in', out);
 await b.close();

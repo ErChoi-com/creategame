@@ -508,10 +508,32 @@ export class Game {
         role.difficulty -= Math.min(12, 0.3 * this.scarcity);
         role.scarcityPremium = this.scarcity;
       }
-      // The property comes back around, and it comes back to you.
-    if (this.franchise && !this.franchise.writtenOut && this.franchise.identification > 28
-        && i === 0 && this.year - (this.franchise.lastOffer || -3) >= 2) {
-      this.franchise.lastOffer = this.year;
+      // §6.8's worked route in: a studio casts an unknown as the lead of a
+    // property, because the property is the star and an unknown is cheap and
+    // will sign for five pictures. It is a lottery ticket, it pays badly, and
+    // it is how almost every franchise actor actually started.
+    if (i === 0 && !this.franchise && a.age < 34 && this.credits.length < 14
+        && this.rng.chance(0.012 + a.gates.look / 6000 + a.attrs.presence / 9000)) {
+      role.billing = 'lead';
+      role.type = 'tentpole';
+      role.budget = Math.max(role.budget, 90);
+      role.budgetForRole = role.budget * 0.02;   // they are paying you nothing
+      role.blocks = 3;
+      role.label = 'Tentpole';
+      role.difficulty = 40;
+      role.unknownLead = true;
+      role.scriptQuality = clamp(role.scriptQuality - 6, 5, 98);
+    }
+
+    // The property comes back around, and it comes back to you.
+    // Offered when they are ready to shoot the next one — and the clock only
+    // resets when you actually make it, or a year you could not clear the
+    // dates for would quietly end the relationship.
+    if (this.franchise && !this.franchise.writtenOut
+        && a.age < 62
+        && this.franchise.installments < this.franchise.maxInstallments
+        && this.franchise.identification > 20
+        && i === 0 && this.year - (this.franchise.lastInstallment || -3) >= 2) {
       role.billing = 'lead';
       role.type = 'tentpole';
       role.genre = this.franchise.genre;
@@ -577,7 +599,7 @@ export class Game {
   // most careers do not end in a decision, they end in a year with no offers
   // in it, and then another one.
   _ageBand(age) {
-    return age < 28 ? 1.30 : age < 39 ? 1.45 : age < 49 ? 0.92 : age < 61 ? 0.44 : 0.14;
+    return age < 28 ? 1.30 : age < 39 ? 1.45 : age < 49 ? 0.92 : age < 61 ? 0.40 : 0.12;
   }
 
   _relationshipBonus(role) {
@@ -807,6 +829,7 @@ export class Game {
     this.credits.push({
       title: role.title, year: this.year, billing: role.billing,
       genre: role.genre, tentpole: role.type === 'tentpole',
+      unknownLead: !!role.unknownLead, installment: !!role.franchiseInstallment,
     });
     a.genreCredits[role.genre] = (a.genreCredits[role.genre] || 0) + 1;
     if (prepChoice.clearsGate) {
@@ -847,14 +870,24 @@ export class Game {
     if (role.type === 'tentpole' && role.billing !== 'bit') {
       if (this.franchise && this.franchise.genre === role.genre && !this.franchise.writtenOut) {
         this.franchise.installments += 1;
-        this.franchise.identification = clamp(this.franchise.identification + 24, 0, 100);
+        this.franchise.lastInstallment = this.year;
+        // §6.4's own worked example: identification 67 by the fourth
+        // installment. Doing them back to back has to compound, or the
+        // creative custodian of a property is indistinguishable from someone
+        // who took a big job twice.
+        this.franchise.identification = clamp(this.franchise.identification + 18, 0, 100);
         // §6.3 approvals arrive with indispensability, not with money.
         if (this.franchise.identification > 55) this.approvals.add('costar');
         if (this.franchise.identification > 75) this.approvals.add('script');
       } else if (!this.franchise || this.franchise.writtenOut) {
         this.franchise = {
           title: role.title, genre: role.genre, installments: 1,
-          identification: 34, heldOut: false, writtenOut: false, owned: false,
+          identification: role.unknownLead ? 46 : 34,
+          lastInstallment: this.year,
+          // Properties run out. Nobody makes eleven of them with the same
+          // person, and the studio reboots it without you afterwards.
+          maxInstallments: this.rng.int(3, 6),
+          heldOut: false, writtenOut: false, owned: false,
         };
       }
       this.stats.peakIdentification = Math.max(
@@ -1145,6 +1178,7 @@ export class Game {
       this.blocksBooked = Math.min(4, this.blocksBooked + 1);
     }
 
+    const contenders = this.awards.thisSeason.length;
     for (const entry of this.awards.thisSeason) {
       const flags = {
         due: this.awards.nominations >= 3 && this.awards.wins === 0,
@@ -1171,7 +1205,13 @@ export class Game {
           a.standing.prestige = clamp(a.standing.prestige + 9, 0, 100);
           a.standing.heat = clamp(a.standing.heat + 7, 0, 100);
         }
-        results.push({ title: entry.project.role.title, won, narratives: buzz.narratives });
+        results.push({
+          title: entry.project.role.title,
+          won,
+          narratives: buzz.narratives,
+          category: categoryFraud && entry.role.billing === 'lead' ? 'supporting' : entry.role.billing,
+          rival: this._rivalWinner(entry, won),
+        });
         this.say(
           won ? `You won for ${entry.project.role.title}.`
               : `Nominated for ${entry.project.role.title}.`,
@@ -1184,7 +1224,16 @@ export class Game {
       }
     }
     this.awards.thisSeason = [];
+    this.lastSeason = { results, contenders, spent: campaignSpend };
     return results;
+  }
+
+  // Somebody won it. If it was not you, it was a person with a name.
+  _rivalWinner(entry, won) {
+    if (won) return null;
+    const pool = this.world.costars.filter((c) => c.heat > 25);
+    const who = pool.length ? pool[this.rng.int(0, pool.length - 1)] : null;
+    return who ? who.name : null;
   }
 
   _wasCold() {
@@ -1272,8 +1321,23 @@ export class Game {
     if (this.franchise && !this.franchise.writtenOut && this.franchise.identification > 30) {
       const floor = clamp(18 + 0.45 * this.franchise.identification, 0, 82);
       if (a.standing.heat < floor) a.standing.heat = floor;
-      this.franchise.identification = clamp(this.franchise.identification - 3.5, 0, 100);
-      if (this.franchise.identification < 12) this.franchise = null;
+      // Identification is continuity. Skip an installment and the audience
+      // starts to think of the part rather than of you.
+      const done = this.franchise.installments >= this.franchise.maxInstallments;
+      if (done && !this.franchise.rebooted) {
+        this.franchise.rebooted = true;
+        this.say(`They are rebooting ${this.franchise.title} without you.`, 'bad');
+      }
+      const workedIt = !done && this.credits.some((c) => c.year === this.year && c.tentpole);
+      this.franchise.identification = clamp(
+        this.franchise.identification
+          - (workedIt ? M.K.franchiseKeepDecay : M.K.franchiseSkipDecay)
+          - (this.franchise.rebooted ? 4 : 0), 0, 100,
+      );
+      if (this.franchise.identification < 12) {
+        this.say(`Nobody thinks of you as ${this.franchise.title} any more.`, 'note');
+        this.franchise = null;
+      }
     }
 
     // A bounded break ends on its own; a vanishing does not.
