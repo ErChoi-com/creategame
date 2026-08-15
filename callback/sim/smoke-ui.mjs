@@ -28,21 +28,39 @@ await page.waitForTimeout(200);
 let reachedObituary = false;
 const screens = new Set();
 
-for (let i = 0; i < 600; i++) {
+for (let i = 0; i < 900; i++) {
   const h2 = (await page.textContent('h2').catch(() => '')) || '';
   screens.add(h2.trim().slice(0, 18));
+  if (process.env.TRACE) console.log(i, h2.trim().slice(0, 40));
   if (await page.$('text=The credits')) reachedObituary = true;
 
-  const onBoard = /^\d{4} ·/.test(h2.trim());
   const cards = await page.$$('.card.pick');
-  if (onBoard && cards.length && Math.random() < 0.75) {
+  const buttons = [];
+  for (const b of await page.$$('button')) {
+    if (await b.isEnabled()) buttons.push(b);
+  }
+  // Mostly drive forward; sometimes wander into a card or a side screen, which
+  // is how the pull layer gets exercised.
+  // Side screens (orders, Rolodex, a moves list) are dead ends by design: a
+  // random walker will sit in them forever, so leave them promptly.
+  const sideScreen = /^(Standing orders|The Rolodex|About |Awards season)/.test(h2.trim())
+    || h2.trim() === '' || /^[A-Z][a-z]+ [A-Z]/.test(h2.trim());
+  const roll = sideScreen ? 0.9 : Math.random();
+  if (cards.length && roll < 0.35) {
     await cards[Math.floor(Math.random() * cards.length)].click();
+  } else if (buttons.length && roll < 0.55) {
+    await buttons[Math.floor(Math.random() * buttons.length)].click();
   } else {
-    const primary = await page.$('button.primary');
-    if (primary) await primary.click();
-    else {
-      const buttons = await page.$$('button');
-      if (buttons.length) await buttons[buttons.length - 1].click();
+    let clicked = false;
+    for (const b of buttons) {
+      const cls = await b.getAttribute('class');
+      if (cls && cls.includes('primary')) { await b.click(); clicked = true; break; }
+    }
+    if (!clicked) {
+      // Always able to move time forward, whatever else is on screen.
+      const advance = await page.$('button:has-text("Let the quarter go by")');
+      if (advance) await advance.click();
+      else if (buttons.length) await buttons[buttons.length - 1].click();
       else if (cards.length) await cards[0].click();
     }
   }

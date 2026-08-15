@@ -26,6 +26,8 @@ export class World {
       this.greenlightQueue[g] = [];
     }
     this.shapes = { ...SHAPES };
+    this.scandals = [];
+    this.landmarks = [];
     this.directors = [];
     this.castingDirectors = [];
     this.costars = [];
@@ -137,7 +139,13 @@ export class World {
       queued[7] = clamp((this.demand[g] - econ.demand) / 18, -1.5, 2.5);
     }
     this.quarter += 1;
-    if (this.quarter > 4) { this.quarter = 1; this.year += 1; this._ageWorld(); }
+    if (this.quarter > 4) {
+      this.quarter = 1;
+      this.year += 1;
+      this._ageWorld();
+      this.tickLandmarks();
+      this.tickScandals(this.rng);
+    }
   }
 
   _ageWorld() {
@@ -155,11 +163,97 @@ export class World {
     }
   }
 
-  // A landmark permanently adds its palette to the world's coherence set, and
-  // the copies that follow feed the genre boom (§5.4).
-  addShape(name, palette) {
-    this.shapes[name] = { ...palette };
-    this.momentum[palette.genre] = (this.momentum[palette.genre] || 0) + 2;
+  // A landmark permanently adds its palette to the world's coherence set, the
+  // copies that follow feed the genre boom, and in about eight years the thing
+  // you invented is a cliche you have to work against (§5.4). You get to watch
+  // that happen to your own film.
+  addShape(name, palette, genre, author) {
+    const key = name.toLowerCase().replace(/[^a-z]+/g, '_');
+    this.shapes[key] = { ...palette };
+    this.momentum[genre] = (this.momentum[genre] || 0) + 2.5;
+    const landmark = {
+      key, name, genre, author, year: this.year, copies: 0, cliche: false,
+    };
+    this.landmarks.push(landmark);
+    return landmark;
+  }
+
+  // Other directors copy what worked, then keep copying it.
+  tickLandmarks() {
+    for (const l of this.landmarks) {
+      const age = this.year - l.year;
+      if (age > 0 && age <= 10 && this.rng.chance(0.35)) {
+        l.copies += 1;
+        this.momentum[l.genre] += 0.35;
+      }
+      if (!l.cliche && (age >= 8 || l.copies >= 7)) {
+        l.cliche = true;
+        l.clicheYear = this.year;
+      }
+    }
+  }
+
+  // Is this palette now a tired copy of something? Critics can tell.
+  clicheePenalty(palette) {
+    let worst = 0;
+    for (const l of this.landmarks) {
+      if (!l.cliche) continue;
+      const shape = this.shapes[l.key];
+      if (!shape) continue;
+      let sum = 0;
+      for (const d of DIALS) sum += (palette[d] - shape[d]) ** 2;
+      const dist = Math.sqrt(sum / DIALS.length);
+      if (dist < 16) worst = Math.max(worst, 7 * (1 - dist / 16));
+    }
+    return worst;
+  }
+
+  // §9.4 the script market. Material exists whether or not anyone is making it.
+  generateScript(rng, actor, opts = {}) {
+    const genre = opts.genre || rng.pick(GENRES);
+    const quality = clamp(rng.gauss(opts.quality ?? 60, 14), 20, 98);
+    return {
+      id: nextId(),
+      title: this.title(),
+      genre,
+      quality,
+      source: rng.pick(['original', 'novel', 'play', 'true story', 'short story']),
+      charAge: clamp(Math.round(actor.age + rng.gauss(1, 5)), 14, 88),
+      archetype: rng.pick(ARCHETYPES),
+      askingBudget: clamp(GENRE_ECON[genre].budget * rng.float(0.4, 1.4), 1, 180),
+      optioned: this.year,
+      shopped: false,
+      financingChance: 0,
+      attachedDirector: null,
+    };
+  }
+
+  makeNewcomer(rng) {
+    const c = this._makeCostar();
+    c.age = rng.int(19, 25);
+    c.heat = rng.float(0, 6);
+    c.newcomer = true;
+    this.costars.push(c);
+    return c;
+  }
+
+  // Somebody is always in trouble. You can say something, or not.
+  tickScandals(rng) {
+    this.scandals = this.scandals.filter((s) => this.year - s.year < 2);
+    if (this.scandals.length < 2 && rng.chance(0.16)) {
+      const pool = [...this.directors.filter((d) => !d.retired), ...this.costars];
+      const person = pool[rng.int(0, pool.length - 1)];
+      this.scandals.push({
+        person,
+        year: this.year,
+        kind: rng.pick([
+          'is being sued by a former assistant',
+          'said something unforgivable in a magazine',
+          'walked off a picture and will not say why',
+          'is being written about by four reporters at once',
+        ]),
+      });
+    }
   }
 
   randomPalette(rng, genre, budget, directorTaste) {
@@ -181,7 +275,7 @@ export class World {
     // §4.9 the cliff. Lead offers thin out from the early forties, and only
     // standing buys you past it — which is what makes the pivot to character
     // and authority roles a real strategic problem rather than a mood.
-    const ageLead = clamp(1 - Math.max(0, (actor.age - 40)) * 0.058, 0.14, 1) + 0.42 * s;
+    const ageLead = clamp(1 - Math.max(0, (actor.age - 40)) * 0.105, 0.07, 1) + 0.26 * s;
     const billing = opts.billing || rng.weighted([
       ['lead', (0.04 + 1.30 * Math.pow(s, 1.8)) * ageLead],
       ['supporting', 0.34 + 0.30 * s],
@@ -196,7 +290,15 @@ export class World {
       ['streaming', 0.14], ['tv_season', 0.08],
       ['theatre', 0.06], ['voice', 0.06],
     ]);
-    const genre = rng.weighted(GENRES.map((g) => [g, 0.5 + this.demand[g] / 40]));
+    // §4.2 the typecasting engine, on the offer side. The more legible you are,
+    // the more the board is just your lane again — which is the flood of work
+    // and the cage, in one number. An illegible actor gets a varied board and
+    // fewer offers on it.
+    const leg = clamp(actor.legibilityValue ?? 0, 0, 100);
+    const inLane = rng.chance(0.18 + 0.006 * leg);
+    const genre = inLane
+      ? rng.weighted(GENRES.map((g) => [g, 0.4 + (actor.persona?.genre?.[g] ?? 10) / 12]))
+      : rng.weighted(GENRES.map((g) => [g, 0.5 + this.demand[g] / 40]));
     const econ = GENRE_ECON[genre];
     // Budgets are nominal, so they inflate with the era exactly as fees do.
     const era = this.eraMultiplier;
@@ -213,7 +315,9 @@ export class World {
     const charAge = clamp(
       Math.round(actor.age + rng.gauss(billing === 'bit' ? 0 : 2, 7)), 8, 88,
     );
-    const archetype = rng.pick(ARCHETYPES);
+    const archetype = inLane
+      ? rng.weighted(ARCHETYPES.map((x) => [x, 0.4 + (actor.persona?.archetype?.[x] ?? 10) / 12]))
+      : rng.pick(ARCHETYPES);
     const share = billing === 'lead' ? 0.14 : billing === 'supporting' ? 0.06 : 0.015;
 
     return {

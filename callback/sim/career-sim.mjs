@@ -73,12 +73,22 @@ export function runCareer(seed, policy = defaultPolicy, opts = {}) {
   while (!game.over && guard++ < 90) {
     for (let q = 0; q < 4 && !game.over; q++) {
       game.tickPending();
+      // Pull actions, if this policy uses any at all. A policy with no hooks
+      // never opens the menu — which is the case sim/agency.mjs holds to the
+      // same §14.9 targets as every other.
+      if (policy.beforeBoard) policy.beforeBoard(game);
       if (game.blocksBooked < 4) {
         const board = game.openBoard();
         const pick = policy.chooseRole(game, board);
         if (pick) {
+          if (policy.beforePursue) policy.beforePursue(game, pick);
           const res = game.pursue(pick.id);
           if (res.cast) {
+            if (policy.beforeShoot) policy.beforeShoot(game, pick);
+            game.countPush('offer');
+            if (game.shouldAskPrep(pick)) game.countPush('prep');
+            if (game.shouldAskStance(pick, { coherence: 50 })) game.countPush('stance');
+            game.countPush('moments', game.momentsFor(pick).length);
             game.shoot(pick, {
               prep: policy.choosePrep(game, pick),
               positions: policy.choosePositions(game, pick),
@@ -87,8 +97,10 @@ export function runCareer(seed, policy = defaultPolicy, opts = {}) {
           }
         }
       }
+      if (policy.afterBoard) policy.afterBoard(game);
       game.world.tickQuarter();
     }
+    if (game.seasonNeedsYou()) game.countPush('season');
     game.endYear();
   }
   // Flush anything still in post.

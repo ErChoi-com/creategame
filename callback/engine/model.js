@@ -33,9 +33,9 @@ export const K = {
   heatKeepLead: 0.925,
 
   prestigeCriticCoef: 0.11,
-  prestigeCriticCentre: 60,
+  prestigeCriticCentre: 57,
   prestigeNoticesCoef: 0.26,
-  prestigeNoticesCentre: 62,
+  prestigeNoticesCentre: 54,
   prestigeKeep: 0.985,
 
   affectionCoef: 0.10,
@@ -67,10 +67,10 @@ export const K = {
   scaleFeeBase: 0.03,         // union scale, roughly
   scaleFeeCoef: 0.038,       // and what the film's size adds to it
 
-  grossPointsDivisor: 78,
+  grossPointsDivisor: 150,
   grossPointsMax: 0.20,      // first-dollar gross, stars only
   quoteExp: 0.070,            // steepness of the top of the market
-  buzzCentre: 55,
+  buzzCentre: 61,
   winBase: 0.16,
 
   paletteScale: 0.32,
