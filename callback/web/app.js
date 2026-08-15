@@ -24,6 +24,17 @@ let showAllMoves = false;
 
 const SAVE_KEY = 'callback.save.v1';
 
+// Opened straight from a file, a browser gives the page an opaque origin and
+// no storage. The game still runs; it just cannot remember. Say so once rather
+// than swallowing every write and letting someone lose a forty-year career.
+const storageWorks = (() => {
+  try {
+    localStorage.setItem('callback.probe', '1');
+    localStorage.removeItem('callback.probe');
+    return true;
+  } catch { return false; }
+})();
+
 // Every mutating call goes through the journal, and the journal is the save.
 function act(name, args = []) {
   const out = game.call(name, args);
@@ -72,7 +83,7 @@ const clear = () => { stage.replaceChildren(); };
 // reaches the page goes through here.
 const put = (...kids) => stage.append(...kids.filter((k) => k != null));
 const money = (m) => (Math.abs(m) >= 1 ? `$${m.toFixed(1)}M` : `$${Math.round(m * 1000)}K`);
-const plural = (n, one, many) => `${n} ${n === 1 ? one : many || `${one}s`}`;
+const count = (n, one, many) => `${n} ${n === 1 ? one : many || `${one}s`}`;
 const genreName = (g) => GENRE_NAMES[g] || g;
 const article = (word) => `${/^[aeiou]/i.test(word) ? 'an' : 'a'} ${word}`;
 const quarterName = (q) => ['', 'Q1 — winter', 'Q2 — spring', 'Q3 — summer', 'Q4 — autumn'][q];
@@ -217,6 +228,12 @@ function screenCreate() {
       el('p', { class: 'lede' },
         'You are an actor. The work is the game: what you take, how you play it, and what the '
         + 'industry decides that means. Nobody will ever tell you how good you were.'),
+      storageWorks ? null : el('div', { class: 'card' },
+        el('h4', {}, 'This copy cannot save'),
+        el('p', { class: 'why' },
+          'You opened the file directly, so the browser has given the page no storage. '
+          + 'The game plays fine — it just will not remember the career when you close the tab. '
+          + 'Open the hosted link instead if you want to keep one.')),
       saved ? el('div', { class: 'card pick', onclick: () => resume(saved) },
         el('h4', {}, 'Carry on with the career you were having'),
         el('div', { class: 'meta' },
@@ -729,7 +746,7 @@ function screenYearSummary(before, flash) {
           : game.legibility > 70 ? 'everyone knows exactly what you are, which is a floor and a ceiling.'
           : 'known for two or three things. The healthy place.'}`),
       el('div', {}, `Standing ${game.standing.toFixed(0)} · recognition ${a.recognition.toFixed(0)} · `
-        + `${plural(a.unionCredits, 'union credit')} · ${plural(game.favours, 'favour')} owed you`),
+        + `${count(a.unionCredits, 'union credit')} · ${count(game.favours, 'favour')} owed you`),
       el('div', {}, `${money(game.money.net)} banked. Your life costs ${money(game.money.floor)} a year now.`),
       a.health < 60 ? el('div', {}, 'Your body is keeping a list.') : null,
     ),
