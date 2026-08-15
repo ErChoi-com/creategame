@@ -156,6 +156,45 @@ following were found, none of which the aggregate numbers showed:
 - A life event could strand you in an open-ended hiatus with no way out.
 - One scandal could be defended repeatedly, farming favours from a single story.
 
+---
+
+## What the genre's own literature changed
+
+Three things came out of reading how comparable systems are built, and each
+one found a fault:
+
+**Storylets have named shapes, and one-shot events cannot express them.** The
+quality-based narrative tradition (Failbetter's storylets, and the pattern
+catalogue that grew from them) names the chain, the clock, the hourglass and
+the gravity well. §11.2's "addiction as an arc, not a flag" is precisely a
+clock driving a chain: a hidden level rises from how you are living, a
+different scene plays each time it crosses a threshold, and the ending differs
+by where you got off. `engine/arcs.js` implements that shape and uses it for
+the drinking, a rival, and the body — including the gravity well, so a finished
+arc leaves a mark rather than going quiet.
+
+**Hidden ability needs a separately-modelled estimate of it.** Football
+Manager's judging attributes and Total Extreme Wrestling's scouting levels —
+which rise only while a worker is actually doing the thing being judged — both
+separate the truth from the player's read of it. CALLBACK already hid
+Performance; it did not model your ability to read the room, which was a flat
+noise term. It now narrows with Craft and with having worked with that
+director before, and the game tells you how much to trust the read.
+
+**Hand-written playstyles cannot find the edges.** The automated-playtesting
+literature bounds a design with agents rather than personas. Three were added,
+and two of the five agency rules failed immediately:
+
+- A random agent collapsed to two active years. The diagnosis needed a third
+  agent — one who takes whatever comes but does the work properly — to
+  separate "the offer economy is broken" from "playing badly is punished". It
+  was neither: quitting keyed on *not working* when it should key on *not
+  being offered anything*. Missing out is not the same as not being wanted.
+- The greedy agent won 85 awards per 100 careers by campaigning every year
+  forever. Campaign money now only moves a performance people are already
+  arguing about, consecutive campaigns decay, and category fraud twice is a
+  story about you.
+
 ## What is not built
 
 Named honestly, because the review's complaint about this document was that it never was:

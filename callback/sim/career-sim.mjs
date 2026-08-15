@@ -61,9 +61,10 @@ export const defaultPolicy = {
     return { not_working: 'ask', adjustment: 'both', discovery: 'offer' };
   },
 
-  // Life events: take the first option unless money says otherwise.
+  // Life events and arc scenes: take the first option unless money says
+  // otherwise. A person, not an optimiser.
   chooseEvent(game, event) {
-    void event;
+    if (event && event.kind === 'arc') return game.actor.attrs.resilience > 55 ? 1 : 0;
     return game.money.net < 0 ? 1 : 0;
   },
 };

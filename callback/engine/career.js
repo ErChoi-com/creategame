@@ -16,6 +16,7 @@ import { availableActions, perform } from './leverage.js';
 import {
   MOMENT_POOL, momentsAvailable, pickLifeEvent, eventPrompt, LIFE_EVENTS,
 } from './events.js';
+import { ARCS, ARCS_BY_ID, tickArcs, arcPrompt } from './arcs.js';
 
 // ---------------------------------------------------------------------------
 // FIX-5 Character creation. Eight versions of the document never specified how
@@ -88,6 +89,8 @@ export class Game {
     this.blocksBooked = 0;    // blocks used in the current year
     this.yearBilling = null;  // best billing worked this year, drives decay
     this.idleYears = 0;
+    this.offerlessYears = 0;   // years in which nothing at all was offered
+    this.yearListings = 0;
     this.over = false;
     this.obituaryText = null;
     this.stats = {
@@ -115,6 +118,7 @@ export class Game {
     this.campaignSpend = 0;
     this.categoryFraud = false;
     this.campaignedThisYear = false;
+    this.campaignStreak = 0;
     this.leverageUsed = 0;
     this.noticesHistory = [];
     this.turnedDown = [];         // §0.6 — the obituary remembers these
@@ -135,6 +139,9 @@ export class Game {
     // state rather than by a die roll (§0.1, and rule 1: never upkeep).
     this.firedEvents = new Set();
     this.pendingEvent = null;
+    // Long shapes: a hidden level that rises from how you are living, and a
+    // sequence of scenes that plays as it crosses thresholds (arcs.js).
+    this.arcs = {};
 
     // Standing orders — how you work when the game does not need to ask.
     this.standingOrders = {
@@ -588,6 +595,8 @@ export class Game {
       || (floor === 'lead' && r.billing === 'lead');
     const shown = listings.filter(passes);
 
+    this.yearListings += shown.length;
+
     // The board is sorted the way an agent would present it.
     shown.sort((x, y) => (y.chance * BILLING_WEIGHT[y.billing]) - (x.chance * BILLING_WEIGHT[x.billing]));
     const kept = shown.slice(0, reach);
@@ -900,6 +909,7 @@ export class Game {
       `${this._qualitativeRead(perf.value, director)}`,
       'work',
     );
+    project.readConfidence = this.readConfidence(director);
     const milestone = this._milestone(role);
     if (milestone) this.say(milestone, 'good');
     return project;
@@ -916,14 +926,40 @@ export class Game {
     return p;
   }
 
-  // §4.7 you never see the number. You see what the director's face did.
+  // §4.7 you never see the number. You see what the director's face did — and
+  // how well you can read that face is itself a thing you get better at.
+  //
+  // The sports-management sims that model hidden ability well (Football
+  // Manager's judging attributes, Total Extreme Wrestling's scouting levels
+  // that rise only while you are actually doing the thing) all separate the
+  // truth from your estimate of it, and let the estimate improve with specific
+  // experience. Here: craft sharpens your sense of your own work in general,
+  // and having worked with this director before sharpens it for this room.
+  readError(director) {
+    const base = director.temperament === 'remote' ? 16 : 9;
+    const craft = 0.055 * this.actor.attrs.craft;             // knowing your own work
+    const familiar = Math.min(3.5, 1.6 * (director.sharedProjects || 0));  // knowing them
+    const worn = this.actor.condition < 45 ? 2 : 0;
+    return clamp(base - craft - familiar + worn, 2.5, 18);
+  }
+
   _qualitativeRead(value, director) {
-    const noisy = value + this.rng.gauss(0, director.temperament === 'remote' ? 16 : 9);
+    const noisy = value + this.rng.gauss(0, this.readError(director));
     if (noisy > 80) return 'The room went quiet after the last take.';
     if (noisy > 66) return 'They printed it and moved on, which is the compliment.';
     if (noisy > 50) return 'You got there by take nine.';
     if (noisy > 36) return 'They shot a lot of coverage on you.';
     return 'They started asking the other actor for reactions.';
+  }
+
+  // How much that read is worth, said plainly, so the player knows whether to
+  // believe it. This is the one number about your own performance you get.
+  readConfidence(director) {
+    const e = this.readError(director);
+    if (e < 5) return 'You know exactly how that went.';
+    if (e < 8) return 'You have a fair idea how that went.';
+    if (e < 12) return 'You genuinely cannot tell how that went.';
+    return 'You have no idea how that went. You never do with them.';
   }
 
   // ----------------------------------------------------------------- release
@@ -1182,17 +1218,21 @@ export class Game {
     for (const entry of this.awards.thisSeason) {
       const flags = {
         due: this.awards.nominations >= 3 && this.awards.wins === 0,
+        // Voters notice a person who is always campaigning.
+        overexposed: this.awards.thisSeason.length >= 4 || this.campaignStreak >= 3,
         transformation: entry.project.prepFlag === 'transformation',
         comeback: this._wasCold(),
         finalBow: a.age >= 70,
         newcomer: this.awards.nominations === 0 && a.age < 28,
         tooCommercial: this._recentTentpoles() >= 2,
-        overexposed: this.awards.thisSeason.length >= 4,
       };
+      // Money only moves a performance people are already arguing about; you
+      // cannot buy a nomination for something nobody rated.
+      const campaignable = entry.rec.notices > 58 ? campaignSpend : campaignSpend * 0.15;
       const buzz = M.buzzScore(this.rng, {
         notices: entry.rec.notices,
         filmCritic: entry.rec.filmCritic,
-        campaignSpend,
+        campaignSpend: campaignable / (1 + 0.6 * this.campaignStreak),
         prestige: a.standing.prestige,
         flags,
         categoryAdvantage: categoryFraud && entry.role.billing === 'lead' ? 18 : 0,
@@ -1290,19 +1330,31 @@ export class Game {
 
     this._tickLeverage(worked);
 
+    if (this.yearListings === 0) this.offerlessYears += 1;
+    else this.offerlessYears = 0;
+    this.yearListings = 0;
+
     if (!worked) {
       this.idleYears += 1;
       // People leave. Most people leave.
-      // People leave. Most people leave — and being broke while nobody calls
-      // is the specific combination that ends careers.
+      // People leave. But missing out is not the same as not being wanted:
+      // an actor who reads for things and keeps losing them is still in the
+      // industry, and the thing that ends careers is the phone not ringing at
+      // all. The bounding agents caught this — someone taking whatever came
+      // was being pushed out for failing auditions.
       const broke = this.money.net < 0 ? 0.10 : 0;
-      const giveUp = this.idleYears >= 2
-        && this.rng.chance(clamp(0.10 + 0.06 * this.idleYears + broke
-          - M.standing(a.standing) / 90, 0, 0.65));
+      // A body of work is some reason to hang on, but not much of one — the
+      // people who leave late leave because there is nothing coming in.
+      const invested = Math.min(0.06, this.credits.length / 400);
+      const giveUp = this.offerlessYears >= 2
+        && this.rng.chance(clamp(0.14 + 0.10 * this.offerlessYears + broke
+          - M.standing(a.standing) / 90 - invested, 0, 0.7));
       if (giveUp) this._end('You took the other job. Everyone does, eventually.');
       if (this.idleYears >= 7 && a.age > 34) this._end('The phone simply stopped.');
     } else {
       this.idleYears = 0;
+    this.offerlessYears = 0;   // years in which nothing at all was offered
+    this.yearListings = 0;
     }
     if (a.age >= 80 || a.health <= 0) this._end('Age, in the end.');
 
@@ -1428,6 +1480,7 @@ export class Game {
       }
     }
 
+    this.campaignStreak = this.campaignedThisYear ? this.campaignStreak + 1 : 0;
     this.campaignedThisYear = false;
     this.campaignSpend = 0;
     this.categoryFraud = false;
@@ -1444,19 +1497,63 @@ export class Game {
   }
 
   // ------------------------------------------------------------------ a life
-  // Offered at the turn of the year, answered whenever the player likes.
+  arcState(id) {
+    if (!this.arcs[id]) this.arcs[id] = { level: 0, stage: 0, started: null, done: false };
+    return this.arcs[id];
+  }
+
+  // One thing a year, at most. An arc that has reached a threshold takes
+  // precedence over a one-shot event, because it has been building.
   rollEvent() {
     if (this.pendingEvent) return this.pendingEvent;
+    const surfaced = tickArcs(this);
+    if (surfaced) {
+      this.pendingEvent = {
+        kind: 'arc',
+        id: surfaced.arc.id,
+        index: surfaced.index,
+        prompt: arcPrompt(surfaced.arc, surfaced.stage, this),
+        options: surfaced.stage.options.map((o) => o.label),
+      };
+      return this.pendingEvent;
+    }
     const event = pickLifeEvent(this);
     if (!event) return null;
-    this.pendingEvent = { id: event.id, prompt: eventPrompt(event, this) };
+    this.pendingEvent = {
+      kind: 'event',
+      id: event.id,
+      prompt: eventPrompt(event, this),
+      options: event.options.map((o) => o.label),
+    };
     return this.pendingEvent;
   }
 
   resolveEvent(index) {
-    if (!this.pendingEvent) return null;
-    const event = LIFE_EVENTS.find((e) => e.id === this.pendingEvent.id);
+    const pending = this.pendingEvent;
+    if (!pending) return null;
     this.pendingEvent = null;
+
+    if (pending.kind === 'arc') {
+      const arc = ARCS_BY_ID[pending.id];
+      if (!arc) return null;
+      const stage = arc.stages[pending.index];
+      const state = this.arcState(arc.id);
+      const option = stage.options[clamp(index, 0, stage.options.length - 1)];
+      const who = arc.who ? arc.who(this) : null;
+      option.run(this, this.rng, who);
+      state.stage = pending.index + 1;
+      if (option.text) this.say(option.text, 'life');
+      // The afterword closes the arc, so it has to come after the choice that
+      // closed it.
+      if (stage.terminal || state.stage >= arc.stages.length) {
+        state.done = true;
+        const after = arc.afterword ? arc.afterword(this) : null;
+        if (after) this.say(after, 'life');
+      }
+      return { text: option.text, label: option.label };
+    }
+
+    const event = LIFE_EVENTS.find((e) => e.id === pending.id);
     if (!event) return null;
     const option = event.options[clamp(index, 0, event.options.length - 1)];
     this.firedEvents.add(event.id);
@@ -1504,6 +1601,9 @@ export class Game {
         ? `${this.mentees.filter((m) => m.power > 55).length} of the people they taught run things now.`
         : null,
       bigMiss ? `They turned down ${bigMiss.title} in ${bigMiss.year}. It was a $${bigMiss.budget.toFixed(0)}M picture.` : null,
+      a.flags.sober ? `Sober from ${a.flags.sober}.`
+        : this.arcState('drinking').level > 14 ? 'The drinking was never really dealt with.' : null,
+      a.flags.uninsurable ? 'Uninsurable for the last of it, which ended the work before the life ended.' : null,
       this.positions.size ? `Also: ${[...this.positions].join(', ')}.` : null,
       this.endReason || '',
     ];

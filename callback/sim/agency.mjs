@@ -136,7 +136,88 @@ const author = {
   },
 };
 
-const POLICIES = [plain, favourBank, disappearingAct, indispensable, author];
+// Two bounding agents, in the spirit of the automated-playtesting literature:
+// hand-written playstyles tell you what happens when someone plays *a way*,
+// but they cannot tell you where the edges are. A random agent bounds the
+// bottom (does the game hold up for someone who is not really trying?) and a
+// greedy optimiser bounds the top (can the obvious line run away with it?).
+const drifter = {
+  ...base,
+  name: 'Random (barely paying attention)',
+  chooseRole(game, board) {
+    const takeable = board.filter((r) => game.blocksBooked + r.blocks <= 4
+      && !(r.union && game.actor.unionCredits < 3));
+    if (!takeable.length || game.rng.chance(0.3)) return null;
+    return takeable[game.rng.int(0, takeable.length - 1)];
+  },
+  choosePrep: (game) => ['table', 'research', 'dialect', 'physical', 'method', 'wing'][game.rng.int(0, 5)],
+  choosePositions(game, role) {
+    const pos = {};
+    for (const d of ['energy', 'volume', 'warmth', 'speed']) {
+      pos[d] = ['with', 'beneath', 'beyond', 'against'][game.rng.int(0, 3)];
+    }
+    void role;
+    return pos;
+  },
+  chooseMoments: () => ({}),
+  chooseEvent: (game) => game.rng.int(0, 2),
+};
+
+// Between the two: someone who takes whatever comes but works properly when
+// they are there. If this one has no career either, the fault is in the offer
+// economy; if it does, then playing badly is what costs the random agent, which
+// is the game working.
+const jobbing = {
+  ...base,
+  name: 'Takes what comes (but works properly)',
+  chooseRole(game, board) {
+    const takeable = board.filter((r) => game.blocksBooked + r.blocks <= 4
+      && !(r.union && game.actor.unionCredits < 3));
+    if (!takeable.length) return null;
+    return takeable[game.rng.int(0, takeable.length - 1)];
+  },
+};
+
+const optimiser = {
+  ...base,
+  name: 'Greedy (always the best number)',
+  chooseRole(game, board) {
+    // Rank by immediate expected standing and money, and use every pull verb
+    // that is available every single quarter.
+    let best = null, bestScore = -Infinity;
+    for (const r of board) {
+      if (game.blocksBooked + r.blocks > 4) continue;
+      if (r.union && game.actor.unionCredits < 3) continue;
+      const v = r.chance * (r.budgetForRole * 2
+        + { lead: 120, supporting: 40, bit: 8 }[r.billing]
+        + r.scriptQuality * 0.4 + game.world.directorSkill(r.director) * 0.4) / r.blocks;
+      if (v > bestScore) { bestScore = v; best = r; }
+    }
+    return best;
+  },
+  beforeBoard(game) {
+    for (const { action } of game.moves()) {
+      if (['disappear', 'reinvent', 'refuse_scene', 'start_feud'].includes(action.id)) continue;
+      game.do(action.id);
+    }
+  },
+  beforePursue(game, role) {
+    for (const { action } of game.moves({ role })) {
+      if (['turn_down_publicly'].includes(action.id)) continue;
+      if (['campaign_for_role', 'screen_test_free', 'take_scale'].includes(action.id)) {
+        game.do(action.id, { role });
+      }
+    }
+  },
+  beforeShoot(game, role) {
+    for (const { action } of game.moves({ current: role })) {
+      if (action.id === 'refuse_scene') continue;
+      game.do(action.id, { current: role });
+    }
+  },
+};
+
+const POLICIES = [plain, favourBank, disappearingAct, indispensable, author, drifter, jobbing, optimiser];
 
 // ---------------------------------------------------------------------------
 function profile(policy, n) {
@@ -195,7 +276,10 @@ export { POLICIES };
 // Only audit when run directly; transcript.mjs imports the playstyles.
 if (import.meta.url === `file://${process.argv[1]}`) {
   const n = Number(process.argv[2] || 400);
-  const rows = POLICIES.map((p) => profile(p, n));
+  const STYLES = POLICIES.slice(0, 5);
+  const BOUNDS = POLICIES.slice(5);   // random, jobbing, greedy
+  const rows = STYLES.map((p) => profile(p, n));
+  const bounds = BOUNDS.map((p) => profile(p, n));
 
   console.log(`\n=== AGENCY AUDIT (${n} careers per playstyle) ===\n`);
   const head = ['playstyle', 'active', 'peakHeat', 'notices', 'prestige', 'earn med', 'earn p90', 'wins/100', 'legible', 'favours', 'levers'];
@@ -292,7 +376,41 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const budgetOk = rows.every((r) => Math.max(r.pushes15, r.pushes45) <= 20);
   console.log(`   ${budgetOk ? 'ok' : '<<<'} everyone stays inside §0.2's ~20 pushed decisions a year`);
 
-  const passed = [viable, noDominance, narrows, budgetOk].filter(Boolean).length;
-  console.log(`\n${passed}/4 agency rules hold.\n`);
-  process.exitCode = passed === 4 ? 0 : 1;
+  // --- 4. The edges ---------------------------------------------------------
+  // Hand-written playstyles say what happens when someone plays a way. They
+  // cannot say where the edges are, so three agents bound the band: one who
+  // takes whatever comes but does the work, one who does everything at random,
+  // and one who pulls every available lever every quarter.
+  console.log('\n4. THE EDGES — bounding agents');
+  const [rand, jobber, greedy] = bounds;
+  for (const b of bounds) {
+    console.log(`   ${b.name.padEnd(38)} ${b.active.toFixed(0)} active yrs · `
+      + `$${b.earnMed.toFixed(1)}M median · ${b.wins.toFixed(0)} wins/100 · `
+      + `${b.levers.toFixed(0)} actions used`);
+  }
+
+  // The floor is not the random agent — it is the person who is not
+  // optimising. If they have no career, the offer economy is broken.
+  const floorOk = jobber.active >= 15 && jobber.earnMed >= 2;
+  // And playing badly has to cost something, or the creative layer is decoration.
+  // Same materiality bar as check 2, rather than a threshold invented here.
+  const badPlayCosts = rand.active < jobber.active * (1 - MATERIAL)
+    && rand.earnMed < jobber.earnMed * (1 - MATERIAL);
+  // The ceiling: an agent that uses everything may be very good at one thing.
+  // It must not be best at all six of the things a career can be for.
+  const greedyWins = axes.filter((a) => val(greedy, a) > Math.max(...rows.map((r) => val(r, a))));
+  const ceilingOk = greedyWins.length < axes.length;
+
+  console.log(`   ${floorOk ? 'ok' : '<<<'} taking what comes and doing the work is a career `
+    + `(${jobber.active.toFixed(0)} yrs, $${jobber.earnMed.toFixed(1)}M)`);
+  console.log(`   ${badPlayCosts ? 'ok' : '<<<'} playing badly costs: random gets `
+    + `${rand.active.toFixed(0)} yrs and $${rand.earnMed.toFixed(1)}M against that`);
+  console.log(`   ${ceilingOk ? 'ok' : '<<<'} the everything-agent beats every playstyle on `
+    + `${greedyWins.length}/${axes.length} ambitions`
+    + (greedyWins.length ? ` (${greedyWins.map((a) => AMBITIONS[a].label).join(', ')})` : ''));
+
+  const passed = [viable, noDominance, narrows, budgetOk,
+    floorOk && badPlayCosts && ceilingOk].filter(Boolean).length;
+  console.log(`\n${passed}/5 agency rules hold.\n`);
+  process.exitCode = passed === 5 ? 0 : 1;
 }

@@ -57,17 +57,20 @@ population against the document's own targets:
 ```
 metric                                       target (14.9)  measured
 Median career length (years active)          26 yrs         32 yrs     PASS
-Careers reaching Heat > 80                   ~18%           18%        PASS
-Careers with zero nominations                ~55%           45%        PASS
-Award wins per 100 careers                   21             15         PASS
-Median lifetime earnings                     $6-11M         $9.3M      PASS
-Top-decile lifetime earnings                 $90M+          $167M      PASS
-Careers with a lead role after 42            ~30%           40%        PASS
+Careers reaching Heat > 80                   ~18%           15%        PASS
+Careers with zero nominations                ~55%           46%        PASS
+Award wins per 100 careers                   21             14         PASS
+Median lifetime earnings                     $6-11M         $10.5M     PASS
+Top-decile lifetime earnings                 $90M+          $137M      PASS
+Careers with a lead role after 42            ~30%           42%        PASS
 ```
 
-`agency.mjs` holds the three claims the breadth depends on: a career that never opens the moves
-menu still meets every target above; no playstyle dominates the six Ambitions the game itself
-declares; and year 45 pushes no more prompts at the player than year 15. Four rules, all passing.
+`agency.mjs` holds the claims the breadth depends on: a career that never opens the moves menu
+still meets every target above; no playstyle dominates the six Ambitions the game itself declares;
+year 45 pushes no more prompts at the player than year 15; and three bounding agents pin the
+edges — someone who takes whatever comes and does the work has a career, someone playing at
+random does materially worse, and an agent pulling every lever every quarter is very good at some
+of the six things a career can be for but not all of them.
 
 Every constant in `engine/model.js` is tuned against these harnesses. Several trade off sharply —
 the earnings tail and the share of careers that reach Heat 80 pull against each other directly —
@@ -84,6 +87,7 @@ found by reading one career end to end.
 | `engine/leverage.js` | Part 6. ~30 pull verbs: get work you were not offered, change the project, change your standing, change other people, change the market, change the rules |
 | `engine/rolodex.js` | Favours as tokens attached to named people. Earned by things that cost you, faded by silence, lost when people die |
 | `engine/events.js` | Ten on-set moments drawn by what the production is, and eight life events fired by what is true about you |
+| `engine/arcs.js` | The long shapes: a hidden level that rises from how you are living, surfacing a different scene each time it crosses a threshold — drinking, a rival, the body |
 | `engine/ambition.js` | The six things a career can be for, and what the obituary measures |
 | `engine/world.js` | Genre demand cycles with the eight-quarter greenlight lag, directors and casting directors who age and retire, the project generator |
 | `engine/data.js` | Genres, per-genre palette weights, archetypal film shapes, the position read table, name pools |

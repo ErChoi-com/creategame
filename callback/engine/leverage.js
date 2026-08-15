@@ -599,10 +599,16 @@ const CHANGE_MARKET = [
     label: 'Campaign a lead in supporting',
     blurb: 'A weaker field. The trades may call it out, and calling it out is also a story.',
     cost: () => 'Notoriety +6 if the press bites',
-    available: (g) => g.awards.thisSeason.some((e) => e.role.billing === 'lead') && !g.categoryFraud,
+    available: (g) => g.awards.thisSeason.some((e) => e.role.billing === 'lead')
+      && !g.categoryFraud && (g.categoryFrauds || 0) < 2,
     salience: () => 0.5,
     run: (g) => {
       g.categoryFraud = true;
+      // The trades have a memory, and the second time is a story about you.
+      g.categoryFrauds = (g.categoryFrauds || 0) + 1;
+      if (g.categoryFrauds > 1) {
+        g.actor.standing.notoriety = clamp(g.actor.standing.notoriety + 8, 0, 100);
+      }
       return { text: 'Your lead performance is, it turns out, a supporting performance.' };
     },
   }),

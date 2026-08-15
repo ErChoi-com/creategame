@@ -75,8 +75,8 @@ export const K = {
   grossPointsDivisor: 52,
   grossPointsMax: 0.20,      // first-dollar gross, stars only
   quoteExp: 0.070,            // steepness of the top of the market
-  buzzCentre: 57,
-  winBase: 0.18,
+  buzzCentre: 63,
+  winBase: 0.22,
 
   paletteScale: 0.32,
   franchiseKeepDecay: 1.2,    // identification lost per year while you keep doing them

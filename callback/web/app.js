@@ -11,7 +11,7 @@ import {
   GENRE_NAMES,
 } from '../engine/data.js';
 import { AMBITIONS, ambitionAdvice } from '../engine/ambition.js';
-import { LIFE_EVENTS } from '../engine/events.js';
+import { ARCS_BY_ID } from '../engine/arcs.js';
 import * as M from '../engine/model.js';
 
 const stage = document.getElementById('stage');
@@ -580,6 +580,7 @@ function finishShoot(note) {
     el('h2', {}, `${choice.role.title} wrapped`),
     el('p', { class: 'lede' }, game.log.filter((l) => l.kind === 'work').slice(-1)[0]?.text || ''),
     el('div', { class: 'attrib' },
+      el('div', {}, project.readConfidence),
       el('div', {}, `You were paid ${money(project.fee)}.`),
       unasked.length
         ? el('div', {}, `Three months of days you have had a hundred times: ${
@@ -664,16 +665,18 @@ function finishYear(before) {
   screenYearSummary(before);
 }
 
-// One a year at most, and only because something in your life caused it.
+// One a year at most, and only because something in your life caused it —
+// either a one-shot, or the next scene of an arc that has been building.
 function screenLifeEvent(event, before) {
   clear();
   drawHud();
-  const def = LIFE_EVENTS.find((e) => e.id === event.id);
+  const arc = event.kind === 'arc' ? ARCS_BY_ID[event.id] : null;
   put(
     el('h2', {}, `${game.year}`),
+    arc ? el('div', { class: 'meta' }, arc.label) : null,
     el('p', { class: 'lede' }, event.prompt),
   );
-  def.options.forEach((opt, i) => {
+  event.options.forEach((label, i) => {
     put(el('div', {
       class: 'card pick',
       onclick: () => {
@@ -681,7 +684,7 @@ function screenLifeEvent(event, before) {
         drawHud();
         screenYearSummary(before, res && res.text);
       },
-    }, el('h4', {}, opt.label)));
+    }, el('h4', {}, label)));
   });
 }
 
