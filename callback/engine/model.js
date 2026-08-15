@@ -53,9 +53,11 @@ export const K = {
   // Casting directors remember a good five minutes. Recognition is what gets
   // a nobody read for a supporting part; it does nothing for leads.
   recognitionGain: 0.42,        // per point of Notices over the centre
-  recognitionCentre: 55,
+  recognitionCentre: 51,
   recognitionKeep: 0.90,
   recognitionUtility: 0.30,     // weight in Utility for supporting/bit roles
+  recognitionFadesBy: 45,       // standing at which being remembered stops mattering
+  recognitionTier: 0.20,        // how much being remembered raises the tier you are offered
 
   openingBase: 0.92,          // box office: opening multiple on budget
   reachBase: 0.35,
@@ -187,10 +189,15 @@ export function utility(actor, role, relationshipBonus = 0) {
   const fit = fitScore(actor, role);
   const craftTerm = 0.6 * actor.attrs.craft + 0.4 * actor.attrs.instinct;
 
-  // FIX-1d Recognition only opens the lower two tiers. It is a way in, not a
-  // way up: nobody gets handed a lead because a casting director liked their
-  // two scenes, but they do get read for the supporting part.
-  const recog = role.billing === 'lead' ? 0 : K.recognitionUtility * actor.recognition;
+  // FIX-1d Recognition only opens the lower two tiers, and it fades as you
+  // acquire standing of your own. It is a way IN, not a way up: being the
+  // person who was good in that one scene gets an unknown read for the
+  // supporting part, and means nothing at all once you are somebody.
+  const standingNow = starPower(actor.standing);
+  const stillUseful = clamp(1 - standingNow / K.recognitionFadesBy, 0, 1);
+  const recog = role.billing === 'lead'
+    ? 0
+    : K.recognitionUtility * actor.recognition * stillUseful;
 
   // You are too expensive for this film. Capped, because an actor who wants a
   // part takes less for it, and the doc's uncapped version priced working

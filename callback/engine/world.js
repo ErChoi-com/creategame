@@ -229,6 +229,53 @@ export class World {
     };
   }
 
+  // What the trades would print at the end of a year. No decisions in here —
+  // it exists so the world is legible as something moving on its own, which is
+  // most of what makes a simulation feel inhabited.
+  tradePaper(game, seedRng) {
+    // Its own stream: the trades are read whenever the player feels like it,
+    // and anything the interface can call at will must not touch the sequence
+    // the save file replays.
+    const rng = new RNG((game.seed ^ (this.year * 2654435761)) >>> 0);
+    void seedRng;
+    const lines = [];
+    const sorted = GENRES.slice().sort((a, b) => this.demand[b] - this.demand[a]);
+    const hot = sorted[0];
+    const cold = sorted[sorted.length - 1];
+    const mom = this.momentum[hot];
+    lines.push(mom > 1.5
+      ? `Everyone is making ${hot} pictures. Demand ${this.demand[hot].toFixed(0)} and climbing, and the greenlights from two years ago are still arriving.`
+      : mom < -1.5
+        ? `The ${hot} boom is over. Four of them opened this year and three of them lost money.`
+        : `${hot[0].toUpperCase()}${hot.slice(1)} is what sells this year. Nobody will finance ${cold}.`);
+
+    const recent = this.landmarks.filter((l) => this.year - l.year <= 3);
+    if (recent.length) {
+      const l = recent[recent.length - 1];
+      lines.push(l.author === game.actor.name
+        ? `${l.name} has been copied ${l.copies} times since you made it.`
+        : `Everyone is trying to shoot like ${l.name} now. ${l.copies} of them so far.`);
+    }
+    const tired = this.landmarks.filter((l) => l.cliche && this.year - (l.clicheYear || 0) <= 2);
+    if (tired.length) {
+      lines.push(`Critics have started using "${tired[0].name}-ish" as an insult.`);
+    }
+
+    for (const s of this.scandals) {
+      lines.push(`${s.person.name} ${s.kind}${s.defendedBy ? `, and ${s.defendedBy} said so out loud` : ''}.`);
+    }
+
+    const retiring = this.directors.filter((d) => d.retired);
+    if (retiring.length && rng.chance(0.5)) {
+      lines.push(`${rng.pick(retiring).name} is not making another one.`);
+    }
+
+    const rising = this.costars.filter((c) => c.heat > 70).sort((a, b) => b.heat - a.heat)[0];
+    if (rising) lines.push(`${rising.name} is suddenly in everything.`);
+
+    return lines.slice(0, 5);
+  }
+
   makeNewcomer(rng) {
     const c = this._makeCostar();
     c.age = rng.int(19, 25);

@@ -14,6 +14,12 @@ export const DIAL_LABELS = {
   texture: ['Observational', 'Kinetic'],
 };
 
+export const GENRE_NAMES = {
+  drama: 'drama', comedy: 'comedy', action: 'action', horror: 'horror',
+  thriller: 'thriller', romance: 'romance', scifi: 'science fiction',
+  period: 'period', musical: 'musical', family: 'family',
+};
+
 export const GENRES = [
   'drama', 'comedy', 'action', 'horror', 'thriller',
   'romance', 'scifi', 'period', 'musical', 'family',

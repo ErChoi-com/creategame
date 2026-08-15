@@ -8,6 +8,7 @@
 import { Game, BACKGROUNDS, PREP_OPTIONS, MOMENTS } from '../engine/career.js';
 import {
   DIAL_LABELS, DIALS, PERF_DIALS, POSITIONS, POSITION_COST, READ, GENRE_DIAL_WEIGHT,
+  GENRE_NAMES,
 } from '../engine/data.js';
 import { AMBITIONS, ambitionAdvice } from '../engine/ambition.js';
 import { LIFE_EVENTS } from '../engine/events.js';
@@ -65,6 +66,9 @@ const clear = () => { stage.replaceChildren(); };
 // reaches the page goes through here.
 const put = (...kids) => stage.append(...kids.filter((k) => k != null));
 const money = (m) => (Math.abs(m) >= 1 ? `$${m.toFixed(1)}M` : `$${Math.round(m * 1000)}K`);
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many || `${one}s`}`;
+const genreName = (g) => GENRE_NAMES[g] || g;
+const article = (word) => `${/^[aeiou]/i.test(word) ? 'an' : 'a'} ${word}`;
 const quarterName = (q) => ['', 'Q1 — winter', 'Q2 — spring', 'Q3 — summer', 'Q4 — autumn'][q];
 
 function drawHud() {
@@ -270,7 +274,14 @@ function resume(saved) {
   } catch (err) {
     console.warn('save could not be replayed', err);
     clearSave();
-    screenCreate();
+    // Enter does the obvious thing on every screen.
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter' || e.target.tagName === 'INPUT') return;
+  const primary = stage.querySelector('button.primary:not([disabled])');
+  if (primary) { e.preventDefault(); primary.click(); }
+});
+
+screenCreate();
   }
 }
 
@@ -284,9 +295,17 @@ function screenQuarter(fresh = true, flash = null) {
   clear();
   const board = game.board;
 
+  const firstEver = !game.credits.length && !game.turnedDown.length && game.year === game.world.startYear;
   put(
     el('h2', {}, `${game.year} · ${quarterName(game.quarter)}`),
     flash ? el('p', { class: 'flash' }, flash) : null,
+    firstEver ? el('div', { class: 'card intro' },
+      el('p', {}, 'Your year is four blocks. Everything you take costs some of them, '
+        + 'so the two things you want are always in the same months.'),
+      el('p', {}, 'Read for something, pass on it, or open the moves menu below and '
+        + 'make something happen that was not going to. Nothing down there is ever '
+        + 'required — the game will not ask you for it and will not punish you for '
+        + 'ignoring it.')) : null,
     el('p', { class: 'lede' }, boardMood(board)),
   );
 
@@ -306,7 +325,7 @@ function screenQuarter(fresh = true, flash = null) {
     put(el('div', { class: 'card' },
       el('h4', {}, r.title),
       el('div', { class: 'meta' },
-        `${r.billing} · ${r.genre} · ${r.label} · $${r.budget.toFixed(0)}M · `
+        `${r.billing} · ${genreName(r.genre)} · ${r.label} · $${r.budget.toFixed(0)}M · `
         + `${r.blocks} block${r.blocks > 1 ? 's' : ''} · dir. ${r.director.name}`),
       el('p', { class: 'why' }, roleBlurb(r)),
       advice ? el('p', { class: 'advice' }, advice) : null,
@@ -375,7 +394,7 @@ function boardMood(board) {
 function roleBlurb(r) {
   const tone = { generous: 'known for being good with actors', exacting: 'known for take forty',
     chaotic: 'known for rewriting on the day', remote: 'known for not speaking to the cast' }[r.director.temperament];
-  return `${r.archetype.replace(/_/g, ' ')} in a ${r.genre} picture. ${r.director.name} is ${tone}. `
+  return `${r.archetype.replace(/_/g, ' ')} in a ${genreName(r.genre)} picture. ${r.director.name} is ${tone}. `
     + `Script reads ${r.scriptQuality > 72 ? 'genuinely good' : r.scriptQuality > 55 ? 'competent' : 'thin'}.`;
 }
 
@@ -468,7 +487,7 @@ function screenFilm(note) {
     el('p', { class: 'lede' },
       `${r.director.name} is shooting something ${coh.value > 65 ? 'very much like'
         : coh.value > 40 ? 'loosely in the shape of' : 'that does not resemble'} `
-      + `a ${coh.nearest.replace(/_/g, ' ')}. Coherence ${coh.value.toFixed(0)}`
+      + `${article(coh.nearest.replace(/_/g, ' '))}. Coherence ${coh.value.toFixed(0)}`
       + `${coh.value < 40 ? ' — wide open. It is a mess or it is a landmark.' : '.'}`),
     el('div', { class: 'palette' }, DIALS.flatMap((d) => [
       el('div', { class: 'l' }, DIAL_LABELS[d][0]),
@@ -667,10 +686,13 @@ function screenYearSummary(before, flash) {
         game.legibility < 36 ? 'casting directors still do not know what you are.'
           : game.legibility > 70 ? 'everyone knows exactly what you are, which is a floor and a ceiling.'
           : 'known for two or three things. The healthy place.'}`),
-      el('div', {}, `Standing ${game.standing.toFixed(0)} · recognition ${a.recognition.toFixed(0)} · ${a.unionCredits} union credits · ${game.favours} favours owed you`),
+      el('div', {}, `Standing ${game.standing.toFixed(0)} · recognition ${a.recognition.toFixed(0)} · `
+        + `${plural(a.unionCredits, 'union credit')} · ${plural(game.favours, 'favour')} owed you`),
       el('div', {}, `${money(game.money.net)} banked. Your life costs ${money(game.money.floor)} a year now.`),
       a.health < 60 ? el('div', {}, 'Your body is keeping a list.') : null,
     ),
+    el('h3', { class: 'section' }, 'The trades'),
+    el('div', { class: 'card trades' }, game.tradePaper().map((t) => el('p', {}, t))),
     el('button', { class: 'primary', onclick: () => screenQuarter() }, `On to ${game.year}`),
   );
 }
@@ -761,7 +783,7 @@ function screenObituary() {
     el('div', { class: 'obit' }, lines.map((l) => el('p', {}, l))),
     el('h3', { class: 'section' }, 'The credits'),
     el('div', { class: 'card' }, game.credits.length
-      ? game.credits.map((c) => el('div', { class: 'meta' }, `${c.year}  ${c.title} — ${c.billing}, ${c.genre}`))
+      ? game.credits.map((c) => el('div', { class: 'meta' }, `${c.year}  ${c.title} — ${c.billing}, ${genreName(c.genre)}`))
       : el('p', {}, 'None.')),
     game.turnedDown.length ? el('h3', { class: 'section' }, 'And what they passed on') : null,
     game.turnedDown.length
@@ -771,9 +793,23 @@ function screenObituary() {
     el('div', { style: 'margin-top:20px' },
       el('button', {
         class: 'primary',
-        onclick: () => { clearSave(); game = null; screenCreate(); },
+        onclick: () => { clearSave(); game = null; // Enter does the obvious thing on every screen.
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter' || e.target.tagName === 'INPUT') return;
+  const primary = stage.querySelector('button.primary:not([disabled])');
+  if (primary) { e.preventDefault(); primary.click(); }
+});
+
+screenCreate(); },
       }, 'Again')),
   );
 }
+
+// Enter does the obvious thing on every screen.
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter' || e.target.tagName === 'INPUT') return;
+  const primary = stage.querySelector('button.primary:not([disabled])');
+  if (primary) { e.preventDefault(); primary.click(); }
+});
 
 screenCreate();

@@ -69,6 +69,7 @@ export { MOMENT_POOL };
 
 
 
+const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 const roman = (n) => ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'][clamp(n - 1, 0, 9)];
 
 export class Game {
@@ -478,7 +479,8 @@ export class Game {
     // script quality. Being unavailable is a way of being wanted, and without
     // this term disappearing is strictly worse, which would make it a trap
     // rather than a strategy.
-    a.standingScalar = M.standing(a.standing) + 0.35 * a.recognition + 0.60 * this.scarcity;
+    a.standingScalar = M.standing(a.standing) + M.K.recognitionTier * a.recognition
+      + 0.60 * this.scarcity;
     a.legibilityValue = this.legibility;
     const band = this._ageBand(a.age);
     // Some quarters the phone does not ring. That has to be possible or the
@@ -575,7 +577,7 @@ export class Game {
   // most careers do not end in a decision, they end in a year with no offers
   // in it, and then another one.
   _ageBand(age) {
-    return age < 28 ? 1.30 : age < 39 ? 1.45 : age < 49 ? 1.00 : age < 61 ? 0.58 : 0.24;
+    return age < 28 ? 1.30 : age < 39 ? 1.45 : age < 49 ? 0.95 : age < 61 ? 0.50 : 0.18;
   }
 
   _relationshipBonus(role) {
@@ -628,7 +630,7 @@ export class Game {
       this.actor.standing.notoriety = clamp(this.actor.standing.notoriety + 6, 0, 100);
       this.say(`You said publicly that you wanted ${role.title}. You did not get ${role.title}.`, 'bad');
     } else {
-      this.say(`You read for ${role.title}. They went another way.`, 'bad');
+      this.say(this._rejection(role), 'bad');
     }
     return { cast: false, path: 'audition', role };
   }
@@ -644,6 +646,39 @@ export class Game {
       id: role.id,
     });
     return role;
+  }
+
+  // Rejection is most of this job and it should not read like one line of copy
+  // repeated four hundred times.
+  _rejection(role) {
+    const t = role.title;
+    const lines = [
+      `You read for ${t}. They went another way.`,
+      `You read for ${t} twice. The second one was the callback, which is worse.`,
+      `${t} went to someone with a name.`,
+      `You were on the list for ${t} until you were not.`,
+      `${role.castingDirector.name} liked you for ${t}. The director did not.`,
+      `They said thank you for coming in on ${t}.`,
+      `${t}: no callback, no explanation, which is the explanation.`,
+      `You put yourself on tape for ${t} and heard nothing at all.`,
+    ];
+    return lines[this.rng.int(0, lines.length - 1)];
+  }
+
+  // The turns a career actually has. Said once, when they happen.
+  _milestone(role) {
+    const a = this.actor;
+    const counts = this.credits.filter((c) => c.billing === role.billing).length;
+    if (role.billing === 'supporting' && counts === 1) {
+      return 'Your first proper part. Somebody in a room decided you could carry scenes.';
+    }
+    if (role.billing === 'lead' && counts === 1) {
+      return 'Your name is above the title of a film for the first time.';
+    }
+    if (a.unionCredits === 3) return 'Three union credits. The real board opens now.';
+    if (this.credits.length === 10) return 'Ten credits. You are a working actor, whatever else you are.';
+    if (this.credits.length === 50) return 'Fifty credits. Most people who started when you did are doing something else.';
+    return null;
   }
 
   // ------------------------------------------------------------------- shoot
@@ -832,6 +867,8 @@ export class Game {
       `${this._qualitativeRead(perf.value, director)}`,
       'work',
     );
+    const milestone = this._milestone(role);
+    if (milestone) this.say(milestone, 'good');
     return project;
   }
 
@@ -1018,13 +1055,62 @@ export class Game {
 
   _headline(rec, p) {
     const t = p.role.title;
-    if (rec.roi > 2.2 && rec.notices > 66) return `${t} is a hit and you are the reason people say they liked it.`;
-    if (rec.roi > 2.2) return `${t} made a great deal of money. Nobody mentions you.`;
-    if (rec.roi < 0.6 && rec.notices > 68) return `${t} died on release. Your reviews are the best of your life.`;
-    if (rec.roi < 0.6) return `${t} came and went in eleven days.`;
-    if (rec.notices > 72) return `${t} opened modestly. Two critics single you out.`;
-    if (rec.notices < 42) return `${t} opened. You are mentioned once, in a list.`;
-    return `${t} opened to roughly what everyone expected.`;
+    const lead = p.role.billing === 'lead';
+    const pick = (arr) => arr[this.rng.int(0, arr.length - 1)];
+
+    if (rec.roi > 2.2 && rec.notices > 66) {
+      return pick([
+        `${t} is a hit and you are the reason people say they liked it.`,
+        `${t} is the picture of the year and your name is above the reviews.`,
+        `Queues for ${t}. Two critics call your performance the whole engine of it.`,
+      ]);
+    }
+    if (rec.roi > 2.2) {
+      return pick([
+        `${t} made a great deal of money. Nobody mentions you.`,
+        `${t} is enormous. The reviews are about the effects.`,
+        `${t} sells out everywhere and you are third in the paragraph.`,
+      ]);
+    }
+    if (rec.roi < 0.6 && rec.notices > 68) {
+      return pick([
+        `${t} died on release. Your reviews are the best of your life.`,
+        `Nobody went to ${t}. Everyone who did wrote about you.`,
+        `${t} lost its money in a fortnight and made your reputation.`,
+      ]);
+    }
+    if (rec.roi < 0.6) {
+      return pick([
+        `${t} came and went in eleven days.`,
+        `${t} opened against something enormous and was gone by the Tuesday.`,
+        `${t} went out on ninety screens and came back off them.`,
+      ]);
+    }
+    if (rec.notices > 72) {
+      return pick([
+        `${t} opened modestly. Two critics single you out.`,
+        `${t} is fine. You are not fine, you are extraordinary, and it is noticed.`,
+        `The reviews for ${t} spend a paragraph each on ${lead ? 'you' : 'your fifteen minutes'}.`,
+      ]);
+    }
+    if (rec.notices < 42) {
+      return pick([
+        `${t} opened. You are mentioned once, in a list.`,
+        `${t} came out. Nobody writes about your part of it.`,
+        `${t} exists now, with you in it, apparently.`,
+      ]);
+    }
+    if (rec.filmCritic > 70 && rec.audience < 48) {
+      return `${t} is the sort of film critics defend and nobody sees.`;
+    }
+    if (rec.filmCritic < 45 && rec.audience > 62) {
+      return `${t} is loved by everyone except the people paid to write about it.`;
+    }
+    return pick([
+      `${t} opened to roughly what everyone expected.`,
+      `${t} came out and the world stayed the same shape.`,
+      `${t} did what the tracking said it would do.`,
+    ]);
   }
 
   // §0.3 Rule 2: every outcome ships with an attribution.
@@ -1204,7 +1290,11 @@ export class Game {
     // People drift, and people die.
     const gone = this.rolodex.tickYear(this.year, this.rng);
     for (const e of gone) {
-      this.say(`${e.person.name} died. Whatever you were owed died with them.`, 'bad');
+      if (e.favours > 0) {
+        this.say(`${e.person.name} died owing you ${plural(e.favours, 'favour')}. That is gone now.`, 'bad');
+      } else if (e.sharedProjects > 1 || e.affinity > 40) {
+        this.say(`${e.person.name} died. You made ${plural(e.sharedProjects, 'film')} together.`, 'bad');
+      }
     }
 
     // Mentees grow into the industry. In twenty years one of them may be the
@@ -1282,6 +1372,11 @@ export class Game {
   _end(reason) {
     this.over = true;
     this.endReason = reason;
+  }
+
+  // What the trades printed this year.
+  tradePaper() {
+    return this.world.tradePaper(this);
   }
 
   // ------------------------------------------------------------------ a life

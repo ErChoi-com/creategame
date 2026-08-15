@@ -176,3 +176,10 @@ input.text.short { width: 130px; margin-left: 8px; }
 .currency i { display: block; height: 100%; transition: width 0.25s ease; }
 .currency i.you { background: var(--accent); }
 .currency i.film { background: var(--good); }
+
+.trades p { margin: 0 0 8px; color: var(--dim); font-size: 14px; }
+.trades p:last-child { margin-bottom: 0; }
+
+.card.intro { border-color: var(--accent); background: var(--panel-2); }
+.card.intro p { margin: 0 0 8px; font-size: 14px; color: var(--dim); }
+.card.intro p:last-child { margin-bottom: 0; }

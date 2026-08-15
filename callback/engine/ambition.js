@@ -65,6 +65,12 @@ export const AMBITIONS = {
 export function ambitionReport(game) {
   const a = AMBITIONS[game.ambition] || AMBITIONS.work;
   const v = a.score(game);
+  if (!game.credits.length) {
+    return {
+      label: a.label, measure: a.measure, value: '—',
+      grade: 'Too early to say', changed: game.ambitionChangedAt,
+    };
+  }
   return {
     label: a.label,
     measure: a.measure,

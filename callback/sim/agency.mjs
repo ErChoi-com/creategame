@@ -171,100 +171,103 @@ function pushesAtAge(games, age) {
   return vals.length ? mean(vals) : 0;
 }
 
-const n = Number(process.argv[2] || 400);
-const rows = POLICIES.map((p) => profile(p, n));
-
-console.log(`\n=== AGENCY AUDIT (${n} careers per playstyle) ===\n`);
-const head = ['playstyle', 'active', 'peakHeat', 'notices', 'prestige', 'earn med', 'earn p90', 'wins/100', 'range', 'favours', 'levers'];
-console.log(head[0].padEnd(30) + head.slice(1).map((h) => h.padStart(9)).join(''));
-for (const r of rows) {
-  console.log(
-    r.name.padEnd(30)
-    + r.active.toFixed(0).padStart(9)
-    + r.peak.toFixed(0).padStart(9)
-    + r.notices.toFixed(1).padStart(9)
-    + r.prestige.toFixed(0).padStart(9)
-    + `$${r.earnMed.toFixed(1)}`.padStart(9)
-    + `$${r.earnP90.toFixed(0)}`.padStart(9)
-    + r.wins.toFixed(0).padStart(9)
-    + r.range.toFixed(1).padStart(9)
-    + r.favours.toFixed(1).padStart(9)
-    + r.levers.toFixed(1).padStart(9),
-  );
-}
-
-// --- 1. Pull is free ------------------------------------------------------
-console.log('\n1. PULL IS FREE — the plain policy never opens the menu (§0.3 rule 2b)');
-const p0 = rows[0];
-const viable = p0.active >= 20 && p0.earnMed >= 4 && p0.hot >= 8 && p0.lead42 >= 18;
-console.log(`   plain: ${p0.active.toFixed(0)} active years, $${p0.earnMed.toFixed(1)}M median, `
-  + `${p0.hot.toFixed(0)}% reach Heat 80, ${p0.lead42.toFixed(0)}% lead after 42, ${p0.levers.toFixed(1)} actions used`);
-console.log(`   ${viable ? 'ok' : '<<<'} a career that ignores Part 6 entirely is still a complete career`);
-
-// --- 2. Nothing dominates, and every style is a different career ----------
-console.log('\n2. NOTHING DOMINATES — no optimal line, and the styles are actually different (§0.1, §6.8)');
-const axes = Object.keys(AMBITIONS);
-const val = (row, axis) => row.ambitions[axis];
-const winners = {};
-for (const axis of axes) {
-  const best = rows.reduce((a, b) => (val(b, axis) > val(a, axis) ? b : a));
-  winners[axis] = best.name;
-}
-console.log('   scored against the six Ambitions the game declares in §0.4:');
-for (const axis of axes) {
-  console.log(`   ${AMBITIONS[axis].label.padEnd(16)} ${winners[axis].padEnd(30)}`
-    + rows.map((r) => val(r, axis).toFixed(0).padStart(8)).join(''));
-}
-
-// (a) nobody wins everything, and nobody loses everything
-const dominators = rows.filter((r) => axes.every((a) => winners[a] === r.name));
-const alsoRans = rows.filter((r) => axes.every((a) => {
-  const worst = rows.reduce((x, y) => (val(y, a) < val(x, a) ? y : x));
-  return worst.name === r.name;
-}));
-
-// (b) each style is viable on its own terms — a real career, not a trap
-const viableStyles = rows.filter((r) => r.active >= 18 && r.earnMed >= 3 && r.notices >= 40);
-
-// (c) and each is a materially different career from the plain one
-const plainRow = rows[0];
-// Shape axes: the six declared win conditions, plus two the Ambitions do not
-// cover — how many lanes you worked in, and how big your best years got.
-const shapeAxes = [
-  ...axes.map((a) => [AMBITIONS[a].label, (r) => val(r, a)]),
-  ['range of work', (r) => r.range],
-  ['top-end money', (r) => r.earnP90],
-];
-const divergence = rows.slice(1).map((r) => {
-  const diffs = shapeAxes.filter(([, get]) => {
-    const base = Math.abs(get(plainRow)) + 1e-6;
-    return Math.abs(get(r) - get(plainRow)) / base > 0.25;
-  }).map(([label]) => label);
-  return { name: r.name, axes: diffs };
-});
-for (const d of divergence) {
-  console.log(`   ${d.name.padEnd(30)} differs from plain on: ${d.axes.join(', ') || 'nothing'}`);
-}
-const allDiverge = divergence.every((d) => d.axes.length >= 2);
-const noDominance = dominators.length === 0 && alsoRans.length === 0
-  && viableStyles.length === rows.length && allDiverge;
-console.log(`   ${noDominance ? 'ok' : '<<<'} ${dominators.length} dominate every axis, `
-  + `${alsoRans.length} lose every axis, ${viableStyles.length}/${rows.length} viable, `
-  + `${divergence.filter((d) => d.axes.length >= 2).length}/${divergence.length} play out differently`);
-
-// --- 3. Options narrow ----------------------------------------------------
-console.log('\n3. OPTIONS NARROW, NOT MULTIPLY — pushed prompts at 15 vs 45 (§0.3 rule 3)');
-let narrows = true;
-for (const r of rows) {
-  const ok = r.pushes45 <= r.pushes15 + 1;
-  if (!ok) narrows = false;
-  console.log(`   ${r.name.padEnd(30)} year 15: ${r.pushes15.toFixed(1)}  year 45: ${r.pushes45.toFixed(1)}  ${ok ? 'ok' : '<<<'}`);
-}
-const budgetOk = rows.every((r) => Math.max(r.pushes15, r.pushes45) <= 20);
-console.log(`   ${budgetOk ? 'ok' : '<<<'} everyone stays inside §0.2's ~20 pushed decisions a year`);
-
-const passed = [viable, noDominance, narrows, budgetOk].filter(Boolean).length;
-console.log(`\n${passed}/4 agency rules hold.\n`);
-process.exitCode = passed === 4 ? 0 : 1;
-
 export { POLICIES };
+
+// Only audit when run directly; transcript.mjs imports the playstyles.
+if (import.meta.url === `file://${process.argv[1]}`) {
+  const n = Number(process.argv[2] || 400);
+  const rows = POLICIES.map((p) => profile(p, n));
+
+  console.log(`\n=== AGENCY AUDIT (${n} careers per playstyle) ===\n`);
+  const head = ['playstyle', 'active', 'peakHeat', 'notices', 'prestige', 'earn med', 'earn p90', 'wins/100', 'range', 'favours', 'levers'];
+  console.log(head[0].padEnd(30) + head.slice(1).map((h) => h.padStart(9)).join(''));
+  for (const r of rows) {
+    console.log(
+      r.name.padEnd(30)
+      + r.active.toFixed(0).padStart(9)
+      + r.peak.toFixed(0).padStart(9)
+      + r.notices.toFixed(1).padStart(9)
+      + r.prestige.toFixed(0).padStart(9)
+      + `$${r.earnMed.toFixed(1)}`.padStart(9)
+      + `$${r.earnP90.toFixed(0)}`.padStart(9)
+      + r.wins.toFixed(0).padStart(9)
+      + r.range.toFixed(1).padStart(9)
+      + r.favours.toFixed(1).padStart(9)
+      + r.levers.toFixed(1).padStart(9),
+    );
+  }
+
+  // --- 1. Pull is free ------------------------------------------------------
+  console.log('\n1. PULL IS FREE — the plain policy never opens the menu (§0.3 rule 2b)');
+  const p0 = rows[0];
+  const viable = p0.active >= 20 && p0.earnMed >= 4 && p0.hot >= 8 && p0.lead42 >= 18;
+  console.log(`   plain: ${p0.active.toFixed(0)} active years, $${p0.earnMed.toFixed(1)}M median, `
+    + `${p0.hot.toFixed(0)}% reach Heat 80, ${p0.lead42.toFixed(0)}% lead after 42, ${p0.levers.toFixed(1)} actions used`);
+  console.log(`   ${viable ? 'ok' : '<<<'} a career that ignores Part 6 entirely is still a complete career`);
+
+  // --- 2. Nothing dominates, and every style is a different career ----------
+  console.log('\n2. NOTHING DOMINATES — no optimal line, and the styles are actually different (§0.1, §6.8)');
+  const axes = Object.keys(AMBITIONS);
+  const val = (row, axis) => row.ambitions[axis];
+  const winners = {};
+  for (const axis of axes) {
+    const best = rows.reduce((a, b) => (val(b, axis) > val(a, axis) ? b : a));
+    winners[axis] = best.name;
+  }
+  console.log('   scored against the six Ambitions the game declares in §0.4:');
+  for (const axis of axes) {
+    console.log(`   ${AMBITIONS[axis].label.padEnd(16)} ${winners[axis].padEnd(30)}`
+      + rows.map((r) => val(r, axis).toFixed(0).padStart(8)).join(''));
+  }
+
+  // (a) nobody wins everything, and nobody loses everything
+  const dominators = rows.filter((r) => axes.every((a) => winners[a] === r.name));
+  const alsoRans = rows.filter((r) => axes.every((a) => {
+    const worst = rows.reduce((x, y) => (val(y, a) < val(x, a) ? y : x));
+    return worst.name === r.name;
+  }));
+
+  // (b) each style is viable on its own terms — a real career, not a trap
+  const viableStyles = rows.filter((r) => r.active >= 18 && r.earnMed >= 3 && r.notices >= 40);
+
+  // (c) and each is a materially different career from the plain one
+  const plainRow = rows[0];
+  // Shape axes: the six declared win conditions, plus two the Ambitions do not
+  // cover — how many lanes you worked in, and how big your best years got.
+  const shapeAxes = [
+    ...axes.map((a) => [AMBITIONS[a].label, (r) => val(r, a)]),
+    ['range of work', (r) => r.range],
+    ['top-end money', (r) => r.earnP90],
+  ];
+  const divergence = rows.slice(1).map((r) => {
+    const diffs = shapeAxes.filter(([, get]) => {
+      const base = Math.abs(get(plainRow)) + 1e-6;
+      return Math.abs(get(r) - get(plainRow)) / base > 0.25;
+    }).map(([label]) => label);
+    return { name: r.name, axes: diffs };
+  });
+  for (const d of divergence) {
+    console.log(`   ${d.name.padEnd(30)} differs from plain on: ${d.axes.join(', ') || 'nothing'}`);
+  }
+  const allDiverge = divergence.every((d) => d.axes.length >= 2);
+  const noDominance = dominators.length === 0 && alsoRans.length === 0
+    && viableStyles.length === rows.length && allDiverge;
+  console.log(`   ${noDominance ? 'ok' : '<<<'} ${dominators.length} dominate every axis, `
+    + `${alsoRans.length} lose every axis, ${viableStyles.length}/${rows.length} viable, `
+    + `${divergence.filter((d) => d.axes.length >= 2).length}/${divergence.length} play out differently`);
+
+  // --- 3. Options narrow ----------------------------------------------------
+  console.log('\n3. OPTIONS NARROW, NOT MULTIPLY — pushed prompts at 15 vs 45 (§0.3 rule 3)');
+  let narrows = true;
+  for (const r of rows) {
+    const ok = r.pushes45 <= r.pushes15 + 1;
+    if (!ok) narrows = false;
+    console.log(`   ${r.name.padEnd(30)} year 15: ${r.pushes15.toFixed(1)}  year 45: ${r.pushes45.toFixed(1)}  ${ok ? 'ok' : '<<<'}`);
+  }
+  const budgetOk = rows.every((r) => Math.max(r.pushes15, r.pushes45) <= 20);
+  console.log(`   ${budgetOk ? 'ok' : '<<<'} everyone stays inside §0.2's ~20 pushed decisions a year`);
+
+  const passed = [viable, noDominance, narrows, budgetOk].filter(Boolean).length;
+  console.log(`\n${passed}/4 agency rules hold.\n`);
+  process.exitCode = passed === 4 ? 0 : 1;
+}

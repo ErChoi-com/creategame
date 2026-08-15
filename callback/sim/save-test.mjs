@@ -49,12 +49,16 @@ const after = await page.evaluate(() => JSON.parse(localStorage.getItem('callbac
 const hudAfter = await page.textContent('#hud-when');
 const nameAfter = await page.textContent('#hud-name');
 
-const sameJournal = JSON.stringify(before.journal) === JSON.stringify(after.journal);
+// Resuming can legitimately append (re-opening the board, say). The invariant
+// is that everything the save recorded is still there, unchanged, in order.
+const prefix = after.journal.slice(0, before.journal.length);
+const sameJournal = JSON.stringify(before.journal) === JSON.stringify(prefix);
 const sameWhen = hudBefore === hudAfter;
 const sameWho = nameBefore === nameAfter;
 
 console.log('journal length %d', before.journal.length);
-console.log('  same journal after reload: %s', sameJournal);
+console.log('  saved history intact after reload: %s (%d -> %d calls)',
+  sameJournal, before.journal.length, after.journal.length);
 console.log('  same actor: %s (%s)', sameWho, nameAfter);
 console.log('  same point in time: %s (%s)', sameWhen, hudAfter);
 console.log('  page errors: %d', errors.length);
