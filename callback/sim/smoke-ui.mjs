@@ -9,6 +9,16 @@
 
 import { chromium } from 'playwright';
 
+// Deterministic wander, so a failure is reproducible.
+let seed = Number(process.env.SEED || 7) >>> 0;
+const rand = () => {
+  seed = (seed + 0x6d2b79f5) >>> 0;
+  let t = seed;
+  t = Math.imul(t ^ (t >>> 15), t | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+};
+
 const URL = process.env.CALLBACK_URL || 'http://localhost:8777/callback/web/index.html';
 const browser = await chromium.launch({
   executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium',
@@ -28,7 +38,8 @@ await page.waitForTimeout(200);
 let reachedObituary = false;
 const screens = new Set();
 
-for (let i = 0; i < 900; i++) {
+const MAX_CLICKS = Number(process.env.CLICKS || 2000);
+for (let i = 0; i < MAX_CLICKS && !reachedObituary; i++) {
   const h2 = (await page.textContent('h2').catch(() => '')) || '';
   screens.add(h2.trim().slice(0, 18));
   if (process.env.TRACE) console.log(i, h2.trim().slice(0, 40));
@@ -45,11 +56,12 @@ for (let i = 0; i < 900; i++) {
   // random walker will sit in them forever, so leave them promptly.
   const sideScreen = /^(Standing orders|The Rolodex|About |Awards season)/.test(h2.trim())
     || h2.trim() === '' || /^[A-Z][a-z]+ [A-Z]/.test(h2.trim());
-  const roll = sideScreen ? 0.9 : Math.random();
+  // Wander a third of the time; otherwise drive the career forward.
+  const roll = sideScreen ? 0.95 : rand();
   if (cards.length && roll < 0.35) {
-    await cards[Math.floor(Math.random() * cards.length)].click();
+    await cards[Math.floor(rand() * cards.length)].click();
   } else if (buttons.length && roll < 0.55) {
-    await buttons[Math.floor(Math.random() * buttons.length)].click();
+    await buttons[Math.floor(rand() * buttons.length)].click();
   } else {
     let clicked = false;
     for (const b of buttons) {
@@ -64,7 +76,7 @@ for (let i = 0; i < 900; i++) {
       else if (cards.length) await cards[0].click();
     }
   }
-  await page.waitForTimeout(4);
+  await page.waitForTimeout(2);
 }
 
 console.log('screens visited: %d | reached obituary: %s | console errors: %d',

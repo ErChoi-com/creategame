@@ -8,12 +8,13 @@ import {
   BILLING_DIFFICULTY, FIRST_NAMES, LAST_NAMES, TITLE_A, TITLE_B, SHAPES,
 } from './data.js';
 
-let uid = 0;
-const nextId = () => `id${++uid}`;
+// Instance-scoped so a replayed world hands out exactly the same ids.
+const makeIds = () => { let n = 0; return () => `id${++n}`; };
 
 export class World {
   constructor(rng, startYear = 1974) {
     this.rng = rng;
+    this.nextId = makeIds();
     this.year = startYear;
     this.startYear = startYear;
     this.quarter = 1;
@@ -51,7 +52,7 @@ export class World {
   _makeDirector() {
     const rng = this.rng;
     return {
-      id: nextId(),
+      id: this.nextId(),
       kind: 'director',
       name: this.name(),
       age: rng.int(28, 66),
@@ -72,7 +73,7 @@ export class World {
   _makeCastingDirector() {
     const rng = this.rng;
     return {
-      id: nextId(),
+      id: this.nextId(),
       kind: 'casting',
       name: this.name(),
       // What this room rewards. You learn it by being in it.
@@ -85,7 +86,7 @@ export class World {
   _makeCostar() {
     const rng = this.rng;
     return {
-      id: nextId(),
+      id: this.nextId(),
       kind: 'costar',
       name: this.name(),
       age: rng.int(22, 58),
@@ -213,7 +214,7 @@ export class World {
     const genre = opts.genre || rng.pick(GENRES);
     const quality = clamp(rng.gauss(opts.quality ?? 60, 14), 20, 98);
     return {
-      id: nextId(),
+      id: this.nextId(),
       title: this.title(),
       genre,
       quality,
@@ -321,7 +322,7 @@ export class World {
     const share = billing === 'lead' ? 0.14 : billing === 'supporting' ? 0.06 : 0.015;
 
     return {
-      id: nextId(),
+      id: this.nextId(),
       title: this.title(),
       genre, type, billing, gatekeeper, archetype, charAge,
       blocks: PROJECT_TYPES[type].blocks,

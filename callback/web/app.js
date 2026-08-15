@@ -6,8 +6,11 @@
 //   PULL — you open the moves menu because you want to. Unbudgeted, ~30 verbs.
 
 import { Game, BACKGROUNDS, PREP_OPTIONS, MOMENTS } from '../engine/career.js';
-import { DIAL_LABELS, DIALS, PERF_DIALS, POSITIONS, POSITION_COST } from '../engine/data.js';
+import {
+  DIAL_LABELS, DIALS, PERF_DIALS, POSITIONS, POSITION_COST, READ, GENRE_DIAL_WEIGHT,
+} from '../engine/data.js';
 import { AMBITIONS, ambitionAdvice } from '../engine/ambition.js';
+import { LIFE_EVENTS } from '../engine/events.js';
 import * as M from '../engine/model.js';
 
 const stage = document.getElementById('stage');
@@ -17,6 +20,30 @@ const ledger = document.getElementById('ledger');
 let game = null;
 let choice = {};
 let showAllMoves = false;
+
+const SAVE_KEY = 'callback.save.v1';
+
+// Every mutating call goes through the journal, and the journal is the save.
+function act(name, args = []) {
+  const out = game.call(name, args);
+  persist();
+  return out;
+}
+
+function persist() {
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(game.save())); } catch { /* full or blocked */ }
+}
+
+function storedSave() {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+function clearSave() {
+  try { localStorage.removeItem(SAVE_KEY); } catch { /* nothing to do */ }
+}
 
 // ---------------------------------------------------------------------------
 const el = (tag, attrs = {}, ...kids) => {
@@ -34,6 +61,9 @@ const el = (tag, attrs = {}, ...kids) => {
   return n;
 };
 const clear = () => { stage.replaceChildren(); };
+// DOM append() turns a null child into the string "null", so everything that
+// reaches the page goes through here.
+const put = (...kids) => stage.append(...kids.filter((k) => k != null));
 const money = (m) => (Math.abs(m) >= 1 ? `$${m.toFixed(1)}M` : `$${Math.round(m * 1000)}K`);
 const quarterName = (q) => ['', 'Q1 — winter', 'Q2 — spring', 'Q3 — summer', 'Q4 — autumn'][q];
 
@@ -109,7 +139,7 @@ function movesPanel(ctx, redraw) {
     wrap.append(el('div', {
       class: 'card pick move',
       onclick: () => {
-        const res = game.do(action.id, ctx);
+        const res = act('do', [action.id, Game.ctxRef(ctx)]);
         drawHud();
         showAllMoves = false;
         redraw(res.text);
@@ -123,6 +153,40 @@ function movesPanel(ctx, redraw) {
   return wrap;
 }
 
+// What a position on a dial reads as, in words rather than numbers. Craft
+// knowledge — it tells you what the choice IS, never what the outcome will be.
+function readsAs(dial, pos, genre) {
+  const [forYou, forFilm] = READ[dial][pos];
+  const weight = (GENRE_DIAL_WEIGHT[genre] || {})[dial] ?? 1;
+  const mine = forYou * weight;
+  const noun = {
+    energy: ['still', 'kinetic'], volume: ['quiet', 'loud'],
+    warmth: ['cold', 'warm'], speed: ['slow', 'quick'],
+  }[dial];
+  const phrases = {
+    with: 'part of the texture',
+    beneath: `the ${noun[0]} inside it`,
+    beyond: `the most ${noun[1]} thing on screen`,
+    against: 'counterpoint — the thing they quote',
+  };
+  const you = mine > 3.2 ? 'memorable' : mine > 1.8 ? 'noticed' : 'invisible';
+  const film = forFilm > 0.8 ? 'helps the film' : forFilm < -0.4 ? 'costs the film' : 'neutral for the film';
+  return `${phrases[pos]} — ${you}, ${film}`;
+}
+
+function currencyBars(resolved) {
+  const bar = (label, value, max, cls) => el('div', { class: 'currency' },
+    el('span', {}, label),
+    el('div', { class: 'track' },
+      el('i', { class: cls, style: `width:${clampPct(value, max)}%` })),
+  );
+  return el('div', { class: 'currencies' },
+    bar('for your reviews', resolved.forYou, 18, 'you'),
+    bar('for the film', resolved.forFilm, 8, 'film'),
+  );
+}
+const clampPct = (v, max) => Math.max(2, Math.min(100, (v / max) * 100));
+
 // ---------------------------------------------------------------------------
 // 1. character creation
 // ---------------------------------------------------------------------------
@@ -132,14 +196,20 @@ function screenCreate() {
   ledger.hidden = true;
   let picked = 'conservatory';
   let ambition = 'work';
+  const saved = storedSave();
 
   const render = () => {
     clear();
-    stage.append(
+    put(
       el('h1', {}, 'Callback'),
       el('p', { class: 'lede' },
         'You are an actor. The work is the game: what you take, how you play it, and what the '
         + 'industry decides that means. Nobody will ever tell you how good you were.'),
+      saved ? el('div', { class: 'card pick', onclick: () => resume(saved) },
+        el('h4', {}, 'Carry on with the career you were having'),
+        el('div', { class: 'meta' },
+          `${saved.name || 'unnamed'} · ${saved.journal.length} decisions so far`),
+        el('p', { class: 'why' }, 'Picks up exactly where you left it.')) : null,
       el('h3', { class: 'section' }, 'Where you are starting from'),
       el('div', { class: 'grid2' }, Object.entries(BACKGROUNDS).map(([key, bg]) => el('div', {
         class: 'card pick',
@@ -170,7 +240,7 @@ function screenCreate() {
 
     const nameInput = el('input', { placeholder: 'a name, or leave it blank', class: 'text' });
     const seedInput = el('input', { placeholder: 'seed', class: 'text short' });
-    stage.append(
+    put(
       el('h3', { class: 'section' }, 'Who you are'),
       el('div', {}, nameInput, seedInput),
       el('div', { style: 'margin-top:20px' }, el('button', {
@@ -182,6 +252,7 @@ function screenCreate() {
             name: nameInput.value.trim() || undefined,
           });
           game.say(`${BACKGROUNDS[picked].label}. ${game.year}. Nobody knows your name yet.`);
+          persist();
           screenQuarter();
         },
       }, 'Start working')),
@@ -190,28 +261,41 @@ function screenCreate() {
   render();
 }
 
+function resume(saved) {
+  try {
+    game = Game.load(saved);
+    game.say('You pick it up where you left it.', 'note');
+    if (game.over) return screenObituary();
+    screenQuarter(game.board.length === 0);
+  } catch (err) {
+    console.warn('save could not be replayed', err);
+    clearSave();
+    screenCreate();
+  }
+}
+
 // ---------------------------------------------------------------------------
 // 2. the quarter — the board, and the moves menu beside it
 // ---------------------------------------------------------------------------
 function screenQuarter(fresh = true, flash = null) {
   if (game.over) return screenObituary();
-  if (fresh) game.openBoard();
+  if (fresh) act('openBoard');
   drawHud();
   clear();
   const board = game.board;
 
-  stage.append(
+  put(
     el('h2', {}, `${game.year} · ${quarterName(game.quarter)}`),
     flash ? el('p', { class: 'flash' }, flash) : null,
     el('p', { class: 'lede' }, boardMood(board)),
   );
 
   if (game.hiatus) {
-    stage.append(el('div', { class: 'card' }, el('p', {},
+    put(el('div', { class: 'card' }, el('p', {},
       'You are not working. Nobody is being told why. '
       + `Scarcity ${game.scarcity.toFixed(0)} of 40.`)));
   } else if (!board.length) {
-    stage.append(el('div', { class: 'card' }, el('p', {},
+    put(el('div', { class: 'card' }, el('p', {},
       'Nothing this quarter. Your agent says it is quiet everywhere, which is what agents say.')));
   }
 
@@ -219,7 +303,7 @@ function screenQuarter(fresh = true, flash = null) {
     const noDates = game.blocksBooked + r.blocks > 4;
     const locked = r.union && game.actor.unionCredits < 3;
     const advice = ambitionAdvice(game, r);
-    stage.append(el('div', { class: 'card' },
+    put(el('div', { class: 'card' },
       el('h4', {}, r.title),
       el('div', { class: 'meta' },
         `${r.billing} · ${r.genre} · ${r.label} · $${r.budget.toFixed(0)}M · `
@@ -250,7 +334,7 @@ function screenQuarter(fresh = true, flash = null) {
           disabled: noDates || locked,
           onclick: () => attempt(r),
         }, r.path === 'audition' ? 'Read for it' : 'Take it'),
-        el('button', { onclick: () => { game.decline(r.id); screenQuarter(false, 'Passed.'); } }, 'Pass'),
+        el('button', { onclick: () => { act('decline', [r.id]); screenQuarter(false, 'Passed.'); } }, 'Pass'),
         el('button', {
           onclick: () => screenMoves({ role: r }, `About ${r.title}`),
         }, 'Do something about it'),
@@ -258,7 +342,7 @@ function screenQuarter(fresh = true, flash = null) {
     ));
   }
 
-  stage.append(
+  put(
     movesPanel({}, (text) => screenQuarter(false, text)),
     el('div', { class: 'row spaced' },
       el('button', {
@@ -299,7 +383,7 @@ function roleBlurb(r) {
 function screenMoves(ctx, title) {
   clear();
   drawHud();
-  stage.append(
+  put(
     el('h2', {}, title),
     el('p', { class: 'lede' }, 'Nothing here is required. Nothing here will ever be asked of you.'),
     movesPanel(ctx, (text) => screenMoves(ctx, title)),
@@ -309,11 +393,11 @@ function screenMoves(ctx, title) {
 }
 
 function attempt(role) {
-  const res = game.pursue(role.id);
+  const res = act('pursue', [role.id]);
   drawHud();
   if (!res.cast) {
     clear();
-    stage.append(
+    put(
       el('h2', {}, role.title),
       el('p', { class: 'lede' }, res.note || 'They went another way. You will not be told why.'),
       el('button', { class: 'primary', onclick: () => screenQuarter(false) }, 'Back to the board'),
@@ -333,7 +417,7 @@ function screenPrep() {
   clear();
   drawHud();
   game.countPush('prep');
-  stage.append(
+  put(
     el('h2', {}, `You are doing ${r.title}`),
     el('p', { class: 'lede' },
       `${r.billing === 'lead' ? 'Above the title.' : r.billing === 'supporting' ? 'Fourth on the call sheet.' : 'Two scenes.'} `
@@ -341,7 +425,7 @@ function screenPrep() {
     el('h3', { class: 'section' }, 'This one is worth thinking about'),
   );
   for (const [key, p] of Object.entries(PREP_OPTIONS)) {
-    stage.append(el('div', {
+    put(el('div', {
       class: 'card pick',
       style: choice.prep === key ? 'border-color: var(--accent)' : '',
       onclick: () => { choice.prep = key; screenPrep(); },
@@ -352,7 +436,7 @@ function screenPrep() {
         + `${p.resilience ? ` · resilience ${p.resilience}` : ''}${p.flag ? ' · award narrative' : ''}`),
     ));
   }
-  stage.append(el('div', { class: 'row' },
+  put(el('div', { class: 'row' },
     el('button', { class: 'primary', onclick: () => screenFilm() }, 'To the set'),
     el('button', { onclick: () => screenMoves({ current: r }, `Before you shoot ${r.title}`) },
       'Do something about the project'),
@@ -364,10 +448,7 @@ function screenPrep() {
 // ---------------------------------------------------------------------------
 function screenFilm(note) {
   const r = choice.role;
-  if (!choice.palette) {
-    choice.palette = game.world.randomPalette(game.rng, r.genre, r.budget, r.director.taste);
-    r.palette = choice.palette;
-  }
+  if (!choice.palette) choice.palette = act('filmFor', [r.id]).palette;
   const coh = M.coherence(choice.palette);
   if (!game.shouldAskStance(r, { coherence: coh.value })) {
     choice.positions = game.autoPositions(r);
@@ -381,7 +462,7 @@ function screenFilm(note) {
   const budget = M.contrastBudget(game.actor.attrs.craft, r.director.command);
   const spent = PERF_DIALS.reduce((a, d) => a + POSITION_COST[choice.positions[d]], 0);
 
-  stage.append(
+  put(
     note ? el('p', { class: 'flash' }, note) : null,
     el('h2', {}, 'The film they are making'),
     el('p', { class: 'lede' },
@@ -404,13 +485,22 @@ function screenFilm(note) {
   for (const d of PERF_DIALS) {
     table.append(el('tr', {},
       el('td', {}, d),
-      el('td', {}, POSITIONS.map((p) => el('button', {
-        class: choice.positions[d] === p ? 'selected' : '',
-        onclick: () => { choice.positions[d] = p; renderStanceOnly(); },
-      }, `${p} (${POSITION_COST[p]})`))),
+      el('td', {},
+        el('div', {}, POSITIONS.map((p) => el('button', {
+          class: choice.positions[d] === p ? 'selected' : '',
+          onclick: () => { choice.positions[d] = p; screenFilm(); },
+        }, `${p} (${POSITION_COST[p]})`))),
+        el('div', { class: 'reads' }, readsAs(d, choice.positions[d], r.genre)),
+      ),
     ));
   }
-  stage.append(table,
+  const resolved = M.resolvePositions(choice.positions, {
+    genre: r.genre,
+    craft: game.actor.attrs.craft,
+    directorCommand: r.director.command,
+  });
+  put(table,
+    currencyBars(resolved),
     el('div', { class: `budgetline${spent > budget ? ' over' : ''}` },
       `contrast budget ${budget.toFixed(1)} · spending ${spent}`
       + (spent > budget ? ' — over. Critics will call it mannered.' : '')),
@@ -419,8 +509,6 @@ function screenFilm(note) {
       el('button', { onclick: () => screenMoves({ current: r }, `Before you shoot ${r.title}`) },
         'Do something about the project'),
     ));
-
-  function renderStanceOnly() { screenFilm(); }
 }
 
 // ---------------------------------------------------------------------------
@@ -437,13 +525,13 @@ function runMoments(list, i, note) {
   drawHud();
   game.countPush('moment');
   const m = list[i];
-  stage.append(
+  put(
     note && i === 0 ? el('p', { class: 'flash' }, note) : null,
     el('h2', {}, choice.role.title),
     el('p', { class: 'lede' }, m.prompt),
   );
   for (const opt of m.options) {
-    stage.append(el('div', {
+    put(el('div', {
       class: 'card pick',
       onclick: () => { choice.moments[m.id] = opt.id; runMoments(list, i + 1); },
     }, el('h4', {}, opt.label)));
@@ -451,13 +539,13 @@ function runMoments(list, i, note) {
 }
 
 function finishShoot(note) {
-  const project = game.shoot(choice.role, {
+  const project = act('shoot', [{
     prep: choice.prep, positions: choice.positions, moments: choice.moments,
-  });
+  }]);
   drawHud();
   clear();
   const unasked = project.momentLog.filter((m) => !m.asked);
-  stage.append(
+  put(
     note ? el('p', { class: 'flash' }, note) : null,
     el('h2', {}, `${choice.role.title} wrapped`),
     el('p', { class: 'lede' }, game.log.filter((l) => l.kind === 'work').slice(-1)[0]?.text || ''),
@@ -482,8 +570,8 @@ function finishShoot(note) {
 // 6. turnover
 // ---------------------------------------------------------------------------
 function advanceQuarter() {
-  const cards = game.tickPending();
-  game.world.tickQuarter();
+  const cards = act('tickPending');
+  act('tickQuarter');
   const yearRolled = game.world.quarter === 1;
   if (cards.length) return screenRelease(cards, 0, yearRolled);
   if (yearRolled) return screenYearEnd();
@@ -496,7 +584,7 @@ function screenRelease(cards, i, yearRolled) {
   clear();
   const c = cards[i];
   const rec = c.rec;
-  stage.append(
+  put(
     el('h2', {}, `${c.project.role.title} is out`),
     el('p', { class: 'lede' }, c.headline),
     el('div', { class: 'tags' },
@@ -529,7 +617,7 @@ function screenSeason(before) {
   drawHud();
   game.countPush('season');
   const contenders = game.awards.thisSeason.map((e) => e.project.role.title).join(', ');
-  stage.append(
+  put(
     el('h2', {}, 'Awards season'),
     el('p', { class: 'lede' }, `They are talking about ${contenders}. Talk is the whole mechanism.`),
     movesPanel({}, () => screenSeason(before)),
@@ -538,12 +626,40 @@ function screenSeason(before) {
 }
 
 function finishYear(before) {
-  game.endYear();
+  act('endYear');
   drawHud();
   if (game.over) return screenObituary();
+  const event = game.rollEvent();
+  if (event) return screenLifeEvent(event, before);
+  screenYearSummary(before);
+}
+
+// One a year at most, and only because something in your life caused it.
+function screenLifeEvent(event, before) {
+  clear();
+  drawHud();
+  const def = LIFE_EVENTS.find((e) => e.id === event.id);
+  put(
+    el('h2', {}, `${game.year}`),
+    el('p', { class: 'lede' }, event.prompt),
+  );
+  def.options.forEach((opt, i) => {
+    put(el('div', {
+      class: 'card pick',
+      onclick: () => {
+        const res = act('event', [i]);
+        drawHud();
+        screenYearSummary(before, res && res.text);
+      },
+    }, el('h4', {}, opt.label)));
+  });
+}
+
+function screenYearSummary(before, flash) {
   clear();
   const a = game.actor;
-  stage.append(
+  put(
+    flash ? el('p', { class: 'flash' }, flash) : null,
     el('h2', {}, `${game.year - 1} is over`),
     el('div', { class: 'attrib' },
       el('div', {}, `You are ${a.age}. Heat fell to ${a.standing.heat.toFixed(0)} from ${before.heat.toFixed(0)} — it always does.`),
@@ -566,17 +682,17 @@ function screenRolodex() {
   clear();
   drawHud();
   const tracked = game.rolodex.tracked();
-  stage.append(
+  put(
     el('h2', {}, 'The Rolodex'),
     el('p', { class: 'lede' },
       'Eight people, chosen by how much they matter rather than by you maintaining a list. '
       + 'Everyone else is real and quiet.'),
   );
   if (!tracked.length) {
-    stage.append(el('div', { class: 'card' }, el('p', {}, 'You do not know anybody yet.')));
+    put(el('div', { class: 'card' }, el('p', {}, 'You do not know anybody yet.')));
   }
   for (const e of tracked) {
-    stage.append(el('div', { class: 'card' },
+    put(el('div', { class: 'card' },
       el('h4', {}, e.person.name),
       el('div', { class: 'meta' },
         `${e.person.kind} · ${e.sharedProjects} together · affinity ${e.affinity.toFixed(0)}`
@@ -590,14 +706,14 @@ function screenRolodex() {
       }, 'Call them')),
     ));
   }
-  stage.append(el('button', { class: 'primary', onclick: () => screenQuarter(false) }, 'Back'));
+  put(el('button', { class: 'primary', onclick: () => screenQuarter(false) }, 'Back'));
 }
 
 function screenOrders() {
   clear();
   drawHud();
   const o = game.standingOrders;
-  const set = (k, v) => { o[k] = v; screenOrders(); };
+  const set = (k, v) => { act('orders', [{ [k]: v }]); screenOrders(); };
   const group = (label, key, options, blurb) => el('div', { class: 'card' },
     el('h4', {}, label),
     el('p', { class: 'why' }, blurb),
@@ -606,7 +722,7 @@ function screenOrders() {
       onclick: () => set(key, v),
     }, text))),
   );
-  stage.append(
+  put(
     el('h2', {}, 'Standing orders'),
     el('p', { class: 'lede' },
       'How you work when the game does not need to ask. This is the dial between a career '
@@ -640,7 +756,7 @@ function screenObituary() {
   drawHud();
   clear();
   const lines = game.obituary();
-  stage.append(
+  put(
     el('h2', {}, game.actor.name),
     el('div', { class: 'obit' }, lines.map((l) => el('p', {}, l))),
     el('h3', { class: 'section' }, 'The credits'),
@@ -653,7 +769,10 @@ function screenObituary() {
         (c) => el('div', { class: 'meta' }, `${c.year}  ${c.title} — ${c.billing}, $${c.budget.toFixed(0)}M, ${c.director}`)))
       : null,
     el('div', { style: 'margin-top:20px' },
-      el('button', { class: 'primary', onclick: () => { game = null; screenCreate(); } }, 'Again')),
+      el('button', {
+        class: 'primary',
+        onclick: () => { clearSave(); game = null; screenCreate(); },
+      }, 'Again')),
   );
 }
 

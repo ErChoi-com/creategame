@@ -164,3 +164,15 @@ input.text.short { width: 130px; margin-left: 8px; }
   border-bottom: 1px solid var(--line); font-size: 12px; color: var(--dim);
 }
 .statline b { color: var(--ink); font-weight: 500; text-align: right; }
+
+.reads { font-size: 12px; color: var(--dim); margin-top: 3px; font-style: italic; }
+.currencies { margin-top: 14px; max-width: 420px; }
+.currency {
+  display: grid; grid-template-columns: 120px 1fr; gap: 10px; align-items: center;
+  font-family: var(--mono); font-size: 10px; text-transform: uppercase;
+  letter-spacing: 0.07em; color: var(--dim); margin-bottom: 6px;
+}
+.currency .track { height: 6px; background: #2c2620; border-radius: 3px; overflow: hidden; }
+.currency i { display: block; height: 100%; transition: width 0.25s ease; }
+.currency i.you { background: var(--accent); }
+.currency i.film { background: var(--good); }

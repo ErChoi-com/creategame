@@ -179,13 +179,16 @@ const CHANGE_PROJECT = [
     run: (g, c, rng) => {
       const r = c.current;
       r.rewritten = true;
-      const right = rng.chance(clamp(0.35 + g.actor.attrs.instinct / 180, 0.2, 0.85));
+      // Whether or not you are right, you have just rewritten someone's script
+      // in front of them.
+      r.director.affinity = clamp(r.director.affinity - 4, -100, 100);
+      const right = rng.chance(clamp(0.30 + g.actor.attrs.instinct / 200, 0.15, 0.75));
       if (right) {
-        r.fitBonus = (r.fitBonus || 0) + 14;
+        r.fitBonus = (r.fitBonus || 0) + 12;
         return { text: 'They took your pages. The part fits you now.' };
       }
-      r.scriptQuality = clamp(r.scriptQuality - 7, 5, 98);
-      r.director.affinity = clamp(r.director.affinity - 5, -100, 100);
+      r.scriptQuality = clamp(r.scriptQuality - 10, 5, 98);
+      r.director.affinity = clamp(r.director.affinity - 6, -100, 100);
       return { text: 'They took your pages. The part is worse and everyone is being polite about it.' };
     },
   }),
@@ -267,6 +270,8 @@ const CHANGE_PROJECT = [
     salience: (g) => (g.actor.attrs.instinct > 65 ? 0.7 : 0.3),
     run: (g, c) => {
       c.current.improvised = true;
+      // You are not doing the thing you prepared.
+      c.current.prepPenalty = (c.current.prepPenalty || 0) + 8;
       return { text: 'You are going to go off the page and find out on the day.' };
     },
   }),
@@ -500,10 +505,11 @@ const CHANGE_PEOPLE = [
     label: 'Publicly defend someone in a scandal',
     blurb: 'Say it out loud when nobody else will. It costs you and it buys a loyalty that outlives careers.',
     cost: () => 'Notoriety +10',
-    available: (g) => g.world.scandals.length > 0,
-    salience: (g) => (g.world.scandals.length ? 0.75 : 0),
+    available: (g) => g.world.scandals.some((s) => !s.defendedBy),
+    salience: (g) => (g.world.scandals.some((s) => !s.defendedBy) ? 0.75 : 0),
     run: (g, c) => {
-      const s = c.scandal || g.world.scandals[0];
+      const s = c.scandal || g.world.scandals.find((x) => !x.defendedBy);
+      if (!s) return { text: 'Nothing to stand up for this week.' };
       g.actor.standing.notoriety = clamp(g.actor.standing.notoriety + 10, 0, 100);
       g.rolodex.gain(s.person, 'defended', g.year);
       s.defendedBy = g.actor.name;

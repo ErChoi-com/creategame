@@ -64,13 +64,16 @@ export const K = {
   fieldSupporting: 0.48,
   fieldBit: 0.45,
 
+  lifestyleShare: 0.22,       // of your best single payday
+  lifestyleDecay: 0.90,       // how fast the way you live comes back down
+
   scaleFeeBase: 0.03,         // union scale, roughly
   scaleFeeCoef: 0.038,       // and what the film's size adds to it
 
   grossPointsDivisor: 150,
   grossPointsMax: 0.20,      // first-dollar gross, stars only
   quoteExp: 0.070,            // steepness of the top of the market
-  buzzCentre: 61,
+  buzzCentre: 59,
   winBase: 0.16,
 
   paletteScale: 0.32,
@@ -513,10 +516,13 @@ export function fee(rng, actor, role, agentTier, recentRoi, era = 1) {
   return Math.max(0.005, capped) * (1 - agentTier.commission);
 }
 
-// Lifestyle ratchets up fast and down slowly: the whole mechanic in three lines.
+// §11.6 the going-broke ratchet. Money in is money in; what ruins people is
+// that the way they live rises to meet their best year and then comes down far
+// more slowly than the work does. The floor is charged once a year, in
+// endYear() — never per payment, or a good year bills you several times over.
 export function applyLifestyle(moneyState, income) {
-  moneyState.floor = Math.max(moneyState.floor * 0.92, 0.55 * income);
-  moneyState.net += income - moneyState.floor;
+  moneyState.net += income;
   moneyState.lifetime += income;
+  moneyState.floor = Math.max(moneyState.floor, K.lifestyleShare * income);
   return moneyState;
 }

@@ -13,6 +13,9 @@ import * as M from './model.js';
 import { Rolodex } from './rolodex.js';
 import { clampAmbition, ambitionReport } from './ambition.js';
 import { availableActions, perform } from './leverage.js';
+import {
+  MOMENT_POOL, momentsAvailable, pickLifeEvent, eventPrompt, LIFE_EVENTS,
+} from './events.js';
 
 // ---------------------------------------------------------------------------
 // FIX-5 Character creation. Eight versions of the document never specified how
@@ -59,36 +62,12 @@ export const PREP_OPTIONS = {
   wing: { label: 'Wing it', weeks: 0, base: 20 },
 };
 
-// §5.12 the three moments on set. Each is a real trade, not flavour.
-export const MOMENTS = [
-  {
-    id: 'not_working',
-    prompt: 'The scene is not working. Sixth take, and everyone knows.',
-    options: [
-      { id: 'suggest', label: 'Suggest a change', effect: { chemistry: -4, prep: +8, affinity: -3 }, needs: 'instinct' },
-      { id: 'absorb', label: 'Take the note and give them what they asked for', effect: { chemistry: +4, prep: -2, affinity: +4 } },
-      { id: 'ask', label: 'Ask the director what they actually want', effect: { prep: +4, condition: -2, affinity: +2 } },
-    ],
-  },
-  {
-    id: 'adjustment',
-    prompt: 'The adjustment is wrong. You are sure of it, and you might be wrong about that.',
-    options: [
-      { id: 'take', label: 'Take it', effect: { affinity: +6, perf: -3 } },
-      { id: 'argue', label: 'Argue for yours', effect: { affinity: -7, perf: +5, chemistry: -3 } },
-      { id: 'both', label: 'Give them both and let the edit decide', effect: { condition: -5, perf: +2, affinity: +1 } },
-    ],
-  },
-  {
-    id: 'discovery',
-    prompt: 'Something happened in the rehearsal that is not in the script.',
-    options: [
-      { id: 'keep', label: 'Keep it. Play it in the take.', effect: { perf: +6, ensemble: -2, condition: -2 } },
-      { id: 'offer', label: 'Offer it to your scene partner instead', effect: { perf: -1, ensemble: +4, affinity: +8, favour: 1 } },
-      { id: 'lose', label: 'Let it go. It was a rehearsal thing.', effect: {} },
-    ],
-  },
-];
+// §5.12 the moments on set. The pool lives in events.js; this is the subset
+// that can happen on any production at all.
+export const MOMENTS = MOMENT_POOL.filter((m) => m.core);
+export { MOMENT_POOL };
+
+
 
 const roman = (n) => ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'][clamp(n - 1, 0, 9)];
 
@@ -129,6 +108,7 @@ export class Game {
     this.information = [];        // things you know about specific people
     this.scarcity = 0;
     this.hiatus = false;
+    this.hiatusUntil = null;   // set when the break is a fixed length
     this.criticSkew = 0;
     this.courtedCritics = 0;
     this.campaignSpend = 0;
@@ -144,6 +124,17 @@ export class Game {
     this.pushes = 0;
     this.pushesByYear = new Map();
 
+    // Every mutating call, in order. The engine is deterministic from its
+    // seed, so this list IS the save file: replaying it rebuilds the exact
+    // career, and it doubles as a record of what the player actually did.
+    this.journal = [];
+    this.replaying = false;
+
+    // At most one life event a year, each fired by something true about your
+    // state rather than by a die roll (§0.1, and rule 1: never upkeep).
+    this.firedEvents = new Set();
+    this.pendingEvent = null;
+
     // Standing orders — how you work when the game does not need to ask.
     this.standingOrders = {
       prep: 'table',              // default approach
@@ -151,6 +142,105 @@ export class Game {
       floor: 'anything',          // anything | supporting | lead
       askWhenInteresting: true,   // false = never ask, run on defaults
     };
+  }
+
+  // Everything the interface does to the game goes through here.
+  call(name, args = []) {
+    if (!this.replaying) this.journal.push([name, args]);
+    switch (name) {
+      case 'openBoard': return this.openBoard();
+      case 'filmFor': return this.filmFor(this.findRole(args[0]));
+      case 'pursue': return this.pursue(args[0]);
+      case 'decline': return this.decline(args[0]);
+      case 'shoot': return this.shoot(this.currentRole, args[0]);
+      case 'do': return this.do(args[0], this.resolveCtx(args[1]));
+      case 'tickPending': return this.tickPending();
+      case 'tickQuarter': return this.world.tickQuarter();
+      case 'endYear': return this.endYear();
+      case 'orders': Object.assign(this.standingOrders, args[0]); return this.standingOrders;
+      case 'ambition': return this.setAmbition(args[0]);
+      case 'event': return this.resolveEvent(args[0]);
+      default: throw new Error(`unknown call ${name}`);
+    }
+  }
+
+  findRole(id) {
+    return this.board.find((r) => r.id === id) || this.currentRole;
+  }
+
+  // Contexts hold live objects; the journal holds ids, and this puts them back.
+  resolveCtx(ref = {}) {
+    const ctx = {};
+    if (ref.role) ctx.role = this.findRole(ref.role);
+    if (ref.person) ctx.person = [...this.rolodex.edges.values()].find((e) => e.id === ref.person);
+    if (ref.script) ctx.script = this.development.find((sc) => sc.id === ref.script);
+    if (ref.project) ctx.project = this.pending.find((p) => p.role.id === ref.project);
+    if (ref.scandal) ctx.scandal = this.world.scandals.find((sc) => sc.person.id === ref.scandal);
+    return ctx;
+  }
+
+  static ctxRef(ctx = {}) {
+    const ref = {};
+    if (ctx.role) ref.role = ctx.role.id;
+    if (ctx.person) ref.person = ctx.person.id;
+    if (ctx.script) ref.script = ctx.script.id;
+    if (ctx.project) ref.project = ctx.project.role.id;
+    if (ctx.scandal) ref.scandal = ctx.scandal.person.id;
+    return ref;
+  }
+
+  // The film's palette is rolled once, lazily, and remembered — it consumes
+  // randomness, so it has to happen at a fixed point in the sequence.
+  filmFor(role) {
+    if (!role) return null;
+    if (!role.palette) {
+      role.palette = this.world.randomPalette(this.rng, role.genre, role.budget, role.director.taste);
+    }
+    return { palette: role.palette, ...M.coherence(role.palette) };
+  }
+
+  // A cheap value that must match after a replay if the replay is faithful.
+  fingerprint() {
+    const a = this.actor;
+    return [
+      this.year, a.age, a.name, this.credits.length, this.turnedDown.length,
+      a.standing.heat.toFixed(4), a.standing.prestige.toFixed(4),
+      a.standing.affection.toFixed(4), a.standing.notoriety.toFixed(4),
+      a.attrs.craft.toFixed(4), this.money.net.toFixed(4), this.money.lifetime.toFixed(4),
+      this.awards.nominations, this.awards.wins, this.favours, this.scarcity,
+      this.leverageUsed, this.board.map((r) => r.id).join('/'),
+    ].join('|');
+  }
+
+  save() {
+    return {
+      version: 1,
+      seed: this.seed,
+      background: this.actor.background,
+      ambition: this.ambition,
+      // The *given* name, not the current one: an unnamed actor draws their
+      // name from the world's pool, which consumes randomness, and a replay
+      // has to consume it in the same place. A mid-career name change is in
+      // the journal already.
+      name: this.actor.givenName,
+      startYear: this.world.startYear,
+      journal: this.journal,
+    };
+  }
+
+  static load(data) {
+    const g = new Game({
+      seed: data.seed,
+      background: data.background,
+      ambition: data.ambition,
+      name: data.name,
+      startYear: data.startYear,
+    });
+    g.replaying = true;
+    for (const [name, args] of data.journal) g.call(name, args);
+    g.replaying = false;
+    g.journal = data.journal.slice();
+    return g;
   }
 
   // ------------------------------------------------------------------ pushes
@@ -171,6 +261,7 @@ export class Game {
 
     return {
       name: name || this.world.name(),
+      givenName: name || null,
       background: backgroundKey,
       age: bg.age,
       attrs: {
@@ -259,7 +350,7 @@ export class Game {
   // What your standing orders do on set when the game does not stop to ask.
   // The scene still happens either way — you are simply not consulted about
   // the ones you have handled a hundred times.
-  defaultMomentChoice(momentId) {
+  defaultMomentChoice(momentId, moment) {
     const stance = this.standingOrders.stance;
     const table = {
       generous: { not_working: 'absorb', adjustment: 'take', discovery: 'offer' },
@@ -267,7 +358,14 @@ export class Game {
       still:    { not_working: 'ask', adjustment: 'take', discovery: 'lose' },
       shaped:   { not_working: 'ask', adjustment: 'both', discovery: 'offer' },
     };
-    return (table[stance] || table.shaped)[momentId];
+    const named = (table[stance] || table.shaped)[momentId];
+    if (named) return named;
+    // For the situational moments, standing orders mean: the professional
+    // answer, which is the middle one.
+    const opts = (moment || MOMENT_POOL.find((m) => m.id === momentId))?.options || [];
+    const idx = stance === 'showy' ? 0 : stance === 'generous' ? Math.min(1, opts.length - 1)
+      : Math.floor(opts.length / 2);
+    return opts[clamp(idx, 0, opts.length - 1)]?.id;
   }
 
   momentsFor(role) {
@@ -276,7 +374,25 @@ export class Game {
     if (role.chaos > 80) count += 1;                                  // a bad set is a bad set
     if ((role.director.sharedProjects || 0) === 0 && n < 30) count += 1;   // a stranger directing
     if (role.billing === 'bit') count = Math.min(count, 1);           // you are here for a day
-    return MOMENTS.slice(0, clamp(count, 0, 3));
+    count = clamp(count, 0, 3);
+    if (!count) return [];
+
+    // Which moments this particular production can even produce. The ones
+    // specific to this set come first: they are the reason the shoot is not
+    // the same nine table cells every time.
+    const pool = momentsAvailable({
+      role, costar: role.costar, director: role.director, chaos: role.chaos,
+    });
+    const specific = pool.filter((m) => !m.core);
+    const core = pool.filter((m) => m.core);
+    const picked = [];
+    const rng = this.rng;
+    while (picked.length < count && (specific.length || core.length)) {
+      const from = specific.length && (picked.length === 0 || rng.chance(0.5)) ? specific : core;
+      if (!from.length) break;
+      picked.push(from.splice(rng.int(0, from.length - 1), 1)[0]);
+    }
+    return picked;
   }
 
   // §4.6 / §5.5 — the game only asks about prep and stance when the answer
@@ -367,8 +483,12 @@ export class Game {
     const band = this._ageBand(a.age);
     // Some quarters the phone does not ring. That has to be possible or the
     // career has no downside and every run converges on the same shape.
+    // Offers are lumpy. A rate of 1.2 a quarter is one offer most quarters and
+    // two sometimes — and a rate of 0.4 is three quarters of nothing, which is
+    // what the back half of most careers actually looks like.
+    const rate = (0.4 + sp / 10 + a.recognition / 30 + this.agentTier.offers) * band;
     const count = clamp(
-      Math.round((0.4 + sp / 10 + a.recognition / 30 + this.agentTier.offers) * band),
+      Math.floor(rate) + (this.rng.chance(rate % 1) ? 1 : 0),
       0, 9,
     );
 
@@ -451,8 +571,11 @@ export class Game {
     return kept;
   }
 
+  // §4.9 role volume by age. The late bands are steep because they are steep:
+  // most careers do not end in a decision, they end in a year with no offers
+  // in it, and then another one.
   _ageBand(age) {
-    return age < 28 ? 1.30 : age < 39 ? 1.45 : age < 49 ? 1.05 : age < 61 ? 0.72 : 0.42;
+    return age < 28 ? 1.30 : age < 39 ? 1.45 : age < 49 ? 1.00 : age < 61 ? 0.58 : 0.24;
   }
 
   _relationshipBonus(role) {
@@ -536,7 +659,7 @@ export class Game {
     this.markWorked(role.billing);
     this.currentRole = null;
 
-    let prep = clamp(prepChoice.base * (0.8 + 0.004 * a.attrs.resilience), 0, 100);
+    let prep = clamp(prepChoice.base * (0.8 + 0.004 * a.attrs.resilience) - (role.prepPenalty || 0), 0, 100);
     if (prepChoice.periodBonus && (role.genre === 'period' || role.archetype === 'authority')) {
       prep += prepChoice.periodBonus;
     }
@@ -554,12 +677,21 @@ export class Game {
     let condition = clamp(a.condition - 0.25 * role.chaos + 0.3 * a.attrs.resilience - 12 * (this.blocksBooked / 4), 20, 100);
     let perfNudge = 0, ensembleNudge = 0;
 
-    const prompted = new Set(this.momentsFor(role).map((m) => m.id));
+    // Which moments you were consulted on, and which ones simply happened.
+    // The ordinary days of a shoot always happen — being experienced means
+    // nobody asks you about them, not that they stop occurring.
+    const asked = choices.momentSet || this.momentsFor(role);
+    const prompted = new Set(asked.map((m) => m.id));
+    const happening = [];
+    const seen = new Set();
+    for (const m of [...MOMENT_POOL.filter((x) => x.core), ...asked]) {
+      if (seen.has(m.id)) continue;
+      seen.add(m.id);
+      happening.push(m);
+    }
     const momentLog = [];
-    for (const moment of MOMENTS) {
-      const pickId = prompted.has(moment.id)
-        ? (momentChoices[moment.id] || this.defaultMomentChoice(moment.id))
-        : this.defaultMomentChoice(moment.id);
+    for (const moment of happening) {
+      const pickId = momentChoices[moment.id] || this.defaultMomentChoice(moment.id, moment);
       const opt = moment.options.find((o) => o.id === pickId) || moment.options[1];
       const e = opt.effect;
       chemistry = clamp(chemistry + (e.chemistry || 0), 0, 100);
@@ -568,7 +700,22 @@ export class Game {
       perfNudge += e.perf || 0;
       ensembleNudge += e.ensemble || 0;
       if (e.affinity) director.affinity = clamp(director.affinity + e.affinity, -100, 100);
-      if (e.favour) a.favours += e.favour;
+      if (e.favour) this.rolodex.gain(role.costar, 'generosity', this.year);
+      if (e.costarAffinity) {
+        const edge = this.rolodex.edge(role.costar);
+        edge.affinity = clamp(edge.affinity + e.costarAffinity, -100, 100);
+      }
+      if (e.costarGrudge) {
+        const edge = this.rolodex.edge(role.costar);
+        edge.grudge = clamp(edge.grudge + e.costarGrudge, 0, 100);
+      }
+      if (e.notoriety) a.standing.notoriety = clamp(a.standing.notoriety + e.notoriety, 0, 100);
+      if (e.crew) this.crewLoyalty = (this.crewLoyalty || 0) + e.crew;
+      if (e.injuryRisk && this.rng.chance(e.injuryRisk)) {
+        a.health = clamp(a.health - this.rng.int(6, 20), 0, 100);
+        a.gates.physicality = clamp(a.gates.physicality - this.rng.int(0, 6), 5, 98);
+        this.say('The fall went wrong. Six weeks, and it never quite goes away.', 'bad');
+      }
       momentLog.push({ moment: moment.id, chose: opt.label, asked: prompted.has(moment.id) });
     }
 
@@ -636,7 +783,7 @@ export class Game {
     if (this.franchise && role.type === 'tentpole' && !this.franchise.writtenOut) {
       // They cannot recast you, and the quote reflects it. This is what
       // indispensability is for: it is the one leverage money cannot buy.
-      income *= 1 + this.franchise.identification / 55;
+      income *= 1 + this.franchise.identification / 35;
     }
     if (role.scarcityPremium) income *= 1 + 0.010 * role.scarcityPremium;
     if (role.takeScale) {
@@ -830,6 +977,13 @@ export class Game {
       M.applyLifestyle(this.money, paid);
       this.say(`Your holdout points on ${role.title} paid $${paid.toFixed(1)}M.`, 'good');
     }
+    if (role.producerShare && rec.gross > 0) {
+      const producerTake = role.producerShare * rec.gross * (role.era ?? 1) * 0.5;
+      M.applyLifestyle(this.money, producerTake);
+      if (producerTake > 1) {
+        this.say(`Your producer share on ${role.title} came to $${producerTake.toFixed(1)}M.`, 'good');
+      }
+    }
     if (role.billing === 'lead' && bank > 44) {
       const points = clamp((bank - 44) / M.K.grossPointsDivisor, 0, M.K.grossPointsMax);
       const gross = rec.gross * (role.era ?? 1);
@@ -987,9 +1141,10 @@ export class Game {
     // §10.1 the health-plan cliff: you qualify by working enough in a year.
     a.insured = this.blocksBooked >= 1 && this.money.lifetime > 0.02;
 
-    // §11.6 the ratchet. The floor falls slowly and the income does not.
-    this.money.floor *= 0.94;
-    this.money.net -= this.money.floor * 0.6;
+    // §11.6 the ratchet, charged once: a year of living costs what your life
+    // costs, whether or not you worked.
+    this.money.floor = Math.max(0.02, this.money.floor * M.K.lifestyleDecay);
+    this.money.net -= this.money.floor;
     if (this.money.net < 0 && !a.flags.broke) {
       a.flags.broke = this.year;
       this.say('The accountant calls. Then the accountant stops calling.', 'bad');
@@ -1003,8 +1158,12 @@ export class Game {
     if (!worked) {
       this.idleYears += 1;
       // People leave. Most people leave.
+      // People leave. Most people leave — and being broke while nobody calls
+      // is the specific combination that ends careers.
+      const broke = this.money.net < 0 ? 0.10 : 0;
       const giveUp = this.idleYears >= 2
-        && this.rng.chance(clamp(0.10 + 0.06 * this.idleYears - M.standing(a.standing) / 90, 0, 0.6));
+        && this.rng.chance(clamp(0.10 + 0.06 * this.idleYears + broke
+          - M.standing(a.standing) / 90, 0, 0.65));
       if (giveUp) this._end('You took the other job. Everyone does, eventually.');
       if (this.idleYears >= 7 && a.age > 34) this._end('The phone simply stopped.');
     } else {
@@ -1029,6 +1188,13 @@ export class Game {
       if (a.standing.heat < floor) a.standing.heat = floor;
       this.franchise.identification = clamp(this.franchise.identification - 3.5, 0, 100);
       if (this.franchise.identification < 12) this.franchise = null;
+    }
+
+    // A bounded break ends on its own; a vanishing does not.
+    if (this.hiatus && this.hiatusUntil !== null && this.year >= this.hiatusUntil) {
+      this.hiatus = false;
+      this.hiatusUntil = null;
+      this.say('You go back to work. Nobody made a thing of it.', 'note');
     }
 
     // Scarcity — you are worth more when you are not available (§6.6).
@@ -1087,7 +1253,15 @@ export class Game {
         role.difficulty = 0;
         role.fit = M.fitScore(a, role);
         role.utility = 100;
-        if (this.positions.has('prodco')) role.producerShare = 0.08;
+        // You are a producer on it, which means a share of the upside and a
+        // stake you do not get back if it does not work.
+        role.producerShare = this.positions.has('prodco') ? 0.08 : 0.045;
+        const stake = clamp(Math.min(this.money.net * 0.18, role.budget * 0.06), 0, 12);
+        if (stake > 0.01) {
+          this.money.net -= stake;
+          role.producerStake = stake;
+          this.say(`Getting ${script.title} made cost you $${stake.toFixed(2)}M of your own.`, 'note');
+        }
         this.board.unshift(role);
         this.development = this.development.filter((x) => x.id !== script.id);
         this.say(`${script.title} is financed. You are in it because you made it exist.`, 'good');
@@ -1108,6 +1282,28 @@ export class Game {
   _end(reason) {
     this.over = true;
     this.endReason = reason;
+  }
+
+  // ------------------------------------------------------------------ a life
+  // Offered at the turn of the year, answered whenever the player likes.
+  rollEvent() {
+    if (this.pendingEvent) return this.pendingEvent;
+    const event = pickLifeEvent(this);
+    if (!event) return null;
+    this.pendingEvent = { id: event.id, prompt: eventPrompt(event, this) };
+    return this.pendingEvent;
+  }
+
+  resolveEvent(index) {
+    if (!this.pendingEvent) return null;
+    const event = LIFE_EVENTS.find((e) => e.id === this.pendingEvent.id);
+    this.pendingEvent = null;
+    if (!event) return null;
+    const option = event.options[clamp(index, 0, event.options.length - 1)];
+    this.firedEvents.add(event.id);
+    option.run(this);
+    if (option.text) this.say(option.text, 'life');
+    return { text: option.text, label: option.label };
   }
 
   // §11.8 the obituary: the one place the private numbers become public, and

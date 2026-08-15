@@ -60,6 +60,12 @@ export const defaultPolicy = {
   chooseMoments() {
     return { not_working: 'ask', adjustment: 'both', discovery: 'offer' };
   },
+
+  // Life events: take the first option unless money says otherwise.
+  chooseEvent(game, event) {
+    void event;
+    return game.money.net < 0 ? 1 : 0;
+  },
 };
 
 export function runCareer(seed, policy = defaultPolicy, opts = {}) {
@@ -102,6 +108,11 @@ export function runCareer(seed, policy = defaultPolicy, opts = {}) {
     }
     if (game.seasonNeedsYou()) game.countPush('season');
     game.endYear();
+    const event = game.rollEvent();
+    if (event) {
+      game.countPush('life');
+      game.resolveEvent(policy.chooseEvent ? policy.chooseEvent(game, event) : 0);
+    }
   }
   // Flush anything still in post.
   while (game.pending.length) game.tickPending();
