@@ -1483,8 +1483,12 @@ export class Game {
       `Lifetime earnings $${this.money.lifetime.toFixed(1)}M. ${this.money.net < 0 ? 'Died owing money.' : `Left $${this.money.net.toFixed(1)}M.`}`,
       best ? `The obituaries all lead with ${best.title} (${best.year}).` : 'The obituaries are short.',
       this.stats.leadCredits === 0
-        ? 'Never carried a film. Was in a great many of them.'
-        : `Carried ${this.stats.leadCredits} film${this.stats.leadCredits > 1 ? 's' : ''}.`,
+        ? (this.credits.length > 25
+          ? 'Never carried a film. Was in a great many of them.'
+          : this.credits.length > 4
+            ? 'Never carried a film. Was reliably good in other people\'s.'
+            : 'It did not really happen for them.')
+        : `Carried ${plural(this.stats.leadCredits, 'film')}.`,
       `They wanted ${amb.label}. ${
         { Achieved: 'They got it', Nearly: 'They came close', Sometimes: 'Now and then, they got it',
           No: 'They did not get it', 'Too early to say': 'There was not time' }[amb.grade] || amb.grade
