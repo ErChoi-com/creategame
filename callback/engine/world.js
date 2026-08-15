@@ -5,7 +5,7 @@
 import { RNG, clamp } from './rng.js';
 import {
   GENRES, GENRE_ECON, ARCHETYPES, DIALS, PROJECT_TYPES, GATEKEEPERS,
-  BILLING_DIFFICULTY, FIRST_NAMES, LAST_NAMES, TITLE_A, TITLE_B, SHAPES,
+  BILLING_DIFFICULTY, FIRST_NAMES, LAST_NAMES, TITLE_A, TITLE_B, TITLE_SOLO, SHAPES,
 } from './data.js';
 
 // Instance-scoped so a replayed world hands out exactly the same ids.
@@ -15,6 +15,7 @@ export class World {
   constructor(rng, startYear = 1974) {
     this.rng = rng;
     this.nextId = makeIds();
+    this.usedTitles = new Set();
     this.year = startYear;
     this.startYear = startYear;
     this.quarter = 1;
@@ -45,8 +46,18 @@ export class World {
     return `${this.rng.pick(FIRST_NAMES)} ${this.rng.pick(LAST_NAMES)}`;
   }
 
+  // Two films in one career must never share a title, or the log reads as if
+  // a picture was reviewed before it was cast.
   title() {
-    return `${this.rng.pick(TITLE_A)} ${this.rng.pick(TITLE_B)}`;
+    for (let attempt = 0; attempt < 24; attempt++) {
+      const t = this.rng.chance(0.12)
+        ? this.rng.pick(TITLE_SOLO)
+        : `${this.rng.pick(TITLE_A)} ${this.rng.pick(TITLE_B)}`;
+      if (!this.usedTitles.has(t)) { this.usedTitles.add(t); return t; }
+    }
+    const t = `${this.rng.pick(TITLE_A)} ${this.rng.pick(TITLE_B)} ${this.rng.int(2, 4)}`;
+    this.usedTitles.add(t);
+    return t;
   }
 
   _makeDirector() {

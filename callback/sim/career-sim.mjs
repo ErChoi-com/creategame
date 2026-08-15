@@ -187,8 +187,11 @@ const TARGETS = [
 
 function main() {
   const n = Number(process.argv[2] || 1200);
+  // An independent population, for checking that a result is not an artefact
+  // of one seed range: OFFSET=5000 node callback/sim/career-sim.mjs 3000
+  const offset = Number(process.env.OFFSET || 0);
   const R = [];
-  for (let s = 1; s <= n; s++) R.push(runCareer(s));
+  for (let s = 1 + offset; s <= n + offset; s++) R.push(runCareer(s));
 
   console.log(`\n=== CALLBACK — FULL CAREER SIMULATION (${n} careers) ===\n`);
   console.log('%s %s %s', 'metric'.padEnd(44), 'target (14.9)'.padEnd(14), 'measured');

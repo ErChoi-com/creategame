@@ -15,7 +15,7 @@ export const AMBITIONS = {
   work: {
     label: 'The Work',
     blurb: 'To be good. Whether anyone notices is not the measure.',
-    measure: 'lifetime average of your notices',
+    measure: 'average notices across their credited roles,',
     score: (g) => mean(g.noticesHistory.length ? g.noticesHistory : [0]),
     grade: (v) => (v > 72 ? 'Achieved' : v > 62 ? 'Nearly' : v > 50 ? 'Sometimes' : 'No'),
     format: (v) => v.toFixed(1),
@@ -23,7 +23,7 @@ export const AMBITIONS = {
   prize: {
     label: 'The Prize',
     blurb: 'The statue. Say it out loud; everyone else wants it too.',
-    measure: 'awards won',
+    measure: 'awards won,',
     score: (g) => g.awards.wins * 10 + g.awards.nominations * 2,
     grade: (v) => (v >= 20 ? 'Achieved' : v >= 10 ? 'Nearly' : v > 0 ? 'Sometimes' : 'No'),
     format: (v) => `${v.toFixed(0)} pts`,
@@ -31,7 +31,7 @@ export const AMBITIONS = {
   fortune: {
     label: 'The Fortune',
     blurb: 'Peak net worth, and what is left at the end.',
-    measure: 'money kept',
+    measure: 'money kept,',
     score: (g) => Math.max(0, g.money.net) + 0.25 * g.money.lifetime,
     grade: (v) => (v > 90 ? 'Achieved' : v > 30 ? 'Nearly' : v > 6 ? 'Sometimes' : 'No'),
     format: (v) => `$${v.toFixed(0)}M`,
@@ -39,7 +39,7 @@ export const AMBITIONS = {
   run: {
     label: 'The Run',
     blurb: 'To still be working at the top of the call sheet at seventy.',
-    measure: 'years worked at lead level',
+    measure: 'years at the top of the call sheet,',
     score: (g) => g.stats.leadCredits + (g.stats.leadsAfter42 * 1.5),
     grade: (v) => (v >= 30 ? 'Achieved' : v >= 16 ? 'Nearly' : v >= 5 ? 'Sometimes' : 'No'),
     format: (v) => v.toFixed(0),
@@ -47,7 +47,7 @@ export const AMBITIONS = {
   franchise: {
     label: 'The Franchise',
     blurb: 'To be the face of something bigger than any film in it.',
-    measure: 'peak indispensability to a property',
+    measure: 'indispensability to a property,',
     score: (g) => g.stats.peakIdentification || 0,
     grade: (v) => (v >= 70 ? 'Achieved' : v >= 45 ? 'Nearly' : v > 12 ? 'Sometimes' : 'No'),
     format: (v) => v.toFixed(0),
@@ -55,7 +55,7 @@ export const AMBITIONS = {
   voice: {
     label: 'The Voice',
     blurb: 'To be legible as one specific thing, and to be respected for it.',
-    measure: 'sustained legibility above 70 with critics on side',
+    measure: 'legibility held with the critics on side,',
     score: (g) => g.stats.voiceYears * 2 + Math.max(0, g.actor.standing.prestige - 50),
     grade: (v) => (v >= 50 ? 'Achieved' : v >= 25 ? 'Nearly' : v > 6 ? 'Sometimes' : 'No'),
     format: (v) => v.toFixed(0),

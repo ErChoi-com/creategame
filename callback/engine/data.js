@@ -150,10 +150,19 @@ export const LAST_NAMES = [
 export const TITLE_A = [
   'The Quiet', 'Bad', 'Little', 'The Last', 'Winter in', 'Nobody Calls',
   'Hollow', 'The Long', 'Saltwater', 'A Kind of', 'Nine', 'The Wrong',
-  'Dust and', 'The Second', 'Blue', 'Fever', 'The Weight of',
+  'Dust and', 'The Second', 'Blue', 'Fever', 'The Weight of', 'Every Good',
+  'After the', 'The Patient', 'Half a', 'Some Kind of', 'The Burning',
+  'North of', 'The Borrowed', 'Two Weeks in', 'The Unquiet', 'Small',
 ];
 export const TITLE_B = [
   'Country', 'Hours', 'Monsters', 'Anniversary', 'Machine', 'Wednesday',
   'Harvest', 'Daughters', 'Ledger', 'Homecoming', 'Season', 'Signal',
-  'Inheritance', 'Ceremony', 'Vault', 'Undertow', 'Arrangement',
+  'Inheritance', 'Ceremony', 'Vault', 'Undertow', 'Arrangement', 'Boys',
+  'Radio', 'Wilderness', 'Confession', 'Orchard', 'Hotel', 'Sisters',
+  'Departure', 'Argument', 'Bridge', 'November', 'Verdict', 'Kingdom',
+];
+// A few titles are just a noun, and a few are a place and a year.
+export const TITLE_SOLO = [
+  'Undertow', 'Ravenswood', 'Blackwater', 'Coldharbour', 'Marchmont',
+  'The Understudy', 'Gethsemane', 'Pale Fire Road', 'Sixty-One', 'Thaw',
 ];

@@ -238,7 +238,7 @@ function screenCreate() {
       },
         el('h4', {}, a.label),
         el('p', { class: 'why' }, a.blurb),
-        el('div', { class: 'meta' }, `measured by ${a.measure}`),
+        el('div', { class: 'meta' }, `measured by ${a.measure.replace(/,$/, '')}`),
       ))),
     );
 

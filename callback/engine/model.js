@@ -22,7 +22,7 @@ export const K = {
   // FIX-1 the ladder. Gains carry a base term (working at all is worth
   // something), are re-centred below the median outcome, and decay is
   // proportional rather than a flat −9 so the meters find an equilibrium.
-  heatBase: 6.3,
+  heatBase: 7.0,
   heatRoiCoef: 9.0,
   heatRoiCentre: 0.90,
   heatAudCoef: 0.20,

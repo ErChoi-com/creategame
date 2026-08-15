@@ -577,7 +577,7 @@ export class Game {
   // most careers do not end in a decision, they end in a year with no offers
   // in it, and then another one.
   _ageBand(age) {
-    return age < 28 ? 1.30 : age < 39 ? 1.45 : age < 49 ? 0.95 : age < 61 ? 0.50 : 0.18;
+    return age < 28 ? 1.30 : age < 39 ? 1.45 : age < 49 ? 0.92 : age < 61 ? 0.44 : 0.14;
   }
 
   _relationshipBonus(role) {
@@ -1421,8 +1421,11 @@ export class Game {
       this.stats.leadCredits === 0
         ? 'Never carried a film. Was in a great many of them.'
         : `Carried ${this.stats.leadCredits} film${this.stats.leadCredits > 1 ? 's' : ''}.`,
-      `${amb.label}: ${amb.grade.toLowerCase()}. ${amb.measure}, ${amb.value}.`
-        + (this.ambitionChangedAt ? ` (They wanted something else until ${this.ambitionChangedAt}.)` : ''),
+      `They wanted ${amb.label}. ${
+        { Achieved: 'They got it', Nearly: 'They came close', Sometimes: 'Now and then, they got it',
+          No: 'They did not get it', 'Too early to say': 'There was not time' }[amb.grade] || amb.grade
+      }: ${amb.measure} ${amb.value}.`
+        + (this.ambitionChangedAt ? ` They wanted something else until ${this.ambitionChangedAt}.` : ''),
       landmarks.length
         ? `${landmarks[0].name} changed what films looked like${landmarks[0].cliche ? ', and then everyone did it until it was a joke' : ''}.`
         : null,
