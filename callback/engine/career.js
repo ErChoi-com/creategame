@@ -835,11 +835,16 @@ export class Game {
     };
     this.pending.push(project);
     a.unionCredits += role.union ? 1 : 0;
-    this.credits.push({
+    // Held by reference so release() can write the box office back onto it a
+    // year later: the filmography is the only place a career's grosses live.
+    const credit = {
       title: role.title, year: this.year, billing: role.billing,
       genre: role.genre, tentpole: role.type === 'tentpole',
       unknownLead: !!role.unknownLead, installment: !!role.franchiseInstallment,
-    });
+      budget: role.budget, gross: null,
+    };
+    this.credits.push(credit);
+    project.credit = credit;
     a.genreCredits[role.genre] = (a.genreCredits[role.genre] || 0) + 1;
     if (prepChoice.clearsGate) {
       a.solvedGates[prepChoice.clearsGate] = (a.solvedGates[prepChoice.clearsGate] || 0) + 1;
@@ -1007,16 +1012,22 @@ export class Game {
     for (const o of others) { num += o.v * o.w; den += o.w; }
     const ensembleScore = num / den;
 
+    // Quality and reach read the film's real budget; money reads the nominal
+    // one. Otherwise a 2010 mid-budget drama looks like a 1974 epic.
+    //
+    // Derived, never stored: three paths rewrite role.budget after the role is
+    // generated (the non-union downgrade, the unknown-lead ticket, a franchise
+    // installment), and a snapshot taken at generation would have the model
+    // simulating a different film from the one on the board.
+    const realBudget = M.realBudget(role);
+
     // Everyone else in the cast is somebody too, and a studio pays for that.
     const castStarPower = clamp(
       0.42 * M.starPower(a.standing) * bw + 0.34 * role.costar.heat
-        + 0.24 * clamp(14 + 26 * Math.log10(Math.max(1, role.realBudget ?? role.budget)), 0, 100),
+        + 0.24 * clamp(14 + 26 * Math.log10(Math.max(1, realBudget)), 0, 100),
       0, 100,
     );
 
-    // Quality and reach read the film's real budget; money reads the nominal
-    // one. Otherwise a 2010 mid-budget drama looks like a 1974 epic.
-    const realBudget = role.realBudget ?? role.budget;
     const rec = M.reception(this.rng, {
       film: project.film,
       genre: role.genre,
@@ -1061,7 +1072,7 @@ export class Game {
       this.say(`Nobody has seen a film shaped like ${project.role.title} before. They will now.`, 'good');
     }
 
-    const deltas = M.applyReception(a.standing, rec, role.billing, this.credits.length, role.realBudget ?? role.budget);
+    const deltas = M.applyReception(a.standing, rec, role.billing, this.credits.length, realBudget);
     this.noticesHistory.push(rec.notices);
     M.updateRecognition(a, rec.notices, role.billing);
     M.updatePersona(a.persona, role.genre, role.archetype, role.billing, rec.audience);
@@ -1106,6 +1117,11 @@ export class Game {
       project.director.affinity + (rec.notices > 66 ? 9 : rec.notices > 52 ? 4 : -2), -100, 100,
     );
     project.director.sharedProjects += 1;
+
+    if (project.credit) {
+      project.credit.gross = rec.gross * (role.era ?? 1);
+      project.credit.roi = rec.roi;
+    }
 
     const card = {
       project, rec, deltas, staleness,
@@ -1570,6 +1586,8 @@ export class Game {
     const amb = this.ambitionReport();
     const landmarks = this.world.landmarks.filter((l) => l.author === a.name);
     const bigMiss = this.turnedDown.slice().sort((x, y) => y.budget - x.budget)[0];
+    const biggest = this.credits.filter((c) => c.gross != null)
+      .sort((x, y) => y.gross - x.gross)[0];
     const lines = [
       `${a.name}, ${a.age}. ${this.credits.length} credits over ${this.stats.yearsActive} working years.`,
       this.awards.wins > 0
@@ -1579,6 +1597,9 @@ export class Game {
           : 'Never nominated.',
       `Lifetime earnings $${this.money.lifetime.toFixed(1)}M. ${this.money.net < 0 ? 'Died owing money.' : `Left $${this.money.net.toFixed(1)}M.`}`,
       best ? `The obituaries all lead with ${best.title} (${best.year}).` : 'The obituaries are short.',
+      biggest && biggest.gross > 40
+        ? `The biggest thing they were ever in was ${biggest.title}, which took $${biggest.gross.toFixed(0)}M.`
+        : null,
       this.stats.leadCredits === 0
         ? (this.credits.length > 25
           ? 'Never carried a film. Was in a great many of them.'

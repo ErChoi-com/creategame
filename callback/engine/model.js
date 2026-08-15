@@ -60,7 +60,9 @@ export const K = {
   recognitionTier: 0.20,        // how much being remembered raises the tier you are offered
 
   openingBase: 0.92,          // box office: opening multiple on budget
-  reachBase: 0.35,
+  marketingShare: 0.45,       // prints and advertising, as a share of budget
+  rightsShare: 0.62,          // §4.10 what comes back to the film from a ticket
+  reachBase: 0.46,
   reachCoef: 0.50,
   fieldLead: 0.34,            // audition competition, by tier
   fieldSupporting: 0.48,
@@ -364,6 +366,20 @@ export function shapePerformance(perfValue, resolved, presence) {
 // Reception (§4.10) — one box office model, one Ensemble, one Notices.
 // ---------------------------------------------------------------------------
 
+// §10.6 budgets are quoted in the money of their year; the model works in
+// start-year dollars. Everything that reasons about how big a film is goes
+// through here, so the figure on the offer board and the figure inside the box
+// office model are the same film.
+export function realBudget(role) {
+  return role.budget / (role.era || 1);
+}
+
+// What a film has to take to wash its face: the budget plus prints and
+// advertising, against the share of the gross that ever comes back.
+export function breakEven(budget) {
+  return (budget * (1 + K.marketingShare)) / K.rightsShare;
+}
+
 export function reception(rng, ctx) {
   const {
     film, genre, budget, scriptQuality, directorSkill, directorPrestige,
@@ -401,13 +417,13 @@ export function reception(rng, ctx) {
 
   // FIX-4 the doc carried two incompatible box-office models (§4.10 and §8.2).
   // This is the §8.2 shape with §4.10's rights share, and it is the only one.
-  const marketing = 0.45 * budget;
+  const marketing = K.marketingShare * budget;
   const opening = budget * (K.openingBase + 0.005 * castStarPower + 0.005 * genreDemand)
     * Math.pow(budget / 30, -0.10);
   const z = audience + rng.gauss(0, 12);
   const legs = clamp(1.7 + 0.048 * (audience - 50) + 0.032 * Math.pow(Math.max(0, z - 70), 1.5), 1.15, 8.0);
   const gross = opening * legs;
-  const roi = (0.62 * gross) / (budget + marketing);
+  const roi = (K.rightsShare * gross) / (budget + marketing);
 
   return {
     projectQuality, filmCritic, notices, audience, postLuck,

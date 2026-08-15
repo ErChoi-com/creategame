@@ -399,7 +399,6 @@ export class World {
       union: type !== 'indie' || rng.chance(0.5),
       demand: this.demand[genre],
       era,
-      realBudget: budget / era,
     };
   }
 

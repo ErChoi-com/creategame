@@ -27,8 +27,9 @@ It saves as you go and offers to carry on with the career you were having.
 A run looks like this: pick where you are starting from and what you want the
 career to have been for; take parts off a quarterly board against a four-block
 calendar; decide how to prepare and what to play against the film the director
-is making; answer the moments on set that still surprise you; watch four
-different numbers land a year later and be told, every time, exactly why. In
+is making; answer the moments on set that still surprise you; watch it open a
+year later — the critics, your own notices, the audience, and what it took
+against what it had to take — and be told, every time, exactly why. In
 between, the moves menu — some thirty verbs you go looking for and are never
 prompted about — is the half of a career where you act on the industry rather
 than the other way round.
@@ -57,12 +58,12 @@ population against the document's own targets:
 ```
 metric                                       target (14.9)  measured
 Median career length (years active)          26 yrs         32 yrs     PASS
-Careers reaching Heat > 80                   ~18%           15%        PASS
-Careers with zero nominations                ~55%           46%        PASS
-Award wins per 100 careers                   21             14         PASS
-Median lifetime earnings                     $6-11M         $10.5M     PASS
-Top-decile lifetime earnings                 $90M+          $137M      PASS
-Careers with a lead role after 42            ~30%           42%        PASS
+Careers reaching Heat > 80                   ~18%           17%        PASS
+Careers with zero nominations                ~55%           50%        PASS
+Award wins per 100 careers                   21             12         PASS
+Median lifetime earnings                     $6-11M         $10.0M     PASS
+Top-decile lifetime earnings                 $90M+          $126M      PASS
+Careers with a lead role after 42            ~30%           39%        PASS
 ```
 
 `agency.mjs` holds the claims the breadth depends on: a career that never opens the moves menu

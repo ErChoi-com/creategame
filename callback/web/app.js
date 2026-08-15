@@ -83,6 +83,10 @@ const clear = () => { stage.replaceChildren(); };
 // reaches the page goes through here.
 const put = (...kids) => stage.append(...kids.filter((k) => k != null));
 const money = (m) => (Math.abs(m) >= 1 ? `$${m.toFixed(1)}M` : `$${Math.round(m * 1000)}K`);
+// Box office is quoted the way the trades quote it: round numbers, and billions
+// once a picture gets there.
+const boxOffice = (m) => (m >= 1000 ? `$${(m / 1000).toFixed(2)}B`
+  : m >= 10 ? `$${m.toFixed(0)}M` : `$${m.toFixed(1)}M`);
 const count = (n, one, many) => `${n} ${n === 1 ? one : many || `${one}s`}`;
 const genreName = (g) => GENRE_NAMES[g] || g;
 const article = (word) => `${/^[aeiou]/i.test(word) ? 'an' : 'a'} ${word}`;
@@ -301,14 +305,7 @@ function resume(saved) {
   } catch (err) {
     console.warn('save could not be replayed', err);
     clearSave();
-    // Enter does the obvious thing on every screen.
-document.addEventListener('keydown', (e) => {
-  if (e.key !== 'Enter' || e.target.tagName === 'INPUT') return;
-  const primary = stage.querySelector('button.primary:not([disabled])');
-  if (primary) { e.preventDefault(); primary.click(); }
-});
-
-screenCreate();
+    screenCreate();
   }
 }
 
@@ -640,7 +637,10 @@ function screenRelease(cards, i, yearRolled) {
       el('span', { class: `tag ${rec.notices > 66 ? 'good' : rec.notices < 45 ? 'warn' : ''}` }, `your notices ${rec.notices.toFixed(0)}`),
       el('span', { class: 'tag' }, `audience ${rec.audience.toFixed(0)}`),
       el('span', { class: `tag ${rec.roi > 1.4 ? 'hot' : rec.roi < 0.8 ? 'warn' : ''}` }, `roi ${rec.roi.toFixed(2)}`),
+      el('span', { class: `tag ${rec.roi > 1.4 ? 'hot' : rec.roi < 0.8 ? 'warn' : ''}` },
+        `box office ${boxOffice(rec.gross * (c.project.role.era ?? 1))}`),
     ),
+    el('div', { class: 'attrib' }, el('div', {}, boxOfficeLine(c))),
     el('div', { class: 'attrib' }, c.attribution.map((t) => el('div', {}, t))),
     el('div', { class: 'attrib' },
       el('div', {}, `Heat ${c.deltas.dHeat >= 0 ? '+' : ''}${c.deltas.dHeat.toFixed(1)} · `
@@ -650,6 +650,22 @@ function screenRelease(cards, i, yearRolled) {
     ),
     el('button', { class: 'primary', onclick: () => screenRelease(cards, i + 1, yearRolled) }, 'Next'),
   );
+}
+
+// The trades number, and the figure it had to clear. Break-even is the budget
+// plus prints and advertising, against the share of the gross that comes back —
+// which is why a picture can take twice what it cost and still be spoken of as
+// a disappointment. Both terms come from the model, not from here.
+function boxOfficeLine(c) {
+  const { rec } = c;
+  const era = c.project.role.era || 1;
+  const breakEven = M.breakEven(c.project.role.budget);
+  const aside = rec.legs > 3.2 ? ' — word of mouth did that, not the opening'
+    : rec.legs < 1.6 ? ' — everyone who was ever going to see it went the first weekend'
+      : '';
+  return `Opened to ${boxOffice(rec.opening * era)}, played ${rec.legs.toFixed(1)}× that, `
+    + `finished at ${boxOffice(rec.gross * era)}${aside}. `
+    + `It needed about ${boxOffice(breakEven)} to break even.`;
 }
 
 function screenYearEnd() {
@@ -843,7 +859,9 @@ function screenObituary() {
     el('div', { class: 'obit' }, lines.map((l) => el('p', {}, l))),
     el('h3', { class: 'section' }, 'The credits'),
     el('div', { class: 'card' }, game.credits.length
-      ? game.credits.map((c) => el('div', { class: 'meta' }, `${c.year}  ${c.title} — ${c.billing}, ${genreName(c.genre)}`))
+      ? game.credits.map((c) => el('div', { class: 'meta' },
+        `${c.year}  ${c.title} — ${c.billing}, ${genreName(c.genre)}`
+        + (c.gross != null ? ` · ${boxOffice(c.gross)}` : c.year < game.year ? ' · unreleased' : '')))
       : el('p', {}, 'None.')),
     game.turnedDown.length ? el('h3', { class: 'section' }, 'And what they passed on') : null,
     game.turnedDown.length
@@ -853,14 +871,7 @@ function screenObituary() {
     el('div', { style: 'margin-top:20px' },
       el('button', {
         class: 'primary',
-        onclick: () => { clearSave(); game = null; // Enter does the obvious thing on every screen.
-document.addEventListener('keydown', (e) => {
-  if (e.key !== 'Enter' || e.target.tagName === 'INPUT') return;
-  const primary = stage.querySelector('button.primary:not([disabled])');
-  if (primary) { e.preventDefault(); primary.click(); }
-});
-
-screenCreate(); },
+        onclick: () => { clearSave(); game = null; screenCreate(); },
       }, 'Again')),
   );
 }

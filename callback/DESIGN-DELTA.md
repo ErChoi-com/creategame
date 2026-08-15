@@ -195,6 +195,42 @@ and two of the five agency rules failed immediately:
   arguing about, consecutive campaigns decay, and category fraud twice is a
   story about you.
 
+## The box office, and the bug that showing it exposed
+
+The model computed a gross from the start and the interface never printed it:
+you saw ROI as a bare ratio and a headline that said "made a great deal of
+money", and had to do the arithmetic yourself. The release card now carries the
+figure, the opening, the multiple it played, and — the number that makes ROI
+legible at all — what the picture had to take to break even, which is the budget
+plus prints and advertising against the share of the gross that comes back. A
+film can take twice what it cost and still be a disappointment, and that is now
+readable rather than implied. Credits carry their gross afterwards, so the
+filmography at the end is a filmography with money on it.
+
+Printing the number is what caught the fault under it. `realBudget` — the film's
+size in start-year dollars, which is what reception, reach and box office all
+read — was **snapshotted when the role was generated**, and three paths rewrite
+`role.budget` afterwards: the non-union downgrade (×0.35), the unknown-lead
+franchise ticket (floor $90M) and a franchise installment (floor $120M). So the
+model was simulating a different film from the one on the offer board, in both
+directions: early non-union work was scored as a picture nearly three times its
+stated size, and the two biggest paths in the game were scored as the small
+films they were generated as before being promoted. `model.realBudget()` derives
+it now and nothing stores it, so it cannot go stale again.
+
+That correction removed a phantom subsidy the early ladder was quietly living
+on: careers reaching Heat > 80 fell from 15% to 10% and the earnings tail from
+$137M to $92M, because the first rung was being paid for by the bug.
+`K.reachBase` 0.35 → 0.46 restores it honestly — 17% and $126M, closer to the
+document's ~18% than the version with the fault. Swept at N=900, then confirmed
+7/7 on 3,000 careers and on three independent seed populations of 1,500.
+
+Two stray copies of the Enter-key handler were also removed from `web/app.js`,
+where a careless replacement had pasted the block inside the save-recovery catch
+and inside the obituary's "Again" button — every failed replay or restart
+registered another global listener, so Enter eventually clicked the primary
+button several times over.
+
 ## What is not built
 
 Named honestly, because the review's complaint about this document was that it never was:
