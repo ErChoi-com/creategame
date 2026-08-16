@@ -62,6 +62,7 @@ from callback.engine.simulation._director import (
 from callback.engine.world.genre_cycle import accumulate_heat
 from callback.engine.world.genre_cycle import genre_demand as world_genre_demand
 from callback.engine.world.guild import add_residual_stream
+from callback.engine.simulation._relationships import trust_band, utility_bonus_from_trust
 from callback.engine.simulation._release_labels import RELEASE_LABELS
 from callback.engine.simulation.bands import audience_band, critic_band, performance_band, relationship_band, roi_band, standing_band
 from callback.engine.simulation.career import ProjectResult
@@ -167,7 +168,9 @@ class Session:
         listings = []
         for _ in range(count):
             role = offer_this_year(self.state, self.rng)
-            utility = utility_for(self.state, role)
+            # A studio that's made money with you before wants you back; one you burned is
+            # warier — a real memory, not just flavor text on the tagline.
+            utility = utility_for(self.state, role) + utility_bonus_from_trust(self.state.studio_relations, role.studio)
             path = resolve_casting_path(utility, role)
             would_offer = path == "direct_offer" or self.rng.random() < offer_probability(utility, role.difficulty)
             index = len(self._board)
@@ -322,8 +325,31 @@ class Session:
     def available_directors(self) -> list[dict]:
         return [
             {"id": n.npc_id, "relationship": relationship_band(n.relationship_state),
-             "favour_balance": self.state.leverage.favours.balance(n.npc_id)}
+             "favour_balance": self.state.leverage.favours.balance(n.npc_id),
+             "trust": self._director_trust(n.npc_id)}
             for n in self.state.rolodex.tracked() if n.npc_type == "director"
+        ]
+
+    def _director_trust(self, npc_id: str) -> dict | None:
+        rel = self.state.director_relations.get(npc_id)
+        if rel is None:
+            return None
+        return {"projects_together": rel.projects_together, "trust_band": trust_band(rel.trust)}
+
+    # ---- studio and director relationships — profit and loss, remembered -------------------
+
+    def studio_relations_status(self) -> list[dict]:
+        return [
+            {"studio_name": STUDIOS[rel.subject_id].name, "projects_together": rel.projects_together,
+             "trust_band": trust_band(rel.trust), "net_profit_millions": round(rel.net_profit_millions, 1)}
+            for rel in self.state.studio_relations.values()
+        ]
+
+    def director_relationship_status(self) -> list[dict]:
+        return [
+            {"id": rel.subject_id, "projects_together": rel.projects_together,
+             "trust_band": trust_band(rel.trust), "net_profit_millions": round(rel.net_profit_millions, 1)}
+            for rel in self.state.director_relations.values()
         ]
 
     def request_director(self, npc_id: str) -> str:

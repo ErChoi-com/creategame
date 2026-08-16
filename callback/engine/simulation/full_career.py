@@ -31,6 +31,7 @@ from callback.engine.simulation._franchises import (
     update_franchise_after_project,
 )
 from callback.engine.simulation._director import DirectorState, decay_director_standing
+from callback.engine.simulation._relationships import director_skill_bonus_from_trust, update_relationship
 from callback.engine.world.genre_cycle import accumulate_heat, decay_all
 from callback.engine.world.genre_cycle import genre_demand as world_genre_demand
 from callback.engine.world.guild import GuildState, add_residual_stream
@@ -58,6 +59,8 @@ class FullState:
     declined: tuple[DeclinedRoleRecord, ...] = ()
     franchises: dict = field(default_factory=dict)  # franchise_id -> simulation._franchises.FranchiseEntry
     director: DirectorState | None = None  # None until the player crosses into a directing career
+    studio_relations: dict = field(default_factory=dict)  # studio_id -> simulation._relationships.Relationship
+    director_relations: dict = field(default_factory=dict)  # npc_id -> simulation._relationships.Relationship (requested directors only)
 
 
 def new_full_state(rng: random.Random, start_age: int = 22) -> FullState:
@@ -123,8 +126,12 @@ def accept_and_play(
     if requested_director_npc_id is not None:
         d_skill, d_command, d_prestige = director_terms_for(state.rolodex, requested_director_npc_id)
         # a director returning to their own franchise reads as investment, mechanically —
-        # simulation._franchises.director_continuity_bonus, not just a flavor line.
-        d_skill = clamp(d_skill + director_continuity_bonus(role, state.franchises, requested_director_npc_id), 0.0, 100.0)
+        # simulation._franchises.director_continuity_bonus, not just a flavor line. Stacks with
+        # simulation._relationships' general "you've made money together before" trust bonus —
+        # two different, real reasons a returning director reads sharper.
+        continuity = director_continuity_bonus(role, state.franchises, requested_director_npc_id)
+        trust_bonus = director_skill_bonus_from_trust(state.director_relations, requested_director_npc_id)
+        d_skill = clamp(d_skill + continuity + trust_bonus, 0.0, 100.0)
         director_override = (d_skill, d_command, d_prestige)
 
     new_actor_state, result = simulate_project(
@@ -156,8 +163,21 @@ def accept_and_play(
     guild = add_residual_stream(state.guild, result.roi, role.budget_for_role)
     genre_heat = accumulate_heat(state.genre_heat, role.genre, result.roi)
 
-    new_state = replace(state, actor=new_actor_state, rolodex=rolodex, leverage=leverage, guild=guild,
-                         genre_heat=genre_heat, franchises=franchises, filmography=(*state.filmography, result))
+    # The studio that financed this film remembers how it turned out, and so does a director you
+    # specifically asked for — both real, both feeding straight back into future casting/skill
+    # numbers rather than sitting as an inert P&L ledger nobody reads.
+    studio_relations = update_relationship(state.studio_relations, role.studio, role.budget_for_role, result.roi, result.gross)
+    director_relations = state.director_relations
+    if requested_director_npc_id is not None:
+        director_relations = update_relationship(
+            director_relations, requested_director_npc_id, role.budget_for_role, result.roi, result.gross,
+        )
+
+    new_state = replace(
+        state, actor=new_actor_state, rolodex=rolodex, leverage=leverage, guild=guild,
+        genre_heat=genre_heat, franchises=franchises, filmography=(*state.filmography, result),
+        studio_relations=studio_relations, director_relations=director_relations,
+    )
     return new_state, result
 
 

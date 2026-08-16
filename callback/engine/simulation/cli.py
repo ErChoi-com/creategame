@@ -155,7 +155,9 @@ def director_screen(session: Session, auto: bool) -> None:
     if not directors:
         return
     options = [("__none__", "Let them assign whoever")] + [
-        (d["id"], f"{d['id']} ({d['relationship']}) — owes you {d['favour_balance']}, costs {session.DIRECTOR_REQUEST_FAVOUR_COST}")
+        (d["id"], f"{d['id']} ({d['relationship']}) — owes you {d['favour_balance']}, costs "
+                  f"{session.DIRECTOR_REQUEST_FAVOUR_COST}"
+                  + (f", {d['trust']['trust_band']} ({d['trust']['projects_together']} film(s) together)" if d["trust"] else ""))
         for d in directors
     ]
     key = choose(options, "  WHO'S DIRECTING — call in a favour to request someone specific:", 0, auto)
@@ -271,6 +273,20 @@ def pull_menu(session: Session, auto: bool) -> None:
         for f in franchises:
             print(f"    {f['genre'].title()} ({f['studio_name']}) — {f['installments']} installment(s), "
                   f"indispensability {f['indispensability']}, recast cost ${f['recast_cost_millions']}M")
+
+    studio_rels = session.studio_relations_status()
+    if studio_rels:
+        print("\n  STUDIO RELATIONSHIPS")
+        for r in studio_rels:
+            print(f"    {r['studio_name']} — {r['projects_together']} film(s) together, {r['trust_band']}, "
+                  f"net P&L ${r['net_profit_millions']:.1f}M")
+
+    director_rels = session.director_relationship_status()
+    if director_rels:
+        print("\n  DIRECTORS YOU'VE WORKED WITH")
+        for r in director_rels:
+            print(f"    {r['id']} — {r['projects_together']} film(s) together, {r['trust_band']}, "
+                  f"net P&L ${r['net_profit_millions']:.1f}M")
 
 
 def directing_career_screen(session: Session, auto: bool) -> bool:

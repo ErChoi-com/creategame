@@ -233,6 +233,25 @@ returns 0 on anything that lost money — a real gross-points deal, not a guaran
 payout flows straight into `life/money.py` as real income (`advance_between_years()`'s new
 `bonus_income` param), same as your quote already does.
 
+**Studios and directors remember profit and loss** (`simulation/_relationships.py`). Every
+resolved project updates a `Relationship` (project count, running net P&L, a 0-100 trust score)
+keyed to that film's financing studio, and — if you spent a Leverage favour to request them — to
+that specific director. Trust moves asymmetrically off ROI, the same loss-averse read every other
+risk-facing formula in this engine already uses: a big loss costs more trust than an equivalent
+win earns back. That trust then changes real numbers, not just a ledger:
+
+- **A studio's trust in you shifts how easily they cast you.** `Session.offer_board()` adds
+  `utility_bonus_from_trust()` straight onto that listing's Utility before the casting-path/offer-
+  probability roll — a studio you've made money for offers more readily, one you've burned goes
+  measurably cold (an instrumented check: distrust dropped one studio's own offer-availability
+  rate from ~12% to ~5% against otherwise-identical listings).
+- **A director's trust in you sharpens their own skill reading**, stacking with (not replacing)
+  the franchise-specific continuity bonus a *returning* director on the same franchise already
+  earns — two different, real reasons a repeat collaborator reads better.
+- **Reachable everywhere a player already looks**: `Session.studio_relations_status()` /
+  `director_relationship_status()` show in the pull menu next to Rolodex/Franchises/Leverage, and
+  `available_directors()` now shows trust alongside the existing relationship/favour-balance read.
+
 ## Known gaps and simplifications (documented inline at each site too)
 
 - **`actor/offers.sample_role()`** is still a placeholder role generator — it doesn't scale a
