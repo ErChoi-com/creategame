@@ -16,15 +16,17 @@ Every actor who has been wrecked by a bad edit has a mechanical, in-fiction reas
 
 ## 7.2 Director attributes (0–100)
 
-| Attribute | What it does |
-|---|---|
-| **Vision** | Originality and ambition. Sets the ceiling on `ProjectQuality` and drives Signature strength. High Vision + low Efficiency is the classic overreaching auteur. |
-| **Command** | Leading actors and crew. **This is the single most important attribute** — it feeds `DirectionMult` and directly raises every cast member's Performance roll. |
-| **Craft** | Blocking, coverage, camera, composition — how well you actually make the thing. Lowers `chaos`, raises `PostLuck`, feeds `FilmCriticScore` and festival fit. |
-| **Taste** | Script judgment. See below — this one is unusual. |
-| **Efficiency** | Schedule and budget adherence. Determines overage, which determines whether you keep final cut. |
+| Attribute | What it does | What you'd actually hear *(v9)* |
+|---|---|---|
+| **Vision** | Originality and ambition. Sets the ceiling on `ProjectQuality` and drives Signature strength. High Vision + low Efficiency is the classic overreaching auteur. | "She has real ideas, even the ones that don't work." |
+| **Command** | Leading actors and crew. **This is the single most important attribute** — it feeds `DirectionMult` and directly raises every cast member's Performance roll. | "Actors do their best work for him — everyone says so." |
+| **Craft** | Blocking, coverage, camera, composition — how well you actually make the thing. Lowers `chaos`, raises `PostLuck`, feeds `FilmCriticScore` and festival fit. | "Every frame looks exactly like it's supposed to." |
+| **Taste** | Script judgment. See below — this one is unusual. | "She can spot a good script from a stack of forty." |
+| **Efficiency** | Schedule and budget adherence. Determines overage, which determines whether you keep final cut. | "Always over schedule. Always over budget." |
 
 *v3 had seven. **TechCraft** and **Eye** did the same job under two names — merged into Craft. **Nerve** was barely referenced; holding your vision under pressure is what Vision means.*
+
+*(v9 — like the actor's own core attributes, these five numbers are never shown to the player as raw 0–100 values; §15's rule for player-facing UI covers the director exactly as it covers the actor. The third column above is what that sounds like in practice — the same qualitative-read pattern §4.7 already uses for the actor's own hidden Performance, not a new UI element.)*
 
 ### Taste is information, not power
 

@@ -418,7 +418,7 @@ THE ENDING
 
 **A director can make or destroy an actor in the cut, and the actor may never find out.**
 
-If the player is the actor, they get a `YourNotices` number that doesn't match the work they know they did — and no explanation. If the player is the director, they hold someone's year in their hands while that person is at home waiting.
+If the player is the actor, they get a Notices number that doesn't match the work they know they did — and no explanation. If the player is the director, they hold someone's year in their hands while that person is at home waiting.
 
 It should be discoverable, but late: at a retrospective, in a memoir, from a crew member decades on, in the obituary. **The film you thought failed you was a choice somebody made in a room you weren't in.** That's the most human thing this simulation can do, and it costs three lines of code.
 
@@ -432,7 +432,7 @@ Anyone holding script approval (§6.3) gets notes. What you push for is a real c
 |---|---|
 | **Clarity** | `AudienceScore` +, `FilmCritic` − |
 | **Ambiguity** | `FilmCritic` +, `AudienceScore` −, cult chance up |
-| **Your part** | Your `Fit` and screen time up; `ScriptQuality` down; the whole crew notices |
+| **Your part** | Your Fit (how right you read for the role, §4.4) and screen time up; `ScriptQuality` down; the whole crew notices |
 | **The whole film** | `ScriptQuality` +, nothing for you, and the writer will work with you again for life |
 
 That last row should be the quietly correct answer often enough that players discover it themselves.

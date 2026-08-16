@@ -91,6 +91,21 @@ itself introduces — an off-screen NPC career feeling arbitrary the day it resu
 is a new formula or a new stat; every addition names which existing mechanism a verb, a promise, or
 a schema field was always supposed to be reading from.
 
+**A language pass then closed out the gaps an audit found in the earlier plain-language cleanup.**
+That cleanup (§4.1, §5.3, §5.5) never fully propagated: §4.2's and §5.15's **Fit** had no gloss
+anywhere, unlike Legibility; `YourNotices` leaked back into plain prose in §4.10 and §5.14 even
+though §5.6 had already settled on the clean "Notices"/"Ensemble"; **Indispensability** (§6.1,
+§6.4) read as a raw stat name with no stated connection to §15's own rule that non-core numbers
+are shown to the player as words, not values; and §7.2's director attribute table (Vision,
+Command, Craft, Taste, Efficiency) looked like a raw stat block despite §15 explicitly saying the
+director's five attributes get the same word-only treatment as the actor's. Fixed: Fit got the
+same one-line, first-mention gloss Legibility already had; the stray `YourNotices` instances were
+normalized to the plain term already established in §5.6; Indispensability's note in §6.1 now
+states explicitly that the player only ever sees the qualitative band already in §6.4's table; and
+§7.2 gained a "What you'd actually hear" column showing what each attribute sounds like in play,
+plus a note citing §15's rule directly. No mechanic changed — every fix is a gloss, a cross-
+reference, or a term swapped for one already defined elsewhere in the document.
+
 **Then the Rolodex's relationship layer got built out**, inside §10.0, at the user's specific
 request to keep it in the world doc rather than scatter it. §4.12 already stored `affinity`,
 `grudge`, `sharedProjects`, and `lastContact` per NPC, but those four numbers only ever fed one

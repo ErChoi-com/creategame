@@ -116,6 +116,15 @@ spending one; a small, budget-capped set of NPC-initiated moments make the relat
 it runs on its own; and losing someone — their own simulated career ending — has real, bounded,
 one-time weight instead of just going quiet.
 
+**A language audit then closed the gaps the earlier plain-language pass missed.** That pass
+(§4.1, §5.3, §5.5) cleaned the palette dials, the four positions, and Notices/Ensemble in the
+sections it touched directly, but didn't propagate everywhere: **Fit** never got the gloss
+Legibility did, `YourNotices` leaked back into prose after §5.6 had already settled on "Notices,"
+**Indispensability** read as a raw stat with no stated link to the doc's own "shown as words, not
+numbers" rule (§15), and the director's attribute table (§7.2) looked like a raw stat block despite
+§15 saying it gets the same word-only treatment as the actor's. All four fixed — a gloss, a term
+swap, or an explicit citation of a rule the document already had, nothing mechanical changed.
+
 **Not yet folded back in:** `callback-sim.py` and `callback-career-sim.py` still test the *original*
 v8 constants, so running them now reproduces the review's failing numbers on purpose — they haven't
 been updated to check v9's formulas. Re-tuning them against the corrected §4.3/§4.4/§4.10 is the

@@ -107,7 +107,7 @@ Legibility = normalized concentration of the two vectors
 
 **Breaking type.** You can take a role that fights your Persona. It carries:
 - an audition penalty (see 4.4)
-- a **Fit** penalty in the performance roll
+- a **Fit** penalty in the performance roll *(v9 — Fit is how well you read for the part on paper: age, genre, archetype, the hard gates. It's not how well you act it — that's Performance, §4.7. A role can fit you badly and still be the best work of your career.)*
 - but on success: a large **Prestige** bonus, a Legibility reset toward the middle, and an award-narrative flag (`transformation`)
 
 This is the actual dramatic arc of most real careers, and BitLife has no version of it.
@@ -193,7 +193,7 @@ Each quarter, generate role listings from active productions in the world sim, a
 ```
 StandingScore = Σ (G.weight[m] × Standing[m])          // per 4.3 table
 
-FitScore = 100
+FitScore = 100                                          // how well you match the part on paper
          − ageMismatchPenalty(|charAge − yourAge|)      // see below
          − 0.45 × (100 − GenreAffinity[r.genre])        × r.typeStrictness
          − 0.45 × (100 − ArchetypeAffinity[r.archetype]) × r.typeStrictness
@@ -369,7 +369,7 @@ The design response is not to remove the cliff, it's to make **the transition a 
 
 This is the mechanical heart of the redesign. **Four separate numbers**, computed from overlapping but non-identical inputs.
 
-The critical structural move — and the thing that makes the whole design work — is that **the film gets reviewed and you get reviewed separately.** BitLife has one number. Callback has `FilmCriticScore` (was the movie good) and `YourNotices` (were *you* good in it). Prestige and awards read `YourNotices`; Heat and money read the box office; the two only partly agree. Everything downstream depends on this split.
+The critical structural move — and the thing that makes the whole design work — is that **the film gets reviewed and you get reviewed separately.** BitLife has one number. Callback has `FilmCriticScore` (was the movie good) and **Notices** — `YourNotices` in the formulas below, fully defined in §5.6 — (were *you* good in it). Prestige and awards read Notices; Heat and money read the box office; the two only partly agree. Everything downstream depends on this split.
 
 **v9 — Part 5 defined `YourNotices` and `EnsembleScore` again, differently, and the two were never reconciled; each was "verified" in isolation against a different definition of itself.** There is now exactly one of each, produced by §5.6's shape resolution and consumed here as `yourNotices`/`ensembleScore` — this section cannot drift from Part 5 again because there is only one code path between them. The reception sweep below was re-run against the unified definition.
 
