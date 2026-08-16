@@ -206,6 +206,14 @@ export const AGENT_TIERS = {
   powerhouse: { commission: 0.15, offers: 4, negotiate: 0.25, label: 'Powerhouse agency' },
 };
 
+// Character creation is the only place agent tier was ever set — a
+// "Regional stage" start had no representation for the rest of the career,
+// and nobody could ever reach 'powerhouse' at all, which meant
+// agency_package below was permanently unreachable content for every
+// player. This is the ladder leverage.js's sign_with_agency climbs.
+export const AGENT_UPGRADE = { none: 'boutique', boutique: 'midtier', midtier: 'powerhouse' };
+export const AGENT_UPGRADE_THRESHOLD = { none: 0, boutique: 28, midtier: 60 };
+
 export const FIRST_NAMES = [
   'Ada', 'Marcus', 'Ines', 'Theo', 'Rosalind', 'Cal', 'June', 'Otto', 'Nadia',
   'Perry', 'Sabine', 'Wes', 'Lila', 'Gideon', 'Mara', 'Emmett', 'Yusuf', 'Vera',

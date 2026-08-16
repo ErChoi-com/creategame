@@ -1451,10 +1451,22 @@ export class Game {
 
     // §6.4 you cannot cool off while you are the face of a live property. The
     // audience sees you on a bus shelter whether or not you worked this year,
-    // and that is what being indispensable actually feels like.
-    if (this.franchise && !this.franchise.writtenOut && this.franchise.identification > 30) {
-      const floor = clamp(18 + 0.45 * this.franchise.identification, 0, 82);
-      if (a.standing.heat < floor) a.standing.heat = floor;
+    // and that is what being indispensable actually feels like — but that
+    // perk, and only that perk, is gated to identification > 30. Decay and
+    // the eventual release below used to live inside the same gate, which
+    // meant a franchise that decayed into the (12, 30] range in one step —
+    // exactly what a reboot's extra -4/yr does — never moved again: not
+    // decaying further, never clearing, and so this.franchise stayed
+    // permanently non-null, permanently blocking every future franchise for
+    // the rest of the career (§6.4's own new-franchise check requires
+    // `!this.franchise`). Every hard system needs a real exit; decay now
+    // always runs while a franchise is live, and the heat floor is the only
+    // part still reserved for identification that is actually still high.
+    if (this.franchise && !this.franchise.writtenOut) {
+      if (this.franchise.identification > 30) {
+        const floor = clamp(18 + 0.45 * this.franchise.identification, 0, 82);
+        if (a.standing.heat < floor) a.standing.heat = floor;
+      }
       // Identification is continuity. Skip an installment and the audience
       // starts to think of the part rather than of you.
       const done = this.franchise.installments >= this.franchise.maxInstallments;

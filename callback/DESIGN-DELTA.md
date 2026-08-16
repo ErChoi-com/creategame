@@ -339,3 +339,41 @@ gives each archetypal shape a real phrase (`verite` → "a fly-on-the-wall drama
 hack. And the description sentence itself now stops naming a "nearest shape" at low coherence,
 where the nearest shape was never a meaningful description in the first place — it says the film
 has not settled into one yet, which is what a coherence below 40 actually means.
+
+## Two real dead ends, found by asking "what can never recover from this"
+
+The design document's own §8 review list states the rule directly: *"every hard system needs a
+real exit... blacklists end, the lifestyle floor can be cut, the late-career renaissance is
+reachable. Consequences must be survivable or players stop caring."* Two places in the shipped
+engine violated it — not as intended difficulty, as an actual permanent dead end with no move
+that gets you out.
+
+**A franchise that reboots without you could freeze forever, instead of fading.** The decay that
+was supposed to eventually retire a lapsed franchise (`identification < 12` clears it, freeing
+`!this.franchise` for a new one to form) lived inside the same `identification > 30` gate as the
+"you can't cool off while indispensable" heat floor. A reboot's own penalty (skip-decay 6.5 plus a
+further -4/yr) routinely drops identification from comfortably above 30 to somewhere in (12, 30]
+in a single year. Once there, the gate that runs the decay never re-opens: the number stops
+moving, never reaches 12, and `this.franchise` stays a live, non-`writtenOut` object for the rest
+of the career — permanently blocking every future franchise, in any genre, for good. Verified: a
+rebooted franchise now decays through that band and clears within two years
+(`identification: 23.5 → 13.0 → null`) exactly as the reboot narration already implied it should.
+Only the heat-floor perk is still gated to identification > 30; decay and the eventual release
+run whenever a franchise is live, full stop.
+
+**No path existed from a bad agent to a good one, or from no agent to any agent at all.** Agent
+tier (`a.agent`) was set once, at character creation, and never touched again anywhere in the
+engine. The Regional Stage opening starts with `agent: 'none'` — zero contribution to offer
+volume, for the entire career, with no move that ever changes it. Worse: no background ever
+starts at `'powerhouse'`, and nothing upgrades toward it, which meant `agency_package` — an
+entire leverage move, gated on `agent === 'powerhouse'` — was permanently unreachable content in
+every career, for every player, regardless of skill or standing. `sign_with_agency`
+(`engine/leverage.js`) is the missing rung: available whenever there's a tier above your current
+one and your standing clears that tier's bar (0 / 28 / 60), it moves you up one step at a time,
+same commission trade-off `AGENT_TIERS` already modelled. `AGENT_UPGRADE` and
+`AGENT_UPGRADE_THRESHOLD` (`engine/data.js`) are the ladder it climbs.
+
+Neither fix touches a calibrated formula — both are reachability fixes to systems that already
+existed. Full regression re-run after both: career-sim 3000 (7/7), subsystems (16/16), agency
+(5/5, including the Greedy bounding agent exercising `sign_with_agency` 943 times), production.mjs
+(5/5 at 3000 careers), replay-test (25/25), smoke-ui (0 errors), save-test.

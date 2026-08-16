@@ -12,7 +12,9 @@
 
 import { clamp } from './rng.js';
 import * as M from './model.js';
-import { GENRES } from './data.js';
+import {
+  GENRES, AGENT_TIERS, AGENT_UPGRADE, AGENT_UPGRADE_THRESHOLD,
+} from './data.js';
 
 // A tiny helper so every action reads the same way.
 const A = (def) => ({
@@ -138,6 +140,29 @@ const GET_WORK = [
       return {
         text: `You walked ${script.title} into four offices with yourself attached. `
           + `${(100 * script.financingChance).toFixed(0)}% of the town thinks that is enough.`,
+      };
+    },
+  }),
+  A({
+    id: 'sign_with_agency',
+    category: 'Get work',
+    label: 'Sign with a bigger agency',
+    blurb: 'More offers reach you, and you negotiate every one of them from a stronger chair. Someone else takes a bigger cut for it.',
+    cost: (g) => `${(AGENT_TIERS[AGENT_UPGRADE[g.actor.agent]].commission * 100).toFixed(0)}% commission from here on`,
+    available: (g) => {
+      const next = AGENT_UPGRADE[g.actor.agent];
+      return !!next && M.standing(g.actor.standing) >= AGENT_UPGRADE_THRESHOLD[g.actor.agent];
+    },
+    salience: (g) => (g.actor.agent === 'none' ? 0.9 : 0.5),
+    run: (g) => {
+      const next = AGENT_UPGRADE[g.actor.agent];
+      const label = AGENT_TIERS[next].label.toLowerCase();
+      const first = g.actor.agent === 'none';
+      g.actor.agent = next;
+      return {
+        text: first
+          ? `Someone finally returns your calls. A ${label}, now.`
+          : `A ${label} now. The phone rings more, and differently.`,
       };
     },
   }),
