@@ -289,25 +289,42 @@ def pull_menu(session: Session, auto: bool) -> None:
                   f"net P&L ${r['net_profit_millions']:.1f}M")
 
 
-def directing_career_screen(session: Session, auto: bool) -> None:
-    """A distinct menu, not the acting screens repurposed — fused into the same Session, and no
-    longer competing with acting for the year: this can run in the same turn as an acting offer,
-    before or after it. Session.end_year() is what actually advances the calendar, once, later."""
-    if not session.directing_unlocked():
-        return
+def acting_block(session: Session, auto: bool) -> None:
+    """One full acting turn — Offer Board through Post & Release. Does not advance the calendar
+    (see Session.end_year(), called once per year by run())."""
+    chosen_index = offer_board_screen(session, auto)
 
+    if chosen_index is not None:
+        session.accept(chosen_index)
+        proceeds = franchise_screen(session, auto)
+        if proceeds:
+            deal_screen(session, auto)
+            script_notes_screen(session, auto)
+            director_screen(session, auto)
+            costar_screen(session, auto)
+            prep_screen(session, auto)
+            shoot_screen(session, auto)
+            summary = release_screen(session, auto)
+            post_release_screen(summary)
+            awards_screen(session, auto)
+        else:
+            print("    No project this year — the franchise moved on without you.")
+    else:
+        for result in session.decline_board():
+            print(f"    A {result['genre']} film went to someone else: {result['roi_band']}, {result['critic_band']} reviews.")
+
+
+def directing_block(session: Session, auto: bool) -> None:
+    """One full directing turn — development hell through a greenlit film, if it lands. Does not
+    advance the calendar (see Session.end_year())."""
     if not session.is_directing():
         choice = prompt(
             "  You've got real weight in the room now — someone would finance your own film. "
-            "Step behind the camera? [Y]/[N]", "N", auto,
+            "Step behind the camera? [Y]/[N]", "Y", auto,
         )
         if choice.upper() != "Y":
             return
         print(f"    {session.become_director()}")
-
-    choice = prompt("  Work on directing this year too, alongside acting? [Y]/[N]", "Y", auto)
-    if choice.upper() != "Y":
-        return
 
     status = session.director_status()
     print(f"\n  --- DIRECTING ({status['standing']}, {status['credits']} credit(s)) ---")
@@ -335,6 +352,36 @@ def directing_career_screen(session: Session, auto: bool) -> None:
         print(f"    Still in development — momentum now {result['momentum']}.")
 
 
+def year_screen(session: Session, auto: bool) -> None:
+    """This year's single work menu: acting and directing are each a clean either/or pick — you
+    can't do both at once — but the menu loops, so you can do one block, then come back and do
+    the other, both landing in the same year. Session.end_year() (called by run(), once) is what
+    actually advances the calendar."""
+    acted = False
+    directed = False
+    while True:
+        options = []
+        if not acted:
+            options.append(("act", "Work on acting"))
+        if session.directing_unlocked() and not directed:
+            options.append(("direct", "Work on directing"))
+        if not options:
+            break
+        options.append(("done", "That's it for this year"))
+        # index 0 is always whatever's still available to pick (act, then direct, then done) —
+        # auto mode naturally works through both blocks in order before ending the year.
+        choice = choose(options, "  This year, work on:", 0, auto)
+
+        if choice == "done":
+            break
+        if choice == "act":
+            acting_block(session, auto)
+            acted = True
+        elif choice == "direct":
+            directing_block(session, auto)
+            directed = True
+
+
 def run(auto: bool, seed: int, max_years: int) -> None:
     session = Session(seed=seed)
     character_creation(session, auto)
@@ -345,30 +392,7 @@ def run(auto: bool, seed: int, max_years: int) -> None:
         print(f"\n=== AGE {session.age()} ===")
         pull_menu(session, auto)
 
-        # Directing and acting are two independent tracks now — both can happen in the same year;
-        # directing_career_screen never advances the calendar, so order between them doesn't matter.
-        directing_career_screen(session, auto)
-
-        chosen_index = offer_board_screen(session, auto)
-
-        if chosen_index is not None:
-            session.accept(chosen_index)
-            proceeds = franchise_screen(session, auto)
-            if proceeds:
-                deal_screen(session, auto)
-                script_notes_screen(session, auto)
-                director_screen(session, auto)
-                costar_screen(session, auto)
-                prep_screen(session, auto)
-                shoot_screen(session, auto)
-                summary = release_screen(session, auto)
-                post_release_screen(summary)
-                awards_screen(session, auto)
-            else:
-                print("    No project this year — the franchise moved on without you.")
-        else:
-            for result in session.decline_board():
-                print(f"    A {result['genre']} film went to someone else: {result['roi_band']}, {result['critic_band']} reviews.")
+        year_screen(session, auto)
 
         session.end_year()
         print(f"  RECKONING — you are {session.standing_summary()} now.")

@@ -225,9 +225,13 @@ distinct menu, not the acting screens repurposed:
   billing weight (always 1.0 — you're the whole show). Every action that resolves an outcome
   (`choose_release()`, `decline_board()`, `request_holdout()`, `advance_directing()`,
   `disappear()`) applies its own Standing/money/state deltas immediately but no longer touches the
-  calendar itself — `Session.end_year()` is the one call that actually advances it, so you can work
-  a directing project *and* accept, shoot, and release an acting role in the same year, in either
-  order, and the calendar still only moves once.
+  calendar itself — `Session.end_year()` is the one call that actually advances it.
+- **Each block is a clean either/or, but you can work both blocks in the same year.** The CLI's
+  `year_screen()` presents one menu — "Work on acting" / "Work on directing" / "That's it for this
+  year" — and loops after each pick, so choosing acting doesn't remove directing from the menu; it
+  removes *itself*, letting you circle back for the other before the calendar moves. `Session`
+  itself has no "which mode" flag to keep in sync — `year_screen()` is UI-layer sequencing over
+  two already-independent Session tracks, not a new engine concept.
 
 **A box-office bonus is a real, higher-bar Deal option** (`leverage/approvals.py`'s
 `BOX_OFFICE_BONUS_STANDING_THRESHOLD`, deliberately set well above the 65-Standing bar approvals
