@@ -19,9 +19,12 @@ it the "this is installment N of a franchise" tracking it needs — see franchis
 holdout_available()/request_holdout() below, composed with genre/franchise.py's sequel-value
 curve and director/skill.py's engagement bonus for a director returning to their own franchise.
 
-Not wired here, said plainly rather than faked shallow: director/ is a second playable career — a
-different Session entirely (this file only ever reuses its skill formula for NPC directors, never
-plays a director's own arc). Real, tested engine code with no player-facing entry point yet.
+The director career (director/) is fused into this same Session/FullState rather than a second
+Session — a sufficiently prestigious actor can cross into directing (become_director()) and the
+two tracks share one calendar (a year spent developing/shooting a directed project is a year not
+spent acting) and one Standing philosophy, via simulation/_director.py. See
+directing_unlocked()/become_director()/director_status()/advance_directing() below — a distinct
+set of methods and a distinct CLI menu, not the acting screens repurposed.
 """
 from __future__ import annotations
 
@@ -42,6 +45,18 @@ from callback.engine.rolodex import interactions as rolodex_interactions
 from callback.engine.simulation._backgrounds import BACKGROUND_TABLE, REGIONAL_STAGE_START_AGE
 from callback.engine.simulation._franchises import FRANCHISE_INDISPENSABILITY_HOLDOUT_THRESHOLD
 from callback.engine.leverage.indispensability import recast_cost, resolve_holdout
+from callback.engine.director.development import DEV_ACTIONS
+from callback.engine.studio.slate import TIER_BUDGETS
+from callback.engine.simulation._director import (
+    DIRECTOR_UNLOCK_MIN_CREDITS,
+    DIRECTOR_UNLOCK_PRESTIGE,
+    apply_dev_action_and_advance,
+    new_director_state,
+    start_development,
+)
+from callback.engine.world.genre_cycle import accumulate_heat
+from callback.engine.world.genre_cycle import genre_demand as world_genre_demand
+from callback.engine.world.guild import add_residual_stream
 from callback.engine.simulation._release_labels import RELEASE_LABELS
 from callback.engine.simulation.bands import audience_band, critic_band, performance_band, relationship_band, roi_band, standing_band
 from callback.engine.simulation.career import ProjectResult
@@ -489,6 +504,93 @@ class Session:
         self.state = replace(self.state, leverage=replace(lev, scarcity=accumulate_scarcity(lev.scarcity)))
         self.state = advance_between_years(self.state, self.rng, worked_this_year=False)
         return "You go quiet for a year. People notice, eventually, when you come back."
+
+    # ---- directing — a second career fused into this same Session/FullState ------------------
+
+    def directing_unlocked(self) -> bool:
+        """Real weight in the room, not a rubber stamp: enough Prestige and enough credits to get
+        someone to finance your own project."""
+        return (
+            self.state.actor.standing["prestige"] >= DIRECTOR_UNLOCK_PRESTIGE
+            and self.state.actor.credits >= DIRECTOR_UNLOCK_MIN_CREDITS
+        )
+
+    def is_directing(self) -> bool:
+        return self.state.director is not None
+
+    def become_director(self) -> str:
+        if self.state.director is not None:
+            return "You're already directing."
+        if not self.directing_unlocked():
+            return "Not yet — you don't have the weight in the room for someone to finance your own film."
+        self.state = replace(self.state, director=new_director_state())
+        return "You step behind the camera for the first time."
+
+    def director_status(self) -> dict:
+        d = self.state.director
+        in_development = d.current_project is not None
+        return {
+            "credits": d.credits,
+            "standing": standing_band(d.standing.weighted_score(STANDING_WEIGHTS)),
+            "in_development": in_development,
+            "genre": d.current_genre if in_development else None,
+            "budget_ask": round(d.current_project.budget_ask, 2) if in_development else None,
+            "momentum": round(d.current_project.momentum, 2) if in_development else None,
+            "quarters_in_dev": d.current_project.quarters_in_dev if in_development else 0,
+        }
+
+    @staticmethod
+    def director_genre_options() -> list[tuple[str, str]]:
+        return [(g, g.title()) for g in GENRES]
+
+    @staticmethod
+    def director_budget_tier_options() -> list[tuple[str, str]]:
+        return [(tier, f"{tier.title()} — ${budget:.0f}M") for tier, budget in TIER_BUDGETS.items()]
+
+    def start_directing_project(self, genre: str, budget_tier: str) -> None:
+        budget = TIER_BUDGETS.get(budget_tier, TIER_BUDGETS["low"])
+        self.state = replace(self.state, director=start_development(self.state.director, genre, budget, self.rng))
+
+    @staticmethod
+    def director_dev_action_options() -> list[tuple[str, str]]:
+        labels = {
+            "rewrite": "Rewrite — improve the script",
+            "attach_star": "Attach a star — real bankability, real momentum",
+            "cut_budget": "Cut the budget — easier to greenlight, less to work with",
+            "new_financier": "Find a new financier",
+            "take_to_market": "Take it to market",
+            "self_finance": "Self-finance — guarantee it happens",
+            "drawer": "Put it in the drawer — walk away for now",
+        }
+        return [(a, labels[a]) for a in DEV_ACTIONS]
+
+    def advance_directing(self, action: str) -> dict:
+        """One year's directing work — mirrors choose_release()'s one-project-a-year cadence on
+        the acting side. Advances the shared calendar exactly once, whether or not a film resulted."""
+        demand = world_genre_demand(self.state.genre_heat, self.state.director.current_genre)
+        director, info = apply_dev_action_and_advance(self.state.director, action, demand, self.rng)
+
+        genre_heat = self.state.genre_heat
+        guild = self.state.guild
+        if info["greenlit"]:
+            genre_heat = accumulate_heat(genre_heat, info["genre"], info["roi"])
+            guild = add_residual_stream(guild, info["roi"], info["budget"])
+
+        self.state = replace(self.state, director=director, genre_heat=genre_heat, guild=guild)
+        self.state = advance_between_years(self.state, self.rng, worked_this_year=False)
+
+        result = {"greenlit": info["greenlit"], "dead": info["dead"], "frozen": info.get("frozen", False),
+                  "momentum": info["momentum"]}
+        if info["greenlit"]:
+            result.update({
+                "critic_band": critic_band(info["film_critic_score"]),
+                "critic_score": info["critic_score"],
+                "audience_band": audience_band(info["audience_score"]),
+                "roi_band": roi_band(info["roi"]),
+                "roi": info["roi"],
+                "gross_millions": info["gross_millions"],
+            })
+        return result
 
     # ---- the obituary -----------------------------------------------------------------------
 

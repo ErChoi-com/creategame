@@ -259,6 +259,53 @@ def pull_menu(session: Session, auto: bool) -> None:
                   f"indispensability {f['indispensability']}, recast cost ${f['recast_cost_millions']}M")
 
 
+def directing_career_screen(session: Session, auto: bool) -> bool:
+    """A distinct menu, not the acting screens repurposed — fused into the same Session, but a
+    separate track with its own year. Returns True if this year was spent directing (the shared
+    calendar has already advanced); False means proceed with the acting flow as usual."""
+    if not session.directing_unlocked():
+        return False
+
+    if not session.is_directing():
+        choice = prompt(
+            "  You've got real weight in the room now — someone would finance your own film. "
+            "Step behind the camera? [Y]/[N]", "N", auto,
+        )
+        if choice.upper() != "Y":
+            return False
+        print(f"    {session.become_director()}")
+
+    choice = prompt("  This year: [A]ct, or work on [D]irecting?", "A", auto)
+    if choice.upper() != "D":
+        return False
+
+    status = session.director_status()
+    print(f"\n  --- DIRECTING ({status['standing']}, {status['credits']} credit(s)) ---")
+    if not status["in_development"]:
+        genre_key = choose(session.director_genre_options(), "  DEVELOPMENT — pick a genre to develop:", 0, auto)
+        tier_key = choose(session.director_budget_tier_options(), "  Pick a budget tier to pursue:", 1, auto)
+        session.start_directing_project(genre_key, tier_key)
+        status = session.director_status()
+    else:
+        print(f"    Still developing: {status['genre']} · ${status['budget_ask']:.0f}M · "
+              f"momentum {status['momentum']} · {status['quarters_in_dev']} quarter(s) in")
+
+    action_key = choose(session.director_dev_action_options(), "  DEVELOPMENT HELL — this year's move:", 0, auto)
+    result = session.advance_directing(action_key)
+
+    if result["greenlit"]:
+        print(f"    GREENLIT — it got made. Critics {result['critic_band']} ({result['critic_score']}), "
+              f"audience {result['audience_band']}, {result['roi_band']} (ROI {result['roi']:.2f}x), "
+              f"${result['gross_millions']:.1f}M gross.")
+    elif result["dead"]:
+        print("    The project died in development hell.")
+    elif result["frozen"]:
+        print("    Shelved in the drawer for now.")
+    else:
+        print(f"    Still in development — momentum now {result['momentum']}.")
+    return True
+
+
 def run(auto: bool, seed: int, max_years: int) -> None:
     session = Session(seed=seed)
     character_creation(session, auto)
@@ -268,6 +315,19 @@ def run(auto: bool, seed: int, max_years: int) -> None:
             break
         print(f"\n=== AGE {session.age()} ===")
         pull_menu(session, auto)
+
+        if directing_career_screen(session, auto):
+            print(f"  RECKONING — you are {session.standing_summary()} now.")
+            if session.age() % 5 == 0:
+                print("  THE TRADES:")
+                for line in session.trades():
+                    print(f"    - {line}")
+            if not auto:
+                cont = prompt("\n[Enter] to continue, [q] to end the run:", "", auto)
+                if cont.lower() == "q":
+                    break
+            continue
+
         chosen_index = offer_board_screen(session, auto)
 
         if chosen_index is not None:

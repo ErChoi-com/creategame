@@ -30,6 +30,7 @@ from callback.engine.simulation._franchises import (
     maybe_attach_franchise,
     update_franchise_after_project,
 )
+from callback.engine.simulation._director import DirectorState, decay_director_standing
 from callback.engine.world.genre_cycle import accumulate_heat, decay_all
 from callback.engine.world.genre_cycle import genre_demand as world_genre_demand
 from callback.engine.world.guild import GuildState, add_residual_stream
@@ -56,6 +57,7 @@ class FullState:
     filmography: tuple[ProjectResult, ...] = ()
     declined: tuple[DeclinedRoleRecord, ...] = ()
     franchises: dict = field(default_factory=dict)  # franchise_id -> simulation._franchises.FranchiseEntry
+    director: DirectorState | None = None  # None until the player crosses into a directing career
 
 
 def new_full_state(rng: random.Random, start_age: int = 22) -> FullState:
@@ -211,9 +213,10 @@ def advance_between_years(state: FullState, rng: random.Random, worked_this_year
     rolodex = recompute_tracked(state.rolodex, current_year(state))
     strikes = advance_grievance(state.strikes, rng)
     franchises = decay_dormant_franchises(state.franchises, current_year(state))
+    director = decay_director_standing(state.director) if state.director is not None else None
 
     return replace(state, actor=actor, life=life, guild=guild, genre_heat=genre_heat,
-                   rolodex=rolodex, strikes=strikes, franchises=franchises)
+                   rolodex=rolodex, strikes=strikes, franchises=franchises, director=director)
 
 
 def obituary(state: FullState) -> Obituary:

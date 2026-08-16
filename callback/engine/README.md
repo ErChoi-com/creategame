@@ -53,6 +53,7 @@ Session.awards_campaign_available() / run_awards_campaign()    a real BuzzScore 
 Session.trades() / rolodex_summary() / interact()               the pull menu: Trades, Rolodex
 Session.leverage_status() / try_advance_agent_tier() / disappear()   the pull menu: Leverage
 Session.franchise_status() / holdout_available() / request_holdout() the pull menu: Franchises
+Session.directing_unlocked() / become_director() / advance_directing()   a second career, fused in
 Session.obituary_summary()                                      the closing obituary
 ```
 
@@ -196,6 +197,33 @@ not bolted on as a side mode:
   Leverage (favours spent, the holdout itself), and Standing (notoriety on a failed holdout,
   star_power feeding indispensability) rather than living in its own silo.
 
+**Directing is a real second career now, fused into this same `Session`/`FullState` rather than a
+separate one** (`simulation/_director.py`). A sufficiently prestigious actor
+(`directing_unlocked()`: real Prestige and enough credits, not a rubber stamp) can cross into
+directing (`become_director()`) — the CLI's "This year: act, or direct?" choice is a genuinely
+distinct menu, not the acting screens repurposed:
+
+- **Development hell is real**, not a single roll: `director/development.py`'s `DevProject`
+  (momentum, budget ask, an attached star) advances one action a year — rewrite, attach a star,
+  cut the budget, find a new financier, take it to market, self-finance, or shelve it — through
+  the same `package_strength()`/`greenlight_probability()` formulas, until it either greenlights,
+  dies in development, or keeps going.
+- **A director's own Craft and Efficiency steer the edit**, not just luck: `director/edit.py`'s
+  `steered_post_luck()` shifts PostLuck's mean before the roll — reception.py grew an optional
+  `post_luck_override` param specifically so a director's film isn't subject to the actor path's
+  blind `N(52, 14)` sample.
+- **The same money, marketing, and box-office math the actor's films use** — a directed film is
+  cast through `studios.pick_studio()`/`marketing_share_for()` exactly like an acting role,
+  resolved through the same `resolve_reception()`, and feeds the same `world.genre_cycle` heat and
+  Guild residuals afterward. One box-office model, not two.
+- **One shared calendar, one Standing philosophy.** A directed project's own `StandingModel` is
+  the same `core.meters.StandingModel` actor/standing.py configures (§3.3's "one Standing model"
+  rule, made literal again) — grown off the same `delta_heat`/`delta_prestige`/`delta_affection`
+  formulas, just with a director's own billing weight (always 1.0 — you're the whole show).
+  `full_career.advance_between_years()` runs once a year for *both* tracks together: a year spent
+  in development hell still ages you, decays your acting Standing, and re-ranks your Rolodex,
+  exactly as a declined acting offer already does.
+
 ## Known gaps and simplifications (documented inline at each site too)
 
 - **`actor/offers.sample_role()`** is still a placeholder role generator — it doesn't scale a
@@ -227,10 +255,10 @@ not bolted on as a side mode:
   documented readings, not undisclosed exact `design/` constants (§5.3 publishes target
   correlations, not the weight table itself). `verify.py creative` reports honestly against that
   gap rather than faking a pass.
-- **`director/`** is a complete second career (DirectorSkill, development-hell greenlighting, the
-  steerable edit, casting from the other side) with no `Session` of its own yet — it's reachable
-  directly as a library, not through the CLI. A `DirectorSession` alongside the actor one is the
-  natural next step, not a rebuild.
+- **Directing doesn't touch franchises or release strategy yet.** A directed film is always a
+  Wide release and never participates in the sequel system (`simulation/_franchises.py`) — real,
+  bounded follow-ups, not attempted in this pass (see "What's here now" for what directing does
+  cover).
 - **The full multi-offer calendar/deal-negotiation UI** isn't built — one project a year, not
   overlapping offers or the full fee/billing/options/pay-or-play deal space (only the
   approvals-for-fee trade is wired up).

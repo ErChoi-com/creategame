@@ -84,12 +84,16 @@ def resolve_reception(
     marketing_share: float | None = None,
     rights_share: float | None = None,
     opening_marketing_coef: float = 0.0,
+    post_luck_override: float | None = None,
 ) -> ReceptionResult:
     """marketing_share/rights_share: a producing studio's own money terms (actor/studios.py),
     overriding this module's flat BREAK_EVEN_MARKETING_SHARE/RIGHTS_SHARE defaults when given.
     opening_marketing_coef: how much a marketing_share above baseline buys extra opening-weekend
-    visibility (actor/studios.OPENING_MARKETING_COEF) — 0.0 leaves Opening exactly as before."""
-    post_luck = rng.gauss(POST_LUCK_MEAN, POST_LUCK_SD)
+    visibility (actor/studios.OPENING_MARKETING_COEF) — 0.0 leaves Opening exactly as before.
+    post_luck_override: director/edit.py's steered_post_luck() — a director's own Craft/Efficiency
+    shifting PostLuck's mean before the roll (§7.1), in place of this module's blind N(52, 14)
+    sample. None (the actor path) leaves PostLuck exactly as before."""
+    post_luck = post_luck_override if post_luck_override is not None else rng.gauss(POST_LUCK_MEAN, POST_LUCK_SD)
     project_quality = clamp(
         PQ_SCRIPT * script_quality
         + PQ_DIRECTOR_SKILL * director_skill
