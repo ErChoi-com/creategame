@@ -455,6 +455,7 @@ class Session:
             "roi_band": roi_band(result.roi),
             "gross_millions": round(result.gross, 1),
             "budget_millions": round(result.budget, 1),
+            "marketing_millions": round(result.marketing, 1),
             "roi": round(result.roi, 2),
             "weekly_gross": self._weekly_gross(result, strategy),
             "franchise_installment": franchise_installment,
@@ -638,6 +639,8 @@ class Session:
                 "roi_band": roi_band(info["roi"]),
                 "roi": info["roi"],
                 "gross_millions": info["gross_millions"],
+                "budget_millions": round(info["budget"], 1),
+                "marketing_millions": info["marketing_millions"],
             })
         return result
 

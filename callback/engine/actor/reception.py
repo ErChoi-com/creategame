@@ -57,7 +57,8 @@ class ReceptionResult:
     project_quality: float
     film_critic_score: float
     audience_score: float
-    budget: float
+    budget: float  # production budget — never includes marketing
+    marketing: float  # a separate spend, tracked in its own right, not folded silently into budget
     break_even: float
     opening: float
     zeitgeist: float
@@ -150,6 +151,7 @@ def resolve_reception(
         film_critic_score=film_critic_score,
         audience_score=audience_score,
         budget=budget,
+        marketing=marketing,
         break_even=break_even,
         opening=opening,
         zeitgeist=zeitgeist,

@@ -56,6 +56,14 @@ class TestMarketingAffectsReception(unittest.TestCase):
         high = self._resolve(0.80, random.Random(10))
         self.assertGreater(high.opening, low.opening)
 
+    def test_marketing_is_a_separate_tracked_figure_not_folded_into_budget(self):
+        low = self._resolve(0.20, random.Random(11))
+        high = self._resolve(0.80, random.Random(11))
+        self.assertEqual(low.budget, high.budget)  # production budget itself never moves
+        self.assertLess(low.marketing, high.marketing)  # only the marketing figure does
+        self.assertAlmostEqual(low.marketing, 0.20 * low.budget)
+        self.assertAlmostEqual(high.marketing, 0.80 * high.budget)
+
     def test_default_marketing_share_matches_flat_baseline_behaviour(self):
         rng_a, rng_b = random.Random(5), random.Random(5)
         default_result = resolve_reception(

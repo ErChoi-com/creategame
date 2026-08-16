@@ -20,7 +20,7 @@ from callback.engine.actor.reception import ReceptionResult
 def _reception(**overrides) -> ReceptionResult:
     base = dict(
         project_quality=60, film_critic_score=60, audience_score=55,
-        budget=20.0, break_even=30, opening=25.0, zeitgeist=55, legs=2.0, gross=50.0, roi=1.5,
+        budget=20.0, marketing=9.0, break_even=30, opening=25.0, zeitgeist=55, legs=2.0, gross=50.0, roi=1.5,
     )
     base.update(overrides)
     return ReceptionResult(**base)
@@ -30,6 +30,29 @@ class TestReleaseStrategies(unittest.TestCase):
     def test_wide_is_unchanged(self):
         r = _reception()
         self.assertEqual(apply_release_strategy(r, WIDE, random.Random(1)), r)
+
+    def test_marketing_is_tracked_separately_from_production_budget(self):
+        r = _reception(budget=20.0, marketing=9.0)
+        self.assertEqual(r.budget, 20.0)
+        self.assertEqual(r.marketing, 9.0)
+        self.assertNotEqual(r.budget, r.marketing)
+
+    def test_streaming_zeroes_marketing_no_theatrical_spend(self):
+        r = _reception()
+        streamed = apply_release_strategy(r, STREAMING, random.Random(1))
+        self.assertEqual(streamed.marketing, 0.0)
+        self.assertEqual(streamed.budget, r.budget)  # production budget itself is untouched
+
+    def test_shelved_zeroes_marketing_too(self):
+        r = _reception()
+        shelved = apply_release_strategy(r, SHELVED, random.Random(1))
+        self.assertEqual(shelved.marketing, 0.0)
+
+    def test_unsold_festival_zeroes_marketing(self):
+        r = _reception(film_critic_score=10, audience_score=10)  # a near-certain non-acquisition
+        result = apply_release_strategy(r, FESTIVAL, random.Random(7), cast_star_power=5)
+        if result.gross == 0.0:  # unsold branch
+            self.assertEqual(result.marketing, 0.0)
 
     def test_limited_shrinks_opening_but_can_still_profit_on_legs(self):
         r = _reception(legs=6.0)

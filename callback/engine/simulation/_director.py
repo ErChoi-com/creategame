@@ -154,6 +154,7 @@ def apply_dev_action_and_advance(state: DirectorState, action: str, genre_demand
         "audience_score": reception.audience_score,
         "roi": round(reception.roi, 2),
         "gross_millions": round(reception.gross, 1),
+        "marketing_millions": round(reception.marketing, 1),
     }
     return resolved_state, info
 

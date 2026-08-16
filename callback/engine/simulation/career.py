@@ -94,7 +94,8 @@ class ProjectResult:
     film_critic_score: float
     audience_score: float
     roi: float
-    budget: float
+    budget: float  # production budget only — see marketing below
+    marketing: float
     gross: float
     opening: float
     legs: float
@@ -263,6 +264,7 @@ def simulate_project(
         audience_score=reception.audience_score,
         roi=reception.roi,
         budget=reception.budget,
+        marketing=reception.marketing,
         gross=reception.gross,
         opening=reception.opening,
         legs=reception.legs,

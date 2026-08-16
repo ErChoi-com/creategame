@@ -157,7 +157,18 @@ than baseline buys a bigger opening weekend — visibility, never quality; the f
 Project Quality/Critic/Audience scores are untouched), and `release.py`'s
 `apply_release_strategy()` takes the matching `marketing_share`/`rights_share`/
 `streaming_multiplier` so a chosen release strategy (Wide/Limited/Festival/Streaming/Shelved)
-plays out through *that* studio's money, not a flat constant. `offers.sample_role()` now assigns
+plays out through *that* studio's money, not a flat constant.
+
+**Marketing is tracked as its own real figure, never folded silently into the production
+budget.** `ReceptionResult`/`ProjectResult` both carry a `marketing` field distinct from `budget` —
+Post & Release and a greenlit directed film both show them separately (e.g. "$0.9M production ·
+$0.2M marketing"). It's still computed as a share of budget (`marketing_share × budget`, per the
+studio financing it), but the two numbers stay visibly separate rather than becoming one blended
+"cost" — and the split is real, not cosmetic: Streaming (§8.3's own "no theatrical" framing),
+Shelved, and an unsold Festival submission all zero out `marketing` (no distributor ever spent it),
+while the production `budget` itself is untouched in every strategy.
+
+`offers.sample_role()` now assigns
 a studio weighted by the film's own budget (`studios.pick_studio()` — a $4M film never lands at
 the blockbuster machine, a $200M one never lands at the indie house), and the CLI/`Session`
 surface the studio's name and pitch on the Offer Board and again at Post & Release.

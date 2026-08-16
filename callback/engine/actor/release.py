@@ -90,25 +90,28 @@ def apply_release_strategy(
 
     if strategy == LIMITED:
         gross = reception.opening * LIMITED_OPENING_SHARE * (reception.legs * LIMITED_LEGS_BONUS)
-        return replace(reception, gross=gross, roi=_roi(gross, reception.budget, marketing, r_share))
+        return replace(reception, gross=gross, marketing=marketing, roi=_roi(gross, reception.budget, marketing, r_share))
 
     if strategy == FESTIVAL:
         p_acquired = festival_acquisition_probability(
             reception.film_critic_score, cast_star_power, festival_tier_bonus, audience_award_bonus,
         )
         if rng.random() >= p_acquired:
-            return replace(reception, gross=0.0, roi=0.0)  # §10.3 — unsold, ROI = 0
+            # §10.3 — unsold: no distributor ever bought it, so no theatrical marketing was ever spent.
+            return replace(reception, gross=0.0, marketing=0.0, roi=0.0)
         return apply_release_strategy(
             reception, LIMITED, rng, cast_star_power, marketing_share=m_share, rights_share=r_share,
         )  # acquired -> a platform release
 
     if strategy == STREAMING:
+        # §8.3's own framing: "no theatrical" — the flat buyout replaces marketing spend entirely.
         payout = reception.budget * streaming_multiplier
         roi = (payout - reception.budget) / reception.budget if reception.budget > 0 else 0.0
-        return replace(reception, gross=payout, roi=roi)
+        return replace(reception, gross=payout, marketing=0.0, roi=roi)
 
     if strategy == SHELVED:
-        return replace(reception, gross=0.0, roi=SHELVED_ROI)
+        # the film never reached an audience — whatever was budgeted for marketing was never spent.
+        return replace(reception, gross=0.0, marketing=0.0, roi=SHELVED_ROI)
 
     return reception
 

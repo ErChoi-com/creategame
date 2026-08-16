@@ -217,11 +217,13 @@ def post_release_screen(summary: dict) -> None:
         print(f"    Franchise: installment #{summary['franchise_installment']}")
     elif summary["franchise_installment"] == 1:
         print("    Franchise: the first installment — a new one, starting here")
+    print(f"    Production budget: ${summary['budget_millions']:.1f}M  ·  "
+          f"Marketing: ${summary['marketing_millions']:.1f}M")
     if summary["gross_millions"] <= 0:
         print(f"    Box office: {summary['roi_band']} — never really had one.")
         return
-    print(f"    Box office: {summary['roi_band']} — ${summary['gross_millions']:.1f}M on a "
-          f"${summary['budget_millions']:.1f}M budget (ROI {summary['roi']:.2f}x)")
+    print(f"    Box office: {summary['roi_band']} — ${summary['gross_millions']:.1f}M gross "
+          f"(ROI {summary['roi']:.2f}x)")
     if summary["weekly_gross"]:
         weeks_str = "  ".join(f"Wk{i+1} ${w:.1f}M" for i, w in enumerate(summary["weekly_gross"]))
         print(f"      {weeks_str}")
@@ -341,9 +343,10 @@ def directing_block(session: Session, auto: bool) -> None:
     result = session.advance_directing(action_key)
 
     if result["greenlit"]:
-        print(f"    GREENLIT — it got made. Critics {result['critic_band']} ({result['critic_score']}), "
-              f"audience {result['audience_band']}, {result['roi_band']} (ROI {result['roi']:.2f}x), "
-              f"${result['gross_millions']:.1f}M gross.")
+        print(f"    GREENLIT — ${result['budget_millions']:.1f}M production, "
+              f"${result['marketing_millions']:.1f}M marketing. Critics {result['critic_band']} "
+              f"({result['critic_score']}), audience {result['audience_band']}, "
+              f"{result['roi_band']} (ROI {result['roi']:.2f}x), ${result['gross_millions']:.1f}M gross.")
     elif result["dead"]:
         print("    The project died in development hell.")
     elif result["frozen"]:
