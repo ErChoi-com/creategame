@@ -3,6 +3,12 @@
 A design document for a film-industry career life simulator, developed from a teardown of
 BitLife's Actor Pack, plus the simulation harnesses used to tune and then stress-test it.
 
+**A real implementation now lives alongside this bundle, at `../engine/`** — the actor career's
+primary system and mechanics (attributes, Persona, Standing, the offer board, prep, the
+Performance roll, the palette/positions/shape, and reception), in Python, layered so a future
+director or studio engine reuses the same generic core instead of reimplementing it. See
+`../engine/README.md`.
+
 ## Files
 
 | File | What it is |
