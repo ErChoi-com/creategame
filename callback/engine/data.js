@@ -5,13 +5,21 @@
 
 export const DIALS = ['pace', 'colour', 'scale', 'intensity', 'clarity', 'texture'];
 
+// The six axes a film is built from — read-only, never chosen by the
+// player, the shape they are reacting to rather than picking. DIALS and
+// PALETTE_WEIGHTS/SHAPES below are the tuned numbers; DIAL_LABELS is only
+// the plain-English pole a player sees at each end of the bar.
 export const DIAL_LABELS = {
-  pace: ['Languid', 'Relentless'],
-  colour: ['Desaturated', 'Saturated'],
+  pace: ['Slow-burn', 'Fast-paced'],
+  colour: ['Muted', 'Vivid'],
   scale: ['Intimate', 'Epic'],
-  intensity: ['Restrained', 'Visceral'],
-  clarity: ['Ambiguous', 'Explicit'],
-  texture: ['Observational', 'Kinetic'],
+  intensity: ['Gentle', 'Intense'],
+  clarity: ['Subtle', 'On-the-nose'],
+  texture: ['Steady', 'Frantic'],
+};
+export const DIAL_AXIS_LABELS = {
+  pace: 'Pace', colour: 'Colour', scale: 'Scale',
+  intensity: 'Intensity', clarity: 'How it spells things out', texture: 'Rhythm',
 };
 
 export const GENRE_NAMES = {
@@ -78,6 +86,19 @@ export const SHAPES = {
   epic:         { pace: -4, colour: 20, scale: 46, intensity: 18, clarity: 20, texture: -6 },
   verite:       { pace: 8, colour: -24, scale: -26, intensity: 14, clarity: -6, texture: 38 },
   neon:         { pace: 18, colour: 44, scale: 4, intensity: 26, clarity: -12, texture: 24 },
+};
+
+// A plain, complete phrase for each shape — not the internal key with an
+// article guessed onto it ("a horror_shape"), a description a player would
+// actually say out loud.
+export const SHAPE_LABELS = {
+  blockbuster: 'a blockbuster',
+  art_film: 'an art film',
+  horror_shape: 'a horror movie',
+  chamber: 'a small, contained two-hander',
+  epic: 'a sweeping epic',
+  verite: 'a fly-on-the-wall drama',
+  neon: 'a neon-lit, stylised piece',
 };
 
 // §5.5 the four performance dials and four positions. The internal keys

@@ -88,7 +88,7 @@ p { max-width: 68ch; }
 .card.pick:hover { border-color: var(--accent); background: var(--panel-2); }
 .card h4 { margin: 0 0 4px; font-size: 17px; }
 .card .meta { font-family: var(--mono); font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.06em; }
-.card .why { margin: 8px 0 0; color: var(--dim); font-size: 14px; }
+.why, .card .why { margin: 8px 0 0; color: var(--dim); font-size: 14px; }
 
 .tags { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
 .tag { font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; padding: 3px 7px; border: 1px solid var(--line); border-radius: 999px; color: var(--dim); }

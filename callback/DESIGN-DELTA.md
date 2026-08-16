@@ -322,3 +322,20 @@ and now carries a small, real consequence to match: a scene played past its room
 director's affinity down a point, the same bounded scale a moment's own effect already uses —
 `sim/production.mjs`'s legacy-equivalence check confirms this only ever fires on the new
 scene-by-scene path, never retroactively changing a number the calibrated harnesses check.
+
+## The film's six-axis palette, in plain language
+
+`DIALS` (pace/colour/scale/intensity/clarity/texture) and the numbers behind them — every genre
+weight, every archetypal shape's coordinates — are untouched; a player never sets these, they are
+the film's shape, read and reacted to. What changed is only the words: `Languid ↔ Relentless`,
+`Desaturated ↔ Saturated` and `Ambiguous ↔ Explicit` are photography and film-crit vocabulary
+before they are anything else, and `verite`/`horror_shape` printed straight to the screen via a
+guessed article (`a horror_shape`) rather than a sentence a person would say.
+
+`DIAL_LABELS` now reads `Slow-burn ↔ Fast-paced`, `Muted ↔ Vivid`, `Gentle ↔ Intense`, `Subtle ↔
+On-the-nose`, `Steady ↔ Frantic` — ordinary language for the same six numbers. `SHAPE_LABELS`
+gives each archetypal shape a real phrase (`verite` → "a fly-on-the-wall drama", `horror_shape` →
+"a horror movie", `chamber` → "a small, contained two-hander") in place of the key-plus-article
+hack. And the description sentence itself now stops naming a "nearest shape" at low coherence,
+where the nearest shape was never a meaningful description in the first place — it says the film
+has not settled into one yet, which is what a coherence below 40 actually means.

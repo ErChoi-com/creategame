@@ -7,9 +7,9 @@
 
 import { Game, BACKGROUNDS, PREP_OPTIONS, MOMENTS, SCENE_LABELS } from '../engine/career.js';
 import {
-  DIAL_LABELS, DIALS, PERF_DIALS, PERF_DIAL_LABELS, PERF_DIAL_HINTS,
+  DIAL_LABELS, DIAL_AXIS_LABELS, DIALS, PERF_DIALS, PERF_DIAL_LABELS, PERF_DIAL_HINTS,
   POSITIONS, POSITION_COST, POSITION_LABELS, POSITION_HINTS, READ, GENRE_DIAL_WEIGHT,
-  GENRE_NAMES, APPROVAL_LABELS, CAREER_POSITION_LABELS,
+  GENRE_NAMES, APPROVAL_LABELS, CAREER_POSITION_LABELS, SHAPE_LABELS,
 } from '../engine/data.js';
 import { AMBITIONS, ambitionAdvice } from '../engine/ambition.js';
 import { ARCS_BY_ID } from '../engine/arcs.js';
@@ -90,7 +90,6 @@ const boxOffice = (m) => (m >= 1000 ? `$${(m / 1000).toFixed(2)}B`
   : m >= 10 ? `$${m.toFixed(0)}M` : `$${m.toFixed(1)}M`);
 const count = (n, one, many) => `${n} ${n === 1 ? one : many || `${one}s`}`;
 const genreName = (g) => GENRE_NAMES[g] || g;
-const article = (word) => `${/^[aeiou]/i.test(word) ? 'an' : 'a'} ${word}`;
 const quarterName = (q) => ['', 'Q1 — winter', 'Q2 — spring', 'Q3 — summer', 'Q4 — autumn'][q];
 
 function drawHud() {
@@ -132,6 +131,23 @@ function legibilityLabel(v) {
   if (v < 36) return 'hard to place, which cuts both ways';
   if (v > 70) return 'typecast';
   return 'known for a few things';
+}
+
+// Coherence is how much the six axes above agree with each other — a
+// number, not a judgement, but it reads as one: a film that knows what it
+// is versus one that is still deciding. Below 40 the "nearest shape" is not
+// meaningfully close to anything, so the sentence stops naming one.
+function filmDescription(director, coh, shapeName) {
+  if (coh.value > 65) {
+    return `${director.name} is shooting something very much like ${shapeName}. `
+      + `Coherence ${coh.value.toFixed(0)} — it knows exactly what it is.`;
+  }
+  if (coh.value > 40) {
+    return `${director.name} is shooting something loosely in the shape of ${shapeName}. `
+      + `Coherence ${coh.value.toFixed(0)} — it mostly holds together.`;
+  }
+  return `${director.name} is shooting something that has not settled into a shape yet. `
+    + `Coherence ${coh.value.toFixed(0)} — a mess or a landmark, and you will not know which until it is out.`;
 }
 
 // The quiet panel: everything you are carrying, none of it demanding anything.
@@ -593,15 +609,16 @@ function screenScene(note) {
     }))),
   );
   if (i === 0) {
+    const shapeName = SHAPE_LABELS[coh.nearest] || coh.nearest.replace(/_/g, ' ');
     put(
-      el('p', { class: 'lede' },
-        `${r.director.name} is shooting something ${coh.value > 65 ? 'very much like'
-          : coh.value > 40 ? 'loosely in the shape of' : 'that does not resemble'} `
-        + `${article(coh.nearest.replace(/_/g, ' '))}. Coherence ${coh.value.toFixed(0)}`
-        + `${coh.value < 40 ? ' — wide open. It is a mess or it is a landmark.' : '.'}`),
+      el('p', { class: 'lede' }, filmDescription(r.director, coh, shapeName)),
+      el('p', { class: 'why' },
+        'This is the film itself, not something you choose — six things true about it before '
+        + 'you ever walk on set, and what you play against on the next screen.'),
       el('div', { class: 'palette' }, DIALS.flatMap((d) => [
         el('div', { class: 'l' }, DIAL_LABELS[d][0]),
-        el('div', { class: 'track' }, el('i', { style: `left:${((choice.palette[d] + 50) / 100) * 100}%` })),
+        el('div', { class: 'track', title: DIAL_AXIS_LABELS[d] },
+          el('i', { style: `left:${((choice.palette[d] + 50) / 100) * 100}%` })),
         el('div', { class: 'r' }, DIAL_LABELS[d][1]),
       ])),
     );
