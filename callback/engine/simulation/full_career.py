@@ -176,13 +176,19 @@ def decline_and_resolve(state: FullState, role: Role, rng: random.Random) -> Ful
     return replace(state, rolodex=rolodex, genre_heat=genre_heat, declined=declined)
 
 
-def advance_between_years(state: FullState, rng: random.Random, worked_this_year: bool, billing: str | None = None) -> FullState:
+def advance_between_years(
+    state: FullState, rng: random.Random, worked_this_year: bool, billing: str | None = None, bonus_income: float = 0.0,
+) -> FullState:
     """End-of-year housekeeping. simulate_project() (called from accept_and_play) resolves a
     single project's Standing *deltas* but — unlike simulation/career.py's own simulate_year —
     does not age the actor or apply Standing's yearly decay; those are exactly this function's
     job, run once per year regardless of whether a project was played. Also: life-layer advance,
-    guild bookkeeping, genre-heat decay, Rolodex re-ranking, strikes."""
-    gross_income = state.actor.quote_value() if worked_this_year else 0.0
+    guild bookkeeping, genre-heat decay, Rolodex re-ranking, strikes.
+
+    bonus_income: a negotiated box-office bonus (leverage/approvals.box_office_bonus_earned) —
+    real money on top of the year's quote, feeding straight into life/money.py the same as any
+    other income."""
+    gross_income = (state.actor.quote_value() if worked_this_year else 0.0) + bonus_income
     life, life_deltas = advance_life_year(state.life, rng, gross_income, worked_this_year, age=state.actor.age)
 
     standing = state.actor.standing.copy()

@@ -164,6 +164,58 @@ def _get_to_prep(session: Session, max_attempts: int = 60) -> bool:
     return False
 
 
+class TestBoxOfficeBonus(unittest.TestCase):
+    def test_unavailable_at_low_standing(self):
+        session = Session(seed=30)
+        session.start("conservatory", "work")
+        self.assertFalse(session.box_office_bonus_available())
+
+    def test_available_at_high_standing(self):
+        from dataclasses import replace
+        session = Session(seed=31)
+        session.start("conservatory", "work")
+        standing = session.state.actor.standing.copy()
+        standing.add("heat", 65)
+        standing.add("prestige", 65)
+        standing.add("affection", 65)
+        session.state = replace(session.state, actor=replace(session.state.actor, standing=standing))
+        self.assertTrue(session.box_office_bonus_available())
+
+    def test_negotiating_without_the_standing_for_it_earns_nothing(self):
+        session = Session(seed=32)
+        session.start("conservatory", "work")
+        if not _get_to_prep(session):
+            self.skipTest("no offer came through — RNG variance, not a bug")
+        session.choose_deal(want_approvals=False, want_box_office_bonus=True)
+        session.choose_prep("table_work")
+        for _ in range(3):
+            session.play_scene({d: "with" for d, _ in session.dial_options()})
+        summary = session.choose_release("wide")
+        self.assertEqual(summary["box_office_bonus_millions"], 0.0)
+
+    def test_a_negotiated_bonus_on_a_hit_pays_out(self):
+        from dataclasses import replace
+        session = Session(seed=33)
+        session.start("conservatory", "work")
+        standing = session.state.actor.standing.copy()
+        standing.add("heat", 65)
+        standing.add("prestige", 65)
+        standing.add("affection", 65)
+        session.state = replace(session.state, actor=replace(session.state.actor, standing=standing))
+        if not _get_to_prep(session):
+            self.skipTest("no offer came through — RNG variance, not a bug")
+        self.assertTrue(session.box_office_bonus_available())
+        session.choose_deal(want_approvals=False, want_box_office_bonus=True)
+        session.choose_prep("table_work")
+        for _ in range(3):
+            session.play_scene({d: "with" for d, _ in session.dial_options()})
+        summary = session.choose_release("wide")
+        if summary["roi"] > 1.0:
+            self.assertGreater(summary["box_office_bonus_millions"], 0.0)
+        else:
+            self.assertEqual(summary["box_office_bonus_millions"], 0.0)
+
+
 class TestScriptNotes(unittest.TestCase):
     def test_unavailable_without_script_approval(self):
         session = Session(seed=20)

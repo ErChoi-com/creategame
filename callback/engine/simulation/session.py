@@ -39,7 +39,12 @@ from callback.engine.actor.release import RELEASE_STRATEGIES, WIDE, LIMITED, wee
 from callback.engine.actor.script_notes import SCRIPT_NOTE_OPTIONS, apply_script_note
 from callback.engine.actor.studios import STUDIOS
 from callback.engine.awards.awards import NarrativeContext, buzz_score, narrative_bonus
-from callback.engine.leverage.approvals import can_negotiate_approvals, fee_after_approvals
+from callback.engine.leverage.approvals import (
+    box_office_bonus_earned,
+    can_negotiate_approvals,
+    can_negotiate_box_office_bonus,
+    fee_after_approvals,
+)
 from callback.engine.leverage.catalogue import accumulate_scarcity, advance_agent_tier, can_advance_agent_tier, next_agent_tier
 from callback.engine.rolodex import interactions as rolodex_interactions
 from callback.engine.simulation._backgrounds import BACKGROUND_TABLE, REGIONAL_STAGE_START_AGE
@@ -91,6 +96,7 @@ class Session:
         self._board: list[Role] = []
         self._board_would_offer: list[bool] = []
         self._approvals: frozenset[str] = frozenset()
+        self._box_office_bonus_negotiated: bool = False
         self._prep_choice: str | None = None
         self._scenes: list[dict[str, str]] = []
         self._last_result: ProjectResult | None = None
@@ -197,6 +203,7 @@ class Session:
         self._orientation_npc_id = None
         self._orientation_effect = None
         self._requested_director_npc_id = None
+        self._box_office_bonus_negotiated = False
 
     def decline_board(self) -> list[dict]:
         """Passes on every listing on the board, resolves each through the background industry,
@@ -276,7 +283,15 @@ class Session:
         sc = self.state.actor.standing.weighted_score(STANDING_WEIGHTS)
         return can_negotiate_approvals(sc)
 
-    def choose_deal(self, want_approvals: bool) -> float | None:
+    def box_office_bonus_available(self) -> bool:
+        """A real backend point — a much higher Standing bar than approvals, on purpose (§6.5's
+        own executive-producer-credit row gates a small backend behind real weight, not a rubber
+        stamp; this is the general-case version of that same idea)."""
+        sc = self.state.actor.standing.weighted_score(STANDING_WEIGHTS)
+        return can_negotiate_box_office_bonus(sc)
+
+    def choose_deal(self, want_approvals: bool, want_box_office_bonus: bool = False) -> float | None:
+        self._box_office_bonus_negotiated = want_box_office_bonus and self.box_office_bonus_available()
         if want_approvals and self.approvals_available():
             self._approvals = frozenset({"script", "costar"})
             return round(fee_after_approvals(self._role.budget_for_role, self._approvals), 2)
@@ -392,7 +407,10 @@ class Session:
             orientation_effect=self._orientation_effect,
             requested_director_npc_id=self._requested_director_npc_id,
         )
-        self.state = advance_between_years(self.state, self.rng, worked_this_year=True, billing=self._role.billing)
+        bonus = box_office_bonus_earned(result.gross, result.roi) if self._box_office_bonus_negotiated else 0.0
+        self.state = advance_between_years(
+            self.state, self.rng, worked_this_year=True, billing=self._role.billing, bonus_income=bonus,
+        )
         self._last_result = result
         self._scenes = []
 
@@ -409,6 +427,7 @@ class Session:
             "roi": round(result.roi, 2),
             "weekly_gross": self._weekly_gross(result, strategy),
             "franchise_installment": franchise_installment,
+            "box_office_bonus_millions": round(bonus, 2),
         }
 
     @staticmethod

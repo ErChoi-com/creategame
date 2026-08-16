@@ -121,14 +121,26 @@ def franchise_screen(session: Session, auto: bool) -> bool:
 
 
 def deal_screen(session: Session, auto: bool) -> None:
+    want_bonus = False
+    if session.box_office_bonus_available():
+        bonus_choice = prompt(
+            "  THE DEAL: you've got the weight for a real backend point — negotiate a box office "
+            "bonus? [Y]/[N]", "N", auto,
+        )
+        want_bonus = bonus_choice.upper() == "Y"
+
     if not session.approvals_available():
         print("  THE DEAL: standard terms — you're not there yet for approvals.")
-        session.choose_deal(False)
+        session.choose_deal(False, want_box_office_bonus=want_bonus)
+        if want_bonus:
+            print("    (Box office bonus negotiated — 3% of gross, if it clears break-even.)")
         return
     choice = prompt("  THE DEAL: [1] Take the money  [2] Take less, get more say (script + co-star approval)", "1", auto)
-    fee = session.choose_deal(choice == "2")
+    fee = session.choose_deal(choice == "2", want_box_office_bonus=want_bonus)
     if fee is not None:
         print(f"    (Fee cut to {fee:.2f}M — script and co-star approval, yours now.)")
+    if want_bonus:
+        print("    (Box office bonus negotiated — 3% of gross, if it clears break-even.)")
 
 
 def script_notes_screen(session: Session, auto: bool) -> None:
@@ -211,6 +223,8 @@ def post_release_screen(summary: dict) -> None:
     if summary["weekly_gross"]:
         weeks_str = "  ".join(f"Wk{i+1} ${w:.1f}M" for i, w in enumerate(summary["weekly_gross"]))
         print(f"      {weeks_str}")
+    if summary.get("box_office_bonus_millions"):
+        print(f"    Your negotiated bonus: ${summary['box_office_bonus_millions']:.2f}M")
 
 
 def awards_screen(session: Session, auto: bool) -> None:

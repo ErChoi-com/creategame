@@ -224,6 +224,15 @@ distinct menu, not the acting screens repurposed:
   in development hell still ages you, decays your acting Standing, and re-ranks your Rolodex,
   exactly as a declined acting offer already does.
 
+**A box-office bonus is a real, higher-bar Deal option** (`leverage/approvals.py`'s
+`BOX_OFFICE_BONUS_STANDING_THRESHOLD`, deliberately set well above the 65-Standing bar approvals
+already use — a real backend point is a rarer get than script/co-star approval). Negotiating it
+(`Session.box_office_bonus_available()` / `choose_deal(..., want_box_office_bonus=True)`) pays out
+3% of the film's Gross, but only if it actually clears break-even (`box_office_bonus_earned()`
+returns 0 on anything that lost money — a real gross-points deal, not a guaranteed top-up). The
+payout flows straight into `life/money.py` as real income (`advance_between_years()`'s new
+`bonus_income` param), same as your quote already does.
+
 ## Known gaps and simplifications (documented inline at each site too)
 
 - **`actor/offers.sample_role()`** is still a placeholder role generator — it doesn't scale a
