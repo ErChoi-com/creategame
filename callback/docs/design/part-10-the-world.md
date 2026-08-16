@@ -2,6 +2,69 @@
 
 The industry is a character. It has institutions, geography, and technology, and all three change underneath you.
 
+## 10.0 The background industry — what's happening whether or not you're in it *(v9, new)*
+
+Three things this document already promises and never actually builds the engine for:
+
+- §9.3's genre-cycle formula reads `GenreHeat[g] += 30 for every film in g that returned ROI > 2.5` — which presumes a whole population of films is being resolved every quarter. Nothing before this section says where they come from if the player isn't in them.
+- §4.12 states, as a design goal for the Rolodex: *"your rival wins the award you wanted and then flames out. The producer who blacklisted you at 30 gets fired at 45 and the door reopens."* That requires NPCs to have careers that run on their own, not scripted beats — §4.12 asserts it; this section is the mechanism.
+- §5.17 tracks "the films you wanted to make," and §11.8's obituary promises to reveal "who took them, what they won" for every role you declined. Without this section, that line has nothing to compute — it's an assertion with no mechanism behind it.
+
+This section is the mechanism. It's one idea: **a role you don't take isn't removed from the game. It's cast with someone else, and that film gets made.**
+
+### The board is a slice, not the whole industry
+
+§4.4 generates the roles that reach *your* board — filtered by your Standing, your Persona, your agent's reach. That was always a filter, not a generator. Underneath it, every quarter, the world is casting, shooting, and releasing far more films than any single actor ever sees a listing for: dozens of productions moving through the pipeline, of which your board shows you somewhere between 2 and 7 (§4.4's `reach`). Everything else on this section is about what happens to the rest of them.
+
+### What happens to a role you don't take
+
+You decline it, or the offer window closes, or your Persona and Standing never put it on your board in the first place. The production doesn't vanish:
+
+```
+CastingResolution(role, you-not-cast):
+    candidate = weightedPick(Rolodex members ∪ generated background actors,
+                              weight = Utility(candidate, role))   // §4.4's own formula,
+                                                                    // run for someone else
+    role.filledBy = candidate
+```
+
+No new casting math — the exact `Utility` formula from §4.4 runs again, with a different actor as the input. That's deliberate: the world doesn't get a simplified, fake version of casting for everyone who isn't the player. It gets the real one.
+
+### The film still gets made, through the same formulas
+
+The candidate who filled the role gets a real Performance (§4.7's formula, their Craft/Instinct/Presence/Fit/Prep/Chemistry standing in for yours), the film gets a real reception (§4.10 — `ProjectQuality`, `FilmCriticScore`, `AudienceScore`, box office, all of it), and it resolves to real Notices, a real ROI, real awards eligibility. Nothing about a background film is faked or abstracted at the level of the individual production — it is exactly as real as one of yours, computed the same way, and simply happened to someone else.
+
+### Where it feeds back in
+
+Every system that already reads an aggregate industry number was quietly depending on this existing:
+
+| System | What background films feed it |
+|---|---|
+| **Genre cycles (§9.3)** | `GenreHeat` accumulates from every resolved film, yours and everyone else's — your own choices are a small perturbation on a self-sustaining cycle, not the cycle itself |
+| **Landmarks (§5.4)** | An NPC director's own Craft + Vision can independently roll a landmark. Their invention enters the world's coherence set exactly like yours would, gets copied, and becomes a cliché you have to consciously avoid a decade later — a shape you never chose, that now shapes what "coherent" means for everyone shooting after it |
+| **Awards (§4.11)** | Background films are entered into the same buzz/nomination pool yours are. A rival beating you for Best Supporting Actor is a real number losing to a real number, not a scripted outcome — which is the only way §4.12's "your rival wins the award you wanted" can be true instead of asserted |
+| **Franchises (§6.4, §6.5, §9.5)** | A property can run its entire installment curve off-screen — greenlit, cast, sequeled, rebooted-without-someone — and you find out from the trades, the same way a real actor finds out a franchise they auditioned for once became a five-picture deal for somebody else |
+
+### NPCs have careers, not appearances
+
+A director you haven't worked with in fifteen years has not been standing still. Their `DirectorSkill`, their Prestige, their Signature (§7.8) — all evolving off-screen from the films *they* made, the overwhelming majority of which you were never cast in, computed by the same formulas as your own career. When you finally work with them again, the person you're working with is not the person you remember; they're whoever fifteen years of a real, simulated career actually made them.
+
+**Rivals** are this same mechanism given a name. Nothing new — §8.8 already runs 3–5 rival studios on the full simulation; a rival *actor* is the same idea one layer down, and doesn't need its own system either. A rival isn't declared at character creation. It's whichever Rolodex member (§4.12) the game has been quietly tracking because your careers keep intersecting — same category at the same ceremony twice, up for the same part three times, one franchise between you. The Rolodex already tracks the eight people who matter most by weighted contact, grudge, and stakes (§4.12); a rival simply falls out of that ranking on its own, the way it does in an actual career, rather than being assigned.
+
+### Surfacing it: the trades
+
+None of this is worth building if the player has to go looking through a production database to feel it. **The trades** are a once-a-year digest — pull, never pushed (§0.3 Rule 2b), always available, costing nothing against the decision budget — of what the background industry just did: which genre is hot and for how much longer, whose film everyone's discussing, a landmark getting copied, a rival's rise, a scandal, a retirement, a box-office record. Built and read in phase 0 as exactly this shape — five lines, once a year, entirely optional — and it's the cheapest, highest-return piece of this whole section: the world doesn't need the player to track it, it needs the player to be *able* to check in on it and find something has genuinely moved.
+
+### This is what makes the declined-offer payoff real
+
+§5.17 tracks the films you passed on. §11.8's obituary promises to show what became of them. Before this section, that promise had nothing behind it — a declined role was simply gone. Now it isn't: every declined or lost role enters exactly the pipeline above, gets cast, gets made, gets reviewed, and its outcome is sitting in the world's own history waiting for the obituary to read it back to you.
+
+> You passed on a two-block indie at 26 because the dates conflicted with a franchise sequel that paid four times as much. The indie got made anyway, with someone else, on a schedule that worked for them. Five years later you are at home, not nominated, watching it win Best Picture. The sequel you took instead is fine. Nobody talks about it much. Both of those facts are computed, not written, and the obituary will put them next to each other without comment.
+
+### Scope: simulated in full only where it will ever be seen
+
+Full-detail simulation — a real Performance roll, a real reception, a tracked career — is worth running for the Rolodex's tracked members, rivals, franchise principals, and anyone the player has ever shared a set with. Nobody will ever ask what happened to the other four hundred background productions filled entirely by generated names in a given year, and running full formulas for all of them buys nothing: those resolve as an aggregate contribution to `GenreHeat`/`GenreDemand` only, per §9.3's existing math, exactly the way §9.3 already implies a population feeds it without ever specifying one. Same principle as §10.5's "four industries built well beats eight sketched" — detail goes where a player can actually walk into it.
+
 ## 10.1 Guilds and unions
 
 Union status is one of the most mechanically fertile and least-simulated facts about acting as a job.

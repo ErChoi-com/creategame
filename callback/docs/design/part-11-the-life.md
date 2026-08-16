@@ -114,7 +114,7 @@ The run ends with a generated retrospective covering every career you had:
 - Awards won, lost, and campaigned for
 - Your collaborators, with the number of films you made together
 - The strikes you held and the ones you crossed
-- **The roles you declined, and what became of them** — who took them, what they won. §5.17 names this list from the other end, quietly, the whole way through a career: the films you wanted to make against the films you made.
+- **The roles you declined, and what became of them** — who took them, what they won. §5.17 names this list from the other end, quietly, the whole way through a career: the films you wanted to make against the films you made. §10.0 is the mechanism that makes this a real query instead of an assertion — a declined role is cast, made, and resolved through the same formulas as any of yours, and this is where that history gets read back.
 - The people you kept, and the ones you didn't
 
 That last section is the whole game's payoff, and the reason every declined offer is tracked from the first minute of play.

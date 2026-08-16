@@ -116,7 +116,7 @@ You can **stake a date early** to scare rivals off, **blink** and move (costing 
 
 ## 8.8 Rivals
 
-3–5 rival studios run the same simulation you do, with distinct strategies (blockbuster machine, prestige boutique, volume streamer, distressed legacy studio). They bid against you at auctions, poach your first-look talent, claim your release dates, and can be acquired or can acquire you.
+3–5 rival studios run the same simulation you do, with distinct strategies (blockbuster machine, prestige boutique, volume streamer, distressed legacy studio). They bid against you at auctions, poach your first-look talent, claim your release dates, and can be acquired or can acquire you. §10.0 runs the same idea one layer down for actors and directors — a rival performer isn't a separate system, it's this same principle read off the Rolodex.
 
 ## 8.9 The corporate layer
 

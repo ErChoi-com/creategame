@@ -89,6 +89,15 @@ different constants, a director-side formula amendment that never actually lande
 formula it amended, a handful of mechanics specified twice in different Parts with no link between
 them. All now cross-referenced or unified — see `design/00-index.md`'s changelog for the full list.
 
+**The industry now runs in the background, not just on the offer board.** §10.0, new, is the
+mechanism §9.3's genre cycles, §4.12's self-running Rolodex NPCs, and §5.17/§11.8's declined-offer
+payoff all assumed but never built: a role you don't take is cast with someone else through §4.4's
+own casting formula, and that film gets made and resolved through §4.7 and §4.10 like any of yours.
+It's what makes "your rival wins the award you wanted and flames out five years later" a real query
+against simulated history instead of a scripted line, and it's scoped on purpose — full simulation
+only for the people and franchises the player actually tracks, aggregate outcomes for everyone
+else, the same principle §10.5 already applies to its four built industries.
+
 **Not yet folded back in:** `callback-sim.py` and `callback-career-sim.py` still test the *original*
 v8 constants, so running them now reproduces the review's failing numbers on purpose — they haven't
 been updated to check v9's formulas. Re-tuning them against the corrected §4.3/§4.4/§4.10 is the

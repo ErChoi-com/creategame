@@ -186,7 +186,7 @@ Note that a prestige auteur *slightly rewards* notoriety and network TV punishes
 
 ## 4.4 The Offer Board & casting
 
-Each quarter, generate role listings from active productions in the world sim, at a rate that rises with Standing and your agent's reach and falls hard with age past the mid-40s (§4.9) — offers are lumpy on purpose: some quarters nothing at all comes in, and that has to be possible or the calendar has no downside.
+Each quarter, generate role listings from active productions in the world sim, at a rate that rises with Standing and your agent's reach and falls hard with age past the mid-40s (§4.9) — offers are lumpy on purpose: some quarters nothing at all comes in, and that has to be possible or the calendar has no downside. This board was always a filtered slice of something bigger, never the whole industry — §10.0 specifies the much larger set of productions moving through the pipeline underneath it, most of which you'll never see a listing for at all.
 
 **Offer probability** for role *r* from gatekeeper *G*:
 
@@ -523,7 +523,7 @@ Note it reads `YourNotices`, not `YourPerformance`. **Awards do not reward being
 
 **The loyalty roster is the key mechanic.** Directors keep a stable of actors they cast repeatedly. Getting onto a great director's roster (`affinity > 70`, achieved through 2+ good collaborations) means recurring direct offers on prestige projects for the rest of their career. This is how real careers actually work — Scorsese/De Niro, Anderson/Murray, Burton/Depp — and it's an enormous, earnable, losable asset.
 
-**NPCs have their own arcs.** Directors decline. Your rival wins the award you wanted and then flames out. The producer who blacklisted you at 30 gets fired at 45 and the door reopens. The world should feel like it's running whether or not you're in it.
+**NPCs have their own arcs.** Directors decline. Your rival wins the award you wanted and then flames out. The producer who blacklisted you at 30 gets fired at 45 and the door reopens. The world should feel like it's running whether or not you're in it — §10.0 is the mechanism, not just the promise: NPCs' Standing, Skill, and Signature move because of films they made that you were never in, computed by the same formulas as your own career.
 
 ## 4.13 Scandal & press
 

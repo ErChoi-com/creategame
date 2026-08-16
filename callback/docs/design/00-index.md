@@ -55,6 +55,23 @@ canonical formula that the other Part now reads instead of restating. Parts 1–
 still substantially the original v8 text — none of that was built — but they no longer contradict
 Part 4/5/6 or each other where they touch the same mechanic.
 
+**Part 10 gained an engine it had only ever implied.** §9.3's genre-cycle formula reads ROI off
+"every film in the genre" as if a whole population of films were being resolved every quarter, and
+nothing said where they came from if you weren't in them; §4.12 promised a Rolodex where NPCs have
+careers that run on their own — a rival flames out, a producer who blacklisted you gets fired and
+the door reopens — as a design goal with no mechanism under it; §5.17 and §11.8's obituary promise
+to name who took the role you declined and what they won, with nothing to query. **§10.0, new**, is
+the mechanism for all three, and it's one idea: a role you don't take isn't removed from the game,
+it's cast with someone else — through §4.4's own `Utility` formula, run for that candidate instead
+of you — and that film is made and resolved through §4.7 and §4.10, the same formulas as any of
+yours. It feeds the genre-cycle formula its population, gives the Rolodex's background NPCs real
+(if mostly aggregate) careers, introduces actor/director rivals as the same idea §8.8 already runs
+for studios, surfaces once a year as a pull-only trades digest under §0.3 Rule 2b, and is scoped
+explicitly — full per-film simulation only for tracked Rolodex members, rivals, and franchise
+principals; the rest resolved in aggregate, the same "simulate well what will be seen" principle
+§10.5 already uses for its four built industries. Cross-referenced forward from §9.3, §4.4, §4.12,
+§8.8, and §11.8.
+
 **Part 0 is the editing pass.** It states the rules every system has to pass and lists what came
 out: the decision load per in-game year drops from ~55 to ~15 without removing a mechanic. Read it first.
 

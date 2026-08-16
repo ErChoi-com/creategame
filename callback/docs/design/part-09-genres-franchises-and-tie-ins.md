@@ -36,7 +36,7 @@ Each genre holds 4–6 subgenres with their own demand cycles — horror splits 
 
 ## 9.3 Genre cycles — the boom and the bust
 
-The most important addition in this Part. Genres are not stable; they surge after a hit, flood with imitators, and crash.
+The most important addition in this Part. Genres are not stable; they surge after a hit, flood with imitators, and crash. *(The formula below reads "every film in g that returned ROI > 2.5" as though a whole population of films is resolving every quarter whether or not the player is in any of them — because it is: §10.0 is where that population actually comes from.)*
 
 ```
 Every quarter, for each genre g:
