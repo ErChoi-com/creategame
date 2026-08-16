@@ -202,6 +202,37 @@ A short **dailies read** follows each of the first two scenes — the room's rea
 
 **The three on-set moments (§5.12) now interleave with the three scenes** rather than landing in a block once shooting wraps — one between scene one and two, one between two and three, whatever's left after the third, following the same per-actor frequency §5.12 already specifies. Same pool, same count; only the pacing changed, so a shoot reads as a schedule with things happening between setups rather than a decision screen followed by a debrief.
 
+### v9, new — what the three scenes actually are
+
+A real film has dozens of scenes scattered across a shooting schedule that runs weeks or months. The three you play are not a sample of them — they're the three the finished film's own three-act structure hangs its weight on, and everything shot around them is exactly the "ordinary days" §5.12 already describes: real, resolved, and not worth a decision, because the picture doesn't turn on them. That's the answer to the obvious question — *why three, when a shoot is fifty scenes* — and it should be said to the player once, plainly, the first time they're asked to play one: **you're not playing the whole film. You're playing the three scenes that decide what it is.**
+
+Each scene has a fixed dramatic job, and the `intro`/`turn`/`reso` weighting (§5.6's own beat construction, above) is that job made numeric — not an arbitrary curve, a description of what a three-act structure actually does with its weight:
+
+| Scene | Act | Job | Weight |
+|---|---|---|---|
+| **The first scene** | Setup | Establishes the baseline everything after it is measured against. Low stakes on purpose — its job is legibility, not memorability. | `−0.65·lift` |
+| **The turn** | The set piece | The scene the film is *for*. Whatever this genre's version of "the thing people describe when they describe the movie" is, this is where it happens. | `+1.30·lift` |
+| **The last scene** | Resolution | Pays off what the first scene set up, or refuses to. Symmetric weight to the first, opposite function: one opens the account, the other settles it. | `−0.65·lift` |
+
+**The turn is where genre stops being a bias term and becomes a concrete scene**, and it's worth naming what it actually is, because it changes which of §5.5's four dials is doing the real work that day — the same way §5.5 already reweights the dials themselves by genre, this reweights which *scene* you're in when you use them:
+
+| Genre | The turn, concretely | The dial most likely carrying it |
+|---|---|---|
+| **Horror** | The first kill, or the moment the threat is confirmed real | Energy — stillness against it is the reliable read (§5.5) |
+| **Action** | The set piece — the chase, the fight, the thing the trailer is cut around | Speed |
+| **Drama** | The confrontation — the thing that's been unsaid finally gets said | Warmth |
+| **Comedy** | The set-piece farce, or the joke the whole film has been loading | Speed |
+| **Romance** | The falling-out — the moment the intimacy the film built actually breaks | Warmth |
+| **Thriller** | The reveal — what you thought was true turns out not to be | Energy |
+| **Sci-fi** | The reveal — the rule of the world made visible, not just stated | Energy |
+| **Musical** | The number — the scene where the singing is the point, not an interruption | Speed |
+| **Period** | The moment the era's weight becomes personal, not just production design | Warmth |
+| **Family** | The scene the child in the audience will remember at 40 | Warmth |
+
+None of this changes what you're actually deciding — still four dials, still the same contrast budget, still §5.5's read table untouched. It changes what the choice *means* going in: playing *against* on Warmth in the turn of a romance isn't an abstract counterpoint, it's playing the character *not* breaking when the scene needs them to. The mechanic was always this specific. Naming it is what makes a player feel it instead of just computing it.
+
+**This gives Coherence (§5.4) a face a player can feel, not just compute.** §5.4's Coherence is strictly the six palette dials' distance to the nearest archetype — that formula doesn't read scene content, and this section doesn't change it. But a film can score perfectly consistent on all six dials and still hand you a turn that doesn't structurally belong to the genre it's dressed as — a horror film whose "first kill" plays like a drama confrontation. A player won't see that in the coherence number; they'll see it in the scene in front of them not matching the table above. Reading that gap — is this actually the genre's own set piece, or something dressed as one — is the kind of judgment §5.9's forecast is meant to sharpen with Taste, in prose alongside the number rather than inside it.
+
 **Verified:**
 
 | Allocation | Spikiness | Notices | Ensemble |

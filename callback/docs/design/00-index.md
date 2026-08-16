@@ -30,8 +30,13 @@ set asked every time until §5.12 turned them into a pool drawn from what the sp
 actually is, narrowing with experience the way §0.3 Rule 3 already requires everything else to;
 and §5.14's account of the edit never acknowledged §6.3's new actor-side approval, so an actor who
 earned a seat in the room and a director cutting the film were, on paper, still strangers to each
-other — fixed with a cross-reference in both directions. Parts 1–3, 7–13, and 15 are the original
-v8 text; none of that was built yet, and this pass didn't touch it.
+other — fixed with a cross-reference in both directions. A further pass gave the three scenes
+themselves a narrative identity: §5.6 now names the three-act structure the `intro`/`turn`/`reso`
+weighting was always a numeric description of (setup, set piece, resolution), and names what the
+turn concretely *is* per genre — the first kill, the confrontation, the falling-out, the reveal —
+and which of §5.5's four dials is most likely carrying it, without changing a single formula
+either section already specified. Parts 1–3, 7–13, and 15 are the original v8 text; none of that
+was built yet, and this pass didn't touch it.
 
 **Part 0 is the editing pass.** It states the rules every system has to pass and lists what came
 out: the decision load per in-game year drops from ~55 to ~15 without removing a mechanic. Read it first.
