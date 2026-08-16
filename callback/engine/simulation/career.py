@@ -33,6 +33,7 @@ from callback.engine.actor.positions import (
 )
 from callback.engine.actor.prep import resolve_prep
 from callback.engine.actor.reception import resolve_reception
+from callback.engine.actor.release import WIDE, apply_release_strategy
 from callback.engine.actor.shape import resolve_shape
 from callback.engine.actor.standing import (
     RecognitionMeter,
@@ -92,6 +93,9 @@ class ProjectResult:
     roi: float
     budget: float
     gross: float
+    opening: float
+    legs: float
+    release_strategy: str
     heat_delta: float
     prestige_delta: float
     affection_delta: float
@@ -122,6 +126,8 @@ def simulate_project(
     scene_choices: tuple[SceneChoice, SceneChoice, SceneChoice],
     rng: random.Random,
     palette: Palette | None = None,
+    genre_demand_override: float | None = None,
+    release_strategy: str | None = None,
 ) -> tuple[ActorState, ProjectResult]:
     palette = palette or generate_palette(role.genre, rng)
 
@@ -147,7 +153,11 @@ def simulate_project(
     notices = max(shape_result.notices + notices_pen, state.attrs.notices_floor())
     ensemble = shape_result.ensemble + ensemble_pen
 
-    genre_demand = clamp(rng.gauss(55, 15), 0, 100)
+    # genre_demand_override lets a caller with real §9.3 GenreHeat (simulation/full_career.py,
+    # which tracks it) feed the actual background-industry cycle in instead of this fallback
+    # sample — kept here, not removed, so simulate_project stays usable standalone (verify.py's
+    # checks, unit tests) without requiring a world/ import.
+    genre_demand = genre_demand_override if genre_demand_override is not None else clamp(rng.gauss(55, 15), 0, 100)
     cast_star_power = clamp(rng.gauss(50, 20), 0, 100)
     script_quality = clamp(rng.gauss(60, 14), 0, 100)
     palette_aud_effect, palette_crit_effect = palette_reception_effect(palette, role.genre)
@@ -167,6 +177,8 @@ def simulate_project(
         palette_audience_effect=palette_aud_effect,
         palette_critic_effect=palette_crit_effect,
     )
+    if release_strategy is not None:
+        reception = apply_release_strategy(reception, release_strategy, rng, cast_star_power=cast_star_power)
 
     bw = {"lead": 1.0, "supporting": 0.55, "bit": 0.2, "extra": 0.0}[role.billing]
     heat_delta = delta_heat(bw, state.credits, role.budget_for_role, reception.roi, reception.audience_score)
@@ -205,6 +217,9 @@ def simulate_project(
         roi=reception.roi,
         budget=reception.budget,
         gross=reception.gross,
+        opening=reception.opening,
+        legs=reception.legs,
+        release_strategy=release_strategy or WIDE,
         heat_delta=heat_delta,
         prestige_delta=prestige_delta,
         affection_delta=affection_delta,

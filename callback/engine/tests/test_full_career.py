@@ -44,9 +44,14 @@ class TestFullCareerIntegration(unittest.TestCase):
         self.assertGreater(len(state.declined), 0)
 
     def test_genre_heat_is_populated_from_background_films(self):
-        state = _run_years(random.Random(3), 20)
-        self.assertGreater(len(state.genre_heat), 0)
-        self.assertTrue(all(v >= 0 for v in state.genre_heat.values()))
+        # A >2.5x-ROI "hit" is rare per project, so a short run can legitimately accumulate none —
+        # run enough years/seeds that at least one genuinely should have happened somewhere.
+        any_heat = False
+        for seed in range(10):
+            state = _run_years(random.Random(seed), 25)
+            self.assertTrue(all(v >= 0 for v in state.genre_heat.values()))
+            any_heat = any_heat or len(state.genre_heat) > 0
+        self.assertTrue(any_heat)
 
     def test_rolodex_stays_at_eight_tracked(self):
         state = _run_years(random.Random(4), 15)

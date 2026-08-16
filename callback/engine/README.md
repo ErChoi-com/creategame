@@ -7,7 +7,10 @@ terminal prototype. See the design doc for what each formula means; this package
 
 ```
 core/         generic, career-agnostic abstractions (Meter, StandingModel, the Stage protocol)
-actor/        the actor career's formulas (part-04-the-actor.md, part-05-the-work.md)
+actor/        the actor career's formulas (part-04-the-actor.md, part-05-the-work.md), plus
+              release.py — release strategies (wide/limited/festival/streaming/shelved) and the
+              weekly box-office trajectory (§3.4's "festival vs wide vs dumped vs shelved," never
+              built out until now)
 rolodex/      the Rolodex + relationship layer (§4.12, §10.0, ux/04-pull-systems.md)
 leverage/     favours, approvals, indispensability + the holdout, a verb-catalogue subset (Part 6)
 life/         health, addiction, family, money, the obituary (Part 11)
@@ -68,6 +71,17 @@ playable state, and `simulation/cli.py` is a real terminal game following `../ux
 flow (character creation, the Offer Board, the Deal, Prep, the three-scene Shoot, Post & Release,
 the Reckoning, the trades digest, the closing obituary) with every hidden score rendered through
 `simulation/bands.py`'s words-not-numbers pass, never a raw number.
+
+**The box office model is a real mechanic now, not just a final ROI number.** §3.4's core loop
+names "festival vs wide vs dumped vs shelved" as its own step; `actor/release.py` builds it:
+**Wide** (the original model, untouched), **Limited** (a smaller opening that leans on legs
+instead of marketing), **Festival** (§10.3's own published acquisition formula — an unsold film
+returns ROI 0), **Streaming** (§8.3's flat buyout, no backend, no upside), and **Shelved** (a total
+loss). `simulation/cli.py` asks after every shoot. On top of that, `weekly_gross_curve()` turns the
+single "Gross" number into a real week-by-week trajectory for display, and §9.3's `GenreHeat` —
+accumulated from every resolved film, yours and the background industry's — now feeds real
+`GenreDemand` into both `simulation/career.py`'s and `rolodex/casting.py`'s box-office math instead
+of each independently sampling a random value; a hot genre visibly changes what your film earns.
 
 ## Known gaps and simplifications (documented inline at each site too)
 

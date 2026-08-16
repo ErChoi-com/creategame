@@ -18,6 +18,7 @@ from callback.engine.actor.offers import resolve_casting_path, offer_probability
 from callback.engine.actor.persona import GENRES
 from callback.engine.actor.positions import DIAL_LABELS, DIALS, PLAYER_LABELS, POSITIONS
 from callback.engine.actor.prep import PREP_OPTIONS, WING_IT
+from callback.engine.actor.release import FESTIVAL, LIMITED, SHELVED, STREAMING, WIDE, weekly_gross_curve
 from callback.engine.leverage.approvals import can_negotiate_approvals, fee_after_approvals
 from callback.engine.life.money import MoneyState
 from callback.engine.simulation.bands import audience_band, critic_band, performance_band, roi_band, standing_band
@@ -132,12 +133,39 @@ def shoot_screen(rng, auto: bool):
     return tuple(scenes)
 
 
+RELEASE_LABELS = {
+    WIDE: "Wide — full theatrical push",
+    LIMITED: "Limited — platform release, word of mouth does the work",
+    FESTIVAL: "Festival — you find out if anyone even buys it",
+    STREAMING: "Streaming — a flat guaranteed payout, no upside",
+    SHELVED: "Shelved — it doesn't come out at all",
+}
+RELEASE_ORDER = (WIDE, LIMITED, FESTIVAL, STREAMING, SHELVED)
+
+
+def release_screen(auto: bool) -> str:
+    print("  RELEASE STRATEGY:")
+    for i, strat in enumerate(RELEASE_ORDER, 1):
+        print(f"    {i}. {RELEASE_LABELS[strat]}")
+    choice = prompt(f"  Choose (1-{len(RELEASE_ORDER)}):", "1", auto)
+    idx = int(choice) - 1 if choice.isdigit() and 1 <= int(choice) <= len(RELEASE_ORDER) else 0
+    return RELEASE_ORDER[idx]
+
+
 def post_release_screen(result):
     print("  --- POST & RELEASE ---")
     print(f"    Your work: {performance_band(result.performance)}")
     print(f"    Critics: {critic_band(result.film_critic_score)} ({result.film_critic_score:.0f}/100)")
     print(f"    Audience: {audience_band(result.audience_score)}")
+    print(f"    Release: {RELEASE_LABELS[result.release_strategy]}")
+    if result.gross <= 0:
+        print(f"    Box office: {roi_band(result.roi)} — never really had one.")
+        return
     print(f"    Box office: {roi_band(result.roi)} — ${result.gross:.1f}M on a ${result.budget:.1f}M budget (ROI {result.roi:.2f}x)")
+    if result.release_strategy in (WIDE, LIMITED):
+        curve = weekly_gross_curve(result.opening, result.legs, weeks=5)
+        weeks_str = "  ".join(f"Wk{i+1} ${w:.1f}M" for i, w in enumerate(curve))
+        print(f"      {weeks_str}")
 
 
 def reckoning_screen(state):
@@ -162,7 +190,8 @@ def run(auto: bool, seed: int, max_years: int) -> None:
                 print(f"    (Fee cut to {fee:.2f}M — script and co-star approval, yours now.)")
             prep_choice = prep_screen(auto)
             scenes = shoot_screen(rng, auto)
-            state, result = accept_and_play(state, role, prep_choice, scenes, rng)
+            strategy = release_screen(auto)
+            state, result = accept_and_play(state, role, prep_choice, scenes, rng, release_strategy=strategy)
             post_release_screen(result)
             state = advance_between_years(state, rng, worked_this_year=True, billing=role.billing)
         else:

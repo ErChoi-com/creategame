@@ -23,6 +23,7 @@ from callback.engine.rolodex.casting import resolve_declined_role
 from callback.engine.rolodex.rolodex import Rolodex, new_rolodex, recompute_tracked, register_contact
 from callback.engine.simulation.career import ActorState, ProjectResult, new_actor, simulate_project
 from callback.engine.world.genre_cycle import accumulate_heat, decay_all
+from callback.engine.world.genre_cycle import genre_demand as world_genre_demand
 from callback.engine.world.guild import GuildState, add_residual_stream
 from callback.engine.world.guild import advance_year as advance_guild_year
 from callback.engine.world.strikes import StrikeState, advance_grievance
@@ -81,8 +82,16 @@ def accept_and_play(
     prep_choice: str,
     scene_choices: tuple[dict[str, str], dict[str, str], dict[str, str]],
     rng: random.Random,
+    release_strategy: str | None = None,
 ) -> tuple[FullState, ProjectResult]:
-    new_actor_state, result = simulate_project(state.actor, role, prep_choice, scene_choices, rng)
+    # §9.3's GenreHeat, accumulated from every resolved film (yours and the background
+    # industry's, §10.0) feeds real GenreDemand back into this project's own box office —
+    # a hot genre isn't just trades-digest flavor, it changes what your film actually earns.
+    demand = world_genre_demand(state.genre_heat, role.genre)
+    new_actor_state, result = simulate_project(
+        state.actor, role, prep_choice, scene_choices, rng,
+        genre_demand_override=demand, release_strategy=release_strategy,
+    )
 
     rolodex = state.rolodex
     if rng.random() < CONTACT_CHANCE_ON_PROJECT and rolodex.tracked_ids:
@@ -98,7 +107,8 @@ def accept_and_play(
 
 
 def decline_and_resolve(state: FullState, role: Role, rng: random.Random) -> FullState:
-    rolodex, cast_result = resolve_declined_role(role, state.rolodex, current_year(state), rng)
+    demand = world_genre_demand(state.genre_heat, role.genre)
+    rolodex, cast_result = resolve_declined_role(role, state.rolodex, current_year(state), rng, genre_demand_override=demand)
     genre_heat = accumulate_heat(state.genre_heat, role.genre, cast_result.reception.roi)
     declined = (*state.declined, DeclinedRoleRecord(role_genre=role.genre, year=current_year(state), result=cast_result))
     return replace(state, rolodex=rolodex, genre_heat=genre_heat, declined=declined)

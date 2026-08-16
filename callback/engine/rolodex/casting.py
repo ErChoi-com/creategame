@@ -41,6 +41,7 @@ def resolve_declined_role(
     rng: random.Random,
     blacklisted: frozenset[str] = frozenset(),
     recommended: dict[str, float] | None = None,
+    genre_demand_override: float | None = None,
 ) -> tuple[Rolodex, CastingResult]:
     """weightedPick over Rolodex members (of a compatible type) union generated background
     actors, weight = Utility(candidate, role) — a simplified reading of §4.4's own Utility for
@@ -81,7 +82,7 @@ def resolve_declined_role(
 
     ensemble = clamp(rng.gauss(58, 16), 0, 100)
     script_quality = clamp(rng.gauss(58, 15), 0, 100)
-    genre_demand = clamp(rng.gauss(55, 15), 0, 100)
+    genre_demand = genre_demand_override if genre_demand_override is not None else clamp(rng.gauss(55, 15), 0, 100)
 
     reception = resolve_reception(
         script_quality=script_quality,
