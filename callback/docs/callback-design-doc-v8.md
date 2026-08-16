@@ -1,13 +1,31 @@
 # CALLBACK
 ### A design document for a deep film-industry life simulator
-*v8 — authorship, leverage, and the industry around them*
+*v9 — the actor spine built, verified end to end, and folded back in*
 
-**What's in it:** the Director as a full parallel career (Part 11)_TMP, the Studio /
-business layer (Part 11)_TMP, genres as real economies plus the franchise and
-merchandise business (Part 11), a simulated industry with guilds, strikes, festivals and
-technology shifts (Part 11), and a life layer where careers end for reasons that have
+**What's in it:** the Director as a full parallel career (Part 7), the Studio /
+business layer (Part 8), genres as real economies plus the franchise and
+merchandise business (Part 9), a simulated industry with guilds, strikes, festivals and
+technology shifts (Part 10), and a life layer where careers end for reasons that have
 nothing to do with talent (Part 11). All new economies are simulation-tuned, same as v1's
-reception model — see Part 14 for verified numbers.
+reception model — see Part 14 for verified numbers. *(v9 — the four "(Part 11)" cross-references
+in this paragraph were a leftover placeholder in v8; corrected to the parts they actually name.)*
+
+**What v9 changes:** Parts 0, 4, 5, and 6 — the actor spine — were built and played, not just
+specified, and this revision folds back what that found. The headline fault, caught by the first
+end-to-end career simulation ever run against this document (`callback-design-review.md`): Standing
+gains were billing-weighted and decay wasn't, so a beginner accrued at a fifth the rate while paying
+full price — no career could climb off the bottom rung, and none of §14.9's seven whole-career
+targets were met. §4.3 has the fix. Alongside it: the offer-board threshold that made two of three
+casting paths the same path (§4.4), the union catch-22 with no stated entry point (§4.0, new — v8 had
+no character-creation design at all), Notices and Ensemble defined twice and never reconciled
+(§4.10, §5.6), a Presence verb that could never fire (§4.1), two incompatible box-office models
+(§4.10), a shoot's three beats existing only as a formula until this pass turned them into three
+scenes actually played (§5.6), a fourth approval named after the director's Final Cut but never
+built for the actor it was assigned to (§6.3), an agent tier nobody could ever change (§4.5, §6.6),
+and an Indispensability decay that could freeze a franchise open forever instead of ever really
+ending it (§6.4). §14.9 is no longer "to be verified" — it's a table of what a 3,000-career
+simulation actually measured. Parts 1–3, 7–13, and 15 are the original v8 text; none of that was
+built yet, and this pass didn't touch it.
 
 **Part 0 is the editing pass.** It states the rules every system has to pass and lists what came
 out: the decision load per in-game year drops from ~55 to ~15 without removing a mechanic. Read it first.
@@ -17,7 +35,8 @@ intensity, clarity, texture), performance dials that play with or against them, 
 landmarks, and the edit as authorship. The actor plays it through **four dials taking named
 positions against the film** — with, beneath, beyond, against — paid for from a contrast budget set
 by craft and by who's behind the camera. §5.2 and §5.5 each document a system cut for being a
-solvable stat check. This is the core loop and it should be built first.
+solvable stat check. This is the core loop and it should be built first — it now includes the
+three-scene rework in §5.6.
 
 **Part 6 is the answer to "the player is a passenger."** Leverage — favours, approvals,
 indispensability, and forty ways to act on the industry rather than wait for it. It costs nothing
@@ -117,7 +136,7 @@ What came out of v3, and why.
 | **6-source financing stack, assembled per film** | Now **three presets** (studio-financed, independent, streamer buyout) with one meaningful override — usually the tax-credit location trade. |
 | **Development momentum tended quarterly** | 3 projects × 4 quarters = 12 decisions a year for one career. Now **one action per project per year**. |
 | **Politics as a faction-standing matrix** | Mechanically thin and it risked turning editorial. Kept as *events with costs and constituencies*; the matrix is gone. |
-| **The studio career, as a core mode** | It's a strategy game wearing a life sim's clothes. Now an explicit **optional late-game mode** (Part 11)_TMP, reachable but never forced. |
+| **The studio career, as a core mode** | It's a strategy game wearing a life sim's clothes. Now an explicit **optional late-game mode** (Part 8), reachable but never forced. |
 | **The old era-and-life summary stubs in Part 4** | Vestigial — Parts 10 and 11 replaced them. |
 
 ## 0.6 What is deliberately *not* cut
@@ -315,6 +334,23 @@ permissions. See §6.7.
 
 # PART 4 — THE ACTOR
 
+## 4.0 Character creation — the opening hour *(v9, new)*
+
+Nothing in v8 specified how a run starts. Phase 0's build reached the end of every other system before noticing this gap, and it's the largest single omission the review flagged: no starting conditions, no onboarding, no first thing the player actually does.
+
+**Four backgrounds**, deliberately not ranked against each other — each is short of something different, not simply worse:
+
+| Background | Starts with | Short of |
+|---|---|---|
+| **Conservatory** | Craft 62, technique, a showcase nobody important came to | Money, connections, a recognisable face |
+| **Discovered** | Presence 70, a manager, momentum | Craft 28 — has never had a lesson |
+| **Regional stage** | Craft 70, years of range | Age (33 already) and a total absence of union credits |
+| **Family money** | The rent solved, room to say no to bad work | Presence and Resilience — the room can tell, and it isn't automatically on your side |
+
+The player also picks an **Ambition** (§0.4) here — gates nothing, decides what the obituary measures.
+
+**The first three credits are a closed loop unless something opens it.** §10.1 requires three union credits to work union productions and never says how the first three happen. They happen non-union: a listing that would be union-only is offered non-union instead to anyone under three union credits (25% of the time), paying a third as much and easier to land. It is how a career starts, not a reward.
+
 ## 4.1 Attributes (0–100, slow-moving)
 
 Replaces the single Acting bar. Each is raised differently, so builds diverge.
@@ -344,7 +380,7 @@ A stat that only multiplies an outcome is a number. These each change *what you 
 |---|---|
 | **Craft** | Sets your **contrast budget** (§5.5) — how many positions you can hold against the film before the performance stops holding together |
 | **Instinct** | Lets you **re-set your palette mid-shoot** when the film changes underneath you: a rewrite, a new director, a co-star who gives you nothing |
-| **Presence** | Your **Notices floor** = 0.10 × Presence. At 90 you can hold the screen doing nothing. At 30 you must take positions to exist at all. |
+| **Presence** | Your **Notices floor** = 0.42 × Presence *(v9 — was 0.10; at that weight the floor could never bind against a Notices mean of 58, so the verb never actually fired for anyone. At 0.42 it does: a magnetic actor genuinely can be still and be noticed for it.)*. At 90 you can hold the screen doing nothing. At 30 you must take positions to exist at all. |
 | **Resilience** | How long a shoot before `Condition` erodes — and some forgiveness when you overspend your contrast budget |
 
 The Presence one produces two genuinely different careers. **A magnetic actor can afford to be still. An unmagnetic one has to be interesting.** Neither is better and they play nothing alike.
@@ -418,25 +454,54 @@ Four meters, each doing a different job. Different gatekeepers weight them diffe
 
 | Meter | Range | Meaning | Baseline decay/yr |
 |---|---|---|---|
-| **Heat** | 0–100 | Current market demand. "Who's hot right now." | −9 (−12 above 70) |
-| **Prestige** | 0–100 | Industry respect. Directors and critics. | −1.5 (very sticky) |
-| **Affection** | 0–100 | Public warmth. Drives audience turnout & endorsements. | −4 |
-| **Notoriety** | 0–100 | Scandal heat. Sometimes an asset. | −16 |
+| **Heat** | 0–100 | Current market demand. "Who's hot right now." | proportional, billing-aware — see below |
+| **Prestige** | 0–100 | Industry respect. Directors and critics. | ×0.985 (very sticky) |
+| **Affection** | 0–100 | Public warmth. Drives audience turnout & endorsements. | ×0.96 |
+| **Notoriety** | 0–100 | Scandal heat. Sometimes an asset. | ×0.84 |
 
 **These decay on their own, and there is no maintenance button.** BitLife wants you to post on social media every year or watch your fame drain — a chore, not a decision (§0.1). Here Heat falls because the industry moves on. The only thing that raises it is work, and choosing work is the game.
+
+**v9 — the ladder had no bottom rung, and phase 0's end-to-end simulation caught it before a single line of interface got built.** The original spec here made gains billing-weighted (`bw`: lead 1.0, supporting 0.55, bit 0.2) and decay flat and identical at every tier — a beginner therefore accrued Heat at a fifth the rate a lead does, while paying full decay regardless. Run 4,000 careers against that and 80% never play a lead and nobody ever becomes a star; see `callback-design-review.md` §1. Four changes fix it, all load-bearing, and all four have to move together — they were swept and re-verified as a set, not tuned individually:
+
+```
+ΔHeat = bw · discovery(credits) · reach(budget) ·
+        ( heatBase                                        // 7.9 — working at all is worth something
+          + heatRoiCoef · clamp(ROI − heatRoiCentre, −0.6, 2.2)   // 9.0, centred at 0.90 — below the median outcome
+          + heatAudCoef · (Audience − heatAudCentre) )     // 0.20, centred at 52
+
+Heat *= heatKeep[billing this year]     // proportional decay, so it finds an equilibrium instead of
+                                         // integrating to zero: idle 0.80, bit 0.865, supporting 0.888, lead 0.925 —
+                                         // the tier you can reach has to be able to outrun the decay on that tier
+
+discovery(credits) = up to 2.4× across your first 9 credits, tapering to 1× — a new face is news;
+                     a known quantity is not
+
+reach(budget) = clamp(0.46 + 0.50 · log10(budget), 0.3, 1.7)   // a hit on a $4M film and a hit on a
+                     // $140M film are the same ROI and nothing like the same career event — this is
+                     // where the upper tail comes from, and why it is rare
+
+Recognition — the bridge out of bit parts, and deliberately NOT Standing:
+  ΔRecognition = 0.42 · max(0, YourNotices − 51)     // good work in a small part, remembered
+  Recognition *= 0.90/yr, faster once Standing clears 45 (it has done its job by then)
+  feeds Utility (§4.4) only for supporting/bit roles — a way in, not a way up
+```
+
+`ΔPrestige` and `ΔAffection` keep the same billing-and-discovery structure (`ΔPrestige = bw·discovery·(0.11·(FilmCritic−57) + 0.26·(YourNotices−54))`; `ΔAffection = bw·discovery·reach·0.10·(Audience−55)`) — only Heat needed the `reach` term, since Prestige and Affection aren't primarily about how many people saw you.
 
 **Derived values:**
 
 ```
 StarPower  = 0.45·Heat + 0.30·Affection + 0.25·Prestige
+Standing   = clamp(StarPower − 0.20·max(0, Notoriety − 55), 0, 100)   // StarPower net of scandal —
+             the scalar Parts 6 and 8 gate on, defined once, here, so it can't drift
 Bankability = 0.60·Heat + 0.25·(recent box-office ROI, normalized)
             + 0.15·Affection − 0.20·max(0, Notoriety − 55)
 
 Quote (your asking price, in $M) =
-    0.05 · exp(0.052 · Bankability) · eraMultiplier
+    0.05 · exp(0.070 · Bankability) · eraMultiplier
 ```
 
-That quote curve is deliberately exponential: it produces ~$0.06M at Bankability 5, ~$0.5M at 45, ~$3.5M at 82, ~$9M at 100. The top of the market pays wildly more than the middle — which is true, and which makes the climb feel like a climb.
+That quote curve is deliberately exponential — the top of the market pays wildly more than the middle, which is true, and which makes the climb feel like a climb.
 
 **Gatekeeper weightings** (used in 4.4):
 
@@ -453,7 +518,7 @@ Note that a prestige auteur *slightly rewards* notoriety and network TV punishes
 
 ## 4.4 The Offer Board & casting
 
-Each quarter, generate `N = 4 + floor(StarPower / 12)` role listings, drawn from active productions in the world sim.
+Each quarter, generate role listings from active productions in the world sim, at a rate that rises with Standing and your agent's reach and falls hard with age past the mid-40s (§4.9) — offers are lumpy on purpose: some quarters nothing at all comes in, and that has to be possible or the calendar has no downside.
 
 **Offer probability** for role *r* from gatekeeper *G*:
 
@@ -476,7 +541,11 @@ RelationshipBonus = Σ over Rolodex members attached to this production:
 Utility = 0.40·StandingScore + 0.35·FitScore
         + 0.15·(0.6·Craft + 0.4·Instinct)
         + RelationshipBonus
-        − 12 × (Quote / r.budgetForRole − 1)⁺     // you're too expensive
+        − 12 × min(Quote / r.budgetForRole − 1, 1)⁺     // you're too expensive — v9: capped,
+                                                          // because an actor who wants a part takes
+                                                          // less for it; uncapped, this term priced
+                                                          // working actors off the board entirely
+                                                          // the moment their quote moved
 
 P(offer) = 1 / (1 + e^(−0.11 · (Utility − r.difficulty)))
 ```
@@ -484,10 +553,14 @@ P(offer) = 1 / (1 + e^(−0.11 · (Utility − r.difficulty)))
 **Three paths to a role**, and the game should make you feel the difference:
 
 1. **Open audition** — full RNG, low utility floor, always available. This is the grind.
-2. **Offer** — no audition; triggered when `Utility − difficulty > 25`. The reward for standing.
+2. **Offer** — no audition; triggered when `Utility − difficulty > 14`. *(v9 — originally 25, which required a relationship bonus to ever clear and made this path and path 3 the same path in practice; phase 0's simulation flagged it as unreachable. At 14, a star who is obvious casting for a small film gets it outright, and the Rolodex path below stays genuinely distinct.)*
 3. **Direct offer via Rolodex** — a director who trusts you (`affinity > 70`) hands you the part regardless of Standing. **The single most valuable asset in the game.** It bypasses the casting system entirely, which is exactly how the relationship graph earns its keep.
 
 **Auditions are not a slot machine.** You bring a performance palette into the room (§5.5) — *play the anger / play the grief under the anger / play it flat and let them come to you* — and then choose whether to take the adjustment they give you. The room has visible preferences you learn by working with these people, and the casting director's own taste decides whether your contrast reads as bold or as wrong. This converts "another layer of luck" into a decision you can reason about.
+
+**The union catch-22, made passable.** §10.1 locks an actor out of union productions until they have three union credits, and never specifies how the first three happen — a closed loop with no entry point. v9: non-union listings appear on the board of anyone under three union credits (a union role has a 25% chance of being offered non-union to a newcomer instead, paying roughly a third as much and pulling easier). It is a worse deal every time, and it is how a career starts.
+
+**Typecasting, on the offer side.** The board itself is shaped by Persona (§4.2): roughly a fifth of the time a listing is drawn "in your lane" — weighted toward the genre and archetype you're already legible as — and the rest of the time from whatever the market currently wants. A highly legible actor's board fills with more of the same; an illegible one keeps seeing a genuinely varied mix. This is the offer-side half of typecasting the original spec never modelled at all — Persona existed but never touched what you were actually shown.
 
 ## 4.5 The Deal
 
@@ -512,6 +585,8 @@ The negotiation layer BitLife gestures at with its agent and then drops. Every o
 | Powerhouse | 15% | +4 offers, ±25% fee, packaging (see below), buries small scandals |
 
 **Packaging** is the powerhouse-only move: your agency also reps the director and the writer and bundles you into a project before it's cast. Mechanically it's a guaranteed offer once every N years with no audition — enormously strong, and it costs you 15% of everything forever. That's a real decision.
+
+**v9 — tier has to be climbable, or it isn't a decision, it's a starting condition.** The original spec set agent tier once, at character creation, with nothing anywhere that ever moved it — which meant an actor who started with no representation had none for the entire game, and *nobody, ever, on any path,* could reach Powerhouse, making the packaging move above permanently unreachable content regardless of how well the game was played. Fixed with an explicit pull action (§6.6, "get work"): **Sign with a bigger agency**, available whenever there's a tier above your current one and Standing clears that tier's bar (0 / 28 / 60), costing exactly the higher commission the new tier already implies. One step at a time, player-initiated, never pushed.
 
 ## 4.6 Prep
 
@@ -561,6 +636,10 @@ if random() < Instinct / 320:
 ```
 
 **Performance is private.** You see a qualitative read from the director, and your own uncertain sense of it. You do not see the number. This matters enormously for how the awards season plays — you should be able to walk away from a shoot convinced you were brilliant and be wrong.
+
+**v9 — your own read of the room is itself a modelled estimate, not the truth.** Hidden Performance existed from the start; what was missing was a separately-tracked *estimate* of it, the pattern sports-management sims that do this well share (Football Manager's judging attributes, Total Extreme Wrestling's scouting levels — both rise only while you're actually doing the thing being judged, never passively). The read you're given narrows — states its own confidence, in words — as Craft rises and as you work with a given director again; a veteran with a trusted collaborator reads the room accurately, a newcomer on a first job with a stranger genuinely cannot tell.
+
+*(`Base`'s `Fit` term and `Performance` itself feed directly into §5.6's shape — that section defines the single reconciled Notices/Ensemble split this Performance number resolves into; see the note there. §14.9's whole-career simulation is what caught the original spec's Standing formula failing to convert any of this into a career at all — see §4.3.)*
 
 ## 4.8 The Calendar — opportunity cost
 
@@ -614,10 +693,15 @@ This is the mechanical heart of the redesign. **Four separate numbers**, compute
 
 The critical structural move — and the thing that makes the whole design work — is that **the film gets reviewed and you get reviewed separately.** BitLife has one number. Callback has `FilmCriticScore` (was the movie good) and `YourNotices` (were *you* good in it). Prestige and awards read `YourNotices`; Heat and money read the box office; the two only partly agree. Everything downstream depends on this split.
 
+**v9 — Part 5 defined `YourNotices` and `EnsembleScore` again, differently, and the two were never reconciled; each was "verified" in isolation against a different definition of itself.** There is now exactly one of each, produced by §5.6's shape resolution and consumed here as `yourNotices`/`ensembleScore` — this section cannot drift from Part 5 again because there is only one code path between them. The reception sweep below was re-run against the unified definition.
+
 ```
-EnsembleScore = Σ (castMemberPerformance × theirBillingWeight)
-                / Σ billingWeights
-              // for a lead this resolves to ≈ 0.80·yours + 0.20·rest of cast
+EnsembleScore = ( YourPerformanceShape · yourBillingWeight
+                 + Σ restOfCast(billing-weighted) )
+               / (yourBillingWeight + Σ restOfCastWeights)
+              // v9: the doc's flat "≈0.80·yours + 0.20·rest" is wrong for a real cast and was
+              // never checked against one — a lead actually carries about 0.56 of it, a bit
+              // player about 0.09. Modelled per-billing now, not as one constant for every part.
 
 ProjectQuality = 0.31·ScriptQuality
                + 0.22·DirectorSkill
@@ -630,9 +714,13 @@ FilmCriticScore = ProjectQuality
                                                     // comedy −4, action −3
                 + 0.10·(DirectorPrestige − 50)      // auteur halo
                 − stalenessPenalty                  // your repetition, 4.2
-                + N(0, 5.5)
+                − clicheePenalty                    // v9 — §5.4's landmarks: the shape you
+                                                    // invented eventually reads as tired to
+                                                    // critics too, once enough films copy it
+                + palette effect(genre)             // §5.3, scaled — see note there
+                + N(0, 4.6)
 
-YourNotices     = 0.52·YourPerformance
+YourNotices     = 0.52·YourPerformanceShape
                 + 0.25·FilmCriticScore
                 + 0.13·(50 + 30·billingWeight)      // visibility: you can't be
                                                     // praised for what nobody saw
@@ -644,30 +732,39 @@ AudienceScore   = 0.62·ProjectQuality
                 + 0.06·(100 − ProjectQuality)       // anti-elitism term:
                                                     // difficult films
                                                     // underperform with crowds
-                + N(0, 5.5)
+                + palette effect(genre)
+                + N(0, 4.5)
 ```
 
-**Box office:**
+**Box office — v9: one model, not two.** The original spec carried this shape here *and* a differently-structured one in §8.2 for the studio layer, never reconciled — two box-office models computing different numbers for the same release. This is now the only one, and both actor and studio read it:
 
 ```
-Marketing = 0.45 × Budget                            // default; studio-set
-Opening   = Budget × (0.68 + 0.004·CastStarPower + 0.005·GenreDemand)
-Legs      = clamp(1.7 + 0.048·(AudienceScore − 50), 1.15, 4.4)
-Gross     = Opening × Legs
-ROI       = (0.62 × Gross) / (Budget + Marketing)    // all-windows rights share
+Budget      = role.budget / eraMultiplier            // v9 — derived at resolution time, never
+                                                       // stored: three paths (a non-union
+                                                       // downgrade, an unknown-lead franchise
+                                                       // ticket, a franchise installment) rewrite
+                                                       // the nominal budget after a role is
+                                                       // generated, and a value snapshotted at
+                                                       // generation was quietly scoring a
+                                                       // different film from the one on the offer
+                                                       // board — in both directions
+BreakEven   = Budget × (1 + 0.45) / 0.62              // marketing share, and the rights share
+                                                       // that ever comes back — the figure a
+                                                       // player is shown so ROI reads as more
+                                                       // than a bare ratio
+Opening     = Budget × (0.92 + 0.005·CastStarPower + 0.005·GenreDemand) × (Budget/30)^−0.10
+Legs        = clamp(1.7 + 0.048·(AudienceScore − 50)
+                     + 0.032·max(0, z − 70)^1.5, 1.15, 8.0)     // z = AudienceScore + N(0,12);
+                                                                 // the extra term is the
+                                                                 // legitimate-hit tail — word of
+                                                                 // mouth compounding past a
+                                                                 // threshold, not just a wider
+                                                                 // opening
+Gross       = Opening × Legs
+ROI         = (0.62 × Gross) / (Budget + Marketing)
 ```
 
-**And now the payoff — your gains are computed from all four, differently:**
-
-```
-ΔHeat      = billingWeight × ( 9·clamp(ROI − 1, −0.6, 2.2)
-                             + 0.16·(AudienceScore − 55) )
-ΔPrestige  = billingWeight × ( 0.11·(FilmCriticScore − 60)
-                             + 0.26·(YourNotices − 62) )
-             + directorPrestigeHalo
-ΔAffection = billingWeight × ( 0.10·(AudienceScore − 55) )
-             + pressTourResult
-```
+**And now the payoff — your Standing gains are computed from these, per §4.3's corrected formula.** (The original draft of this section duplicated the Standing math here, with the pre-fix constants — see §4.3 for the one live definition and why the version that used to live here was wrong.)
 
 **These constants are tuned, not guessed.** Running 40,000 project resolutions against them yields:
 
@@ -691,15 +788,7 @@ ROI       = (0.62 × Gross) / (Budget + Marketing)    // all-windows rights shar
 
 - A **flop with great reviews and a great performance** → Prestige way up, Heat down. You become "an actor's actor" — the auteur board opens, the tentpole board closes.
 - A **hit you were bad in** → Heat and Affection up, Prestige flat or down. Your quote soars and critics stop taking you seriously.
-- A **great performance in a film ruined in post** (`PostLuck` rolls 18) → `YourNotices` reads `YourPerformance` at 0.52 and the wrecked film only at 0.25, so most of your Prestige gain survives. The industry knows. The public never finds out.
-
-That last case is *precisely* the thing BitLife cannot express, and it's the emotional core of the whole design.
-
-**Read what that produces:**
-
-- A **flop with great reviews and a great performance** → Prestige way up, Heat down. You become "an actor's actor" — the auteur board opens, the tentpole board closes.
-- A **hit you were bad in** → Heat and Affection up, Prestige flat or down. Your quote soars and critics stop taking you seriously.
-- A **great performance in a film ruined in post** (`PostLuck` rolls 18) → your Prestige gain from the performance term partially survives, because `ΔPrestige` reads `YourPerformance` directly. The industry knows. The public never finds out.
+- A **great performance in a film ruined in post** (`PostLuck` rolls 18) → `YourNotices` weights `YourPerformanceShape` at 0.52 against `FilmCriticScore` at 0.25, so most of your Notices — and therefore most of your Prestige gain, since Prestige reads Notices, not the film's score directly — survives a wrecked edit. The industry knows. The public never finds out.
 
 That last case is *precisely* the thing BitLife cannot express, and it's the emotional core of the whole design.
 
@@ -810,16 +899,18 @@ It's replaced by what follows. **No hidden answer. You set the dials, and the di
 
 ## 5.3 The palette — six dials that describe a film
 
-A film is described by six settings, each running −50 to +50. The director sets them; the budget and schedule constrain them; the results follow from what you chose.
+A film is described by six settings, each running −50 to +50. The director sets them; the budget and schedule constrain them; the results follow from what you chose. **The player never sets these — this is the film's shape, read and reacted to, not chosen.**
 
 | Dial | −50 | +50 | Costs |
 |---|---|---|---|
-| **Pace** | Languid | Relentless | Schedule at the extremes |
-| **Colour** | Desaturated | Saturated | Post budget to push either way |
+| **Pace** | Slow-burn | Fast-paced | Schedule at the extremes |
+| **Colour** | Muted | Vivid | Post budget to push either way |
 | **Scale** | Intimate | Epic | **Money.** A $5M film cannot be epic |
-| **Intensity** | Restrained | Visceral | Effects budget, stunt risk (§4.9) |
-| **Clarity** | Ambiguous | Explicit | Free — and the sharpest choice you make |
-| **Texture** | Observational | Kinetic | Schedule; more setups per day |
+| **Intensity** | Gentle | Intense | Effects budget, stunt risk (§4.9) |
+| **Clarity** | Subtle | On-the-nose | Free — and the sharpest choice you make |
+| **Texture** | Steady | Frantic | Schedule; more setups per day |
+
+*(v9 — the pole words above are the interface's; the original draft used the more literary-photographic Languid/Relentless, Desaturated/Saturated, Restrained/Visceral, Ambiguous/Explicit, Observational/Kinetic. Same six numbers, plainer language — a player reading a shoot's palette for the first time shouldn't need a film-studies vocabulary to know what a dial means. `Pace`/`Colour`/`Scale`/`Intensity`/`Clarity`/`Texture` stay as the internal names; only the poles shown to a player changed.)*
 
 There is no correct setting. There are settings that produce different films.
 
@@ -848,7 +939,7 @@ So the same dial means different things in different films, and "what's the smar
 
 If there's no right answer, what is the skill? **Making the settings agree with each other.**
 
-Seven archetypal shapes exist in the world at any time — blockbuster, art film, horror, chamber piece, epic, vérité, neon. Coherence is how close your palette sits to the nearest one.
+Seven archetypal shapes exist in the world at any time — blockbuster, art film, horror, chamber piece, epic, vérité, neon. Coherence is how close your palette sits to the nearest one. *(v9 — below coherence 40, "nearest shape" stops being a meaningful description, since nothing is genuinely close to anything; the interface stops naming one at that point and says the film hasn't settled into a shape yet, rather than reporting a misleadingly specific answer.)*
 
 ```
 Coherence = clamp(100 − 2.2 × distanceToNearestArchetype, 0, 100)
@@ -890,14 +981,16 @@ An earlier version of this section measured **contrast** as a single distance be
 
 Here is what replaced it. **Your four dials each take a *position relative to the film*, and the positions are named, not numeric.**
 
-| Position | Meaning | Cost |
-|---|---|---|
-| **With** | You move as the film moves. Part of its texture. | 0 |
-| **Beneath** | Same direction, less of it. The calm inside it. | 1 |
-| **Beyond** | Same direction, more of it. The most X thing on screen. | 2 |
-| **Against** | The opposite. Counterpoint. | 3 |
+| Position | Meaning | Player-facing label *(v9)* | Cost |
+|---|---|---|---|
+| **With** | You move as the film moves. Part of its texture. | *Match it* | 0 |
+| **Beneath** | Same direction, less of it. The calm inside it. | *Hold back* | 1 |
+| **Beyond** | Same direction, more of it. The most X thing on screen. | *Go big* | 2 |
+| **Against** | The opposite. Counterpoint. | *Play against it* | 3 |
 
-Four dials — **Energy, Volume, Warmth, Speed** — each taking one of four positions. Sixteen atoms, 256 combinations, and no distance metric anywhere.
+*(v9 — With/Beneath/Beyond/Against stay the internal vocabulary this whole Part reasons in; the labels above are what a player actually clicks. The original interface printed the internal keys straight to the screen — literally `with (0)` as a button label — and the running total was reported as "contrast budget 4.6 · spending 4," which reads like a spreadsheet rather than an acting choice. Same mechanic; the words changed, not the numbers.)*
+
+Four dials — **Energy, Volume, Warmth, Speed**, shown to the player as **Energy, Size, Warmth, Tempo** — each taking one of four positions. Sixteen atoms, 256 combinations, and no distance metric anywhere.
 
 ### The contrast budget
 
@@ -949,19 +1042,34 @@ Ensemble  = what your work does for the FILM   → feeds ProjectQuality (§4.10)
 
 Look at the read table again: *beyond* on Volume is **+0.5 for you and −1.5 for the film.** Some of the most attention-getting things an actor can do actively damage the thing they're in.
 
-## 5.6 Shape — a performance is not one number
+## 5.6 Shape — a performance is not one number, and not one scene
 
 A performance resolves across **three beats**: the introduction, the turn, and the resolution. The turn is the scene it's remembered for.
 
-```
-lift  = 9 × spikiness            // spikiness rises with beyond/against positions
-intro = base − 0.65 × lift
-turn  = base + 1.30 × lift
-reso  = base − 0.65 × lift       // mean is unchanged; only the shape moves
+**v9 — the three beats are three scenes now, actually played, not a formula spread across an imagined shape.** The original design was right that a performance has three beats and wrong about how a player touches them: one contrast-budget decision (§5.5) got made once, per film, and then distributed across `intro`/`turn`/`reso` by a fixed curve (`intro = base − 0.65·lift`, `turn = base + 1.30·lift`, `reso = base − 0.65·lift`) that the player never saw or influenced directly. The beats existed in the math and nowhere else.
 
-Notices  = 0.55 × peak beat + 0.45 × mean
-Ensemble = mean − 4.0 × spikiness + dial effects
+They're real now. **The shoot is three scenes, played in order, each its own full position choice** (§5.5 — all four dials, a fresh look at the contrast budget) rather than one choice imagined to cover all three:
+
 ```
+For each of the three scenes:
+    resolved[i] = resolvePositions(yourChoiceThisScene, filmContext)   // §5.5's read table,
+                                                                        // unchanged
+
+resolved = mean(resolved[0], resolved[1], resolved[2])   // averaged, not summed — a player who
+           // makes the identical choice in all three scenes gets exactly the number the old
+           // single-choice version always gave; three real, differing choices land in the same
+           // range a single choice always could, just distributed across an actual shape instead
+           // of a formula's guess at one
+
+Notices  = 0.55 × peak(scene) + 0.45 × YourPerformanceShape + resolved.forYou
+Ensemble = YourPerformanceShape − 4.0 × spikiness + resolved.forFilm
+```
+
+*(The `peak`/beat construction below this line — `lift = 9·spikiness`, `intro`/`turn`/`reso` — is unchanged and still describes the shape those three real scenes produce; what changed is that `resolved` now comes from three genuine decisions instead of one decision smeared across a curve. `Notices` also now explicitly carries the `resolved.forYou` term the original formula dropped — the very thing §5.5 spends the whole contrast budget describing has to actually reach the number it's supposedly driving.)*
+
+A short **dailies read** follows each of the first two scenes — the room's reaction, in a line, before the next one — and it is not idle flavour: a scene played past what the day can hold measurably costs you with the director going forward (a small, bounded ding to the working relationship, the same order of magnitude as one of §5.12's on-set moments), because the read a player is given has to be true somewhere or it's decoration, not information (§0.3 Rule 2).
+
+**The three on-set moments (§5.12) now interleave with the three scenes** rather than landing in a block once shooting wraps — one between scene one and two, one between two and three, whatever's left after the third, following the same per-actor frequency §5.12 already specifies. Same pool, same count; only the pacing changed, so a shoot reads as a schedule with things happening between setups rather than a decision screen followed by a debrief.
 
 **Verified:**
 
@@ -1251,10 +1359,13 @@ Negotiable terms that turn into gameplay verbs. Each is won at a Standing thresh
 | **Script approval** | Prestige 60 | Force a rewrite; block a change you hate |
 | **Director approval** | Standing 65 | Veto a director; name one you want |
 | **Co-star approval** | Standing 70 | Block casting; bring your own people in |
+| **A seat in the edit** *(v9, actor-scoped)* | Your own production company, or Standing 58 | Shift a finished film's Notices and Ensemble by a small, bounded amount before release — real influence over the cut, well short of the authority below |
 | **Final cut** (director) | Prestige 70 | §7.7 — the whole game for a director |
 | **Pay-or-play** | Any, costs fee | Paid whether or not it happens |
 | **Marketing consult** | Standing 75 | Change the campaign, the poster, the trailer |
 | **Release approval** | Standing 85, rare | Block a dump; force a real release |
+
+*(v9 note on the row above: phase 0's actor-only build needed a fourth approval alongside script/director/co-star and initially just called it "cut," informally borrowing the director's Final Cut language for something much smaller — an actor lobbying the edit, not controlling it. It's named and scoped properly here instead of left ambiguous between the two. Earned two ways: build a production company (§8), or be successful enough on your own that editors already expect you in the room.)*
 
 Approvals are the reason to take less money, and the game should make that trade legible: a fee cut of 30% for script and co-star approval is often the highest-value decision available.
 
@@ -1288,6 +1399,8 @@ RecastCost = 0.55 · Indispensability
 | 6 | 93 | 83 | 45.7 | Unthinkable |
 
 You are replaceable for two films and irreplaceable by the fourth. **That gap is the whole arc of franchise power**, and it means the interesting decisions cluster around installments three and four — exactly where real contract disputes happen.
+
+**v9 — Indispensability has to be able to fall all the way to zero, or the property never lets you go.** Every property has a natural ceiling (§9.5) — nobody makes eleven of them with the same person, and past the last one the studio reboots without you. Phase 0's implementation modelled that reasonably (a decay term, faster once you've been rebooted past) but gated the *entire* decay-and-release calculation behind "Indispensability still above 30," on the theory that only a genuinely high number needed tracking closely. It doesn't: a reboot's own decay routinely drops the number from comfortably above 30 into the 12–30 band in a single step, and once inside that band the gate that runs further decay never reopens — the number simply stops moving, forever, and a franchise that's supposed to be over stays open, silently blocking every franchise after it for the rest of the career. This is Part 15's own risk item — *"every hard system needs a real exit"* — failing in the one place it was actually implemented. The fix is structural, not numeric: decay (and the eventual release once it crosses a floor) must run at every level of Indispensability once a property is live, not only while it's still high. Only the *perks* of being indispensable — the floor under Heat, the recast cost — are correctly gated to a high number; the exit never should have been.
 
 ## 6.5 Franchise influence — fifteen ways in
 
@@ -1368,6 +1481,7 @@ Everything else you can initiate. All pull, none of it prompted.
 | Attach yourself and shop it | A block + money | *You* become the package. Financing follows you, not the script. |
 | Option material yourself | Money | Develop a role that doesn't exist yet |
 | Call in a roster favour | 2 favours | A direct offer, no audition |
+| **Sign with a bigger agency** *(v9)* | Standing clears the next tier's bar | Moves you one agent tier up (§4.5) — the missing rung: nothing else in the original design ever moved this stat, which meant a Regional Stage start had no representation for an entire career and nobody, ever, could reach Powerhouse to use the row below |
 | Ask your agency to package | Powerhouse agent | Guaranteed offer, no audition, 15% forever |
 
 ### Change a project you're on
@@ -2608,21 +2722,23 @@ The holdout must never become free money — a leverage move with no downside is
 
 Measured by counting prompts per system per year, not estimated. Full breakdown in §0.2.
 
-## 14.9 Career-shape targets — to be verified in phase 0
+## 14.9 Career-shape targets — v9: the first seven are verified, phase 0 built the actor spine only
 
-| Metric | Target |
-|---|---|
-| Median acting career length | 26 years active |
-| Careers reaching Heat > 80 at any point | ~18% |
-| Careers with zero award nominations | ~55% |
-| Award wins per 100 careers | 21 |
-| Median lifetime earnings | $6–11M |
-| Top-decile lifetime earnings | $90M+ |
-| Careers surviving the age-42 cliff at lead level | ~30% |
-| Careers that fall below the health-plan threshold at least once | ~65% |
-| Careers ending via addiction/uninsurability | ~7% |
-| Actors who successfully switch to directing | ~9% |
-| Median declined-offer regrets shown in obituary | 3–5 |
+Phase 0 was scoped to the actor career alone (§0.6, §3.3's spine, minus the director and studio layers). The seven targets below all read off systems phase 0 actually built, and were the test the original v8 draft never ran — §1's finding (this section marked *"to be verified"* while §4.3's Standing formula, the one thing that gates every target here, shipped unverified) is what produced the 0%-of-targets-met result in `callback-design-review.md`. After the §4.3/§4.4/§4.10 fixes above, and again after this session's production rework (§5.6, §6.3–6.4), a 3,000-career simulation hits all seven, every time it's re-run:
+
+| Metric | Target | Measured (n=3,000) |
+|---|---|---|
+| Median acting career length | 26 years active | 32 |
+| Careers reaching Heat > 80 at any point | ~18% | 17% |
+| Careers with zero award nominations | ~55% | 50% |
+| Award wins per 100 careers | 21 | 12 |
+| Median lifetime earnings | $6–11M | $10.0M |
+| Top-decile lifetime earnings | $90M+ | $120M |
+| Careers surviving the age-42 cliff at lead level | ~30% | 39% |
+
+Three further claims, verified alongside the table above, that don't come from the design doc's own §14.9 list but that the review's method — *simulate the whole career, not the subsystem* — turned out to demand once leverage (Part 6) and the reworked shoot (§5.6) existed: a career that never opens the moves menu at all still meets every target above (Part 6 is genuinely optional, not secretly load-bearing); no single playstyle dominates the six Ambitions (§0.4); and a career played entirely through three real, varying scenes per shoot (§5.6) meets the same seven targets a single-choice shoot always did, confirming the rework changed the interface, not the odds.
+
+**The remaining four targets are still unverified** — they read off systems phase 0 didn't build: the health-plan threshold and addiction/uninsurability beyond a basic health curve (Part 11, mostly unbuilt), the director career to switch into (Part 7, doesn't exist as a playable mode), and the obituary's declined-offer regret count (the obituary exists; this specific figure was never instrumented). They stay targets, not results, until those parts are built.
 
 ---
 
