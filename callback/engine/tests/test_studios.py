@@ -204,6 +204,13 @@ class TestReleaseDecision(unittest.TestCase):
         mid_to_high = actor_influence_on_release(50.0, 100.0) - actor_influence_on_release(50.0, 75.0)
         self.assertGreater(mid_to_high, low_to_mid)
 
+    def test_merely_above_average_fame_still_gets_overruled_most_of_the_time(self):
+        # "rising star" territory (importance 75) shouldn't be mistaken for real pull.
+        self.assertLess(actor_influence_on_release(trust=50.0, actor_importance=75.0), 0.35)
+
+    def test_real_command_requires_near_top_of_scale_fame(self):
+        self.assertGreater(actor_influence_on_release(trust=50.0, actor_importance=97.0), 0.60)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -97,13 +97,16 @@ STUDIO_IDS = tuple(STUDIOS.keys())
 # you are right now (Standing's own standing_score, 0-100) — trust only wobbles that up or down
 # within a bounded band, it can never invert the ordering: a real A-lister always outweighs a real
 # nobody, no matter how burned the studio is on the star or how much they love the nobody. Fame is
-# the lever; trust is the modifier on the lever, not a second lever of the same size.
-STUDIO_INFLUENCE_BASE = 0.05
+# the lever; trust is the modifier on the lever, not a second lever of the same size. And fame
+# itself has to be real: STUDIO_INFLUENCE_IMPORTANCE_POWER=4 means moderate, "rising star" fame
+# barely registers — genuine sway only shows up once an actor is very close to the top of the
+# scale, not just above-average.
+STUDIO_INFLUENCE_BASE = 0.03
 STUDIO_INFLUENCE_IMPORTANCE_COEF = 0.85  # importance's ceiling contribution — dominant on purpose
-STUDIO_INFLUENCE_IMPORTANCE_POWER = 1.4  # >1 = convex: influence stays low until real fame, then climbs steeply
+STUDIO_INFLUENCE_IMPORTANCE_POWER = 4.0  # steeply convex: needs top-tier fame, not just above-average, to matter
 STUDIO_INFLUENCE_TRUST_SWING = 0.20  # trust can only scale the importance term by +/-20%, never overturn it
-STUDIO_INFLUENCE_FLOOR = 0.03  # even a burned, nobody actor sometimes gets their way
-STUDIO_INFLUENCE_CEILING = 0.95  # even the biggest, most trusted star doesn't get an automatic yes
+STUDIO_INFLUENCE_FLOOR = 0.02  # even a burned, nobody actor sometimes gets their way
+STUDIO_INFLUENCE_CEILING = 0.92  # even the biggest, most trusted star doesn't get an automatic yes
 
 
 def actor_influence_on_release(trust: float, actor_importance: float) -> float:
@@ -111,7 +114,9 @@ def actor_influence_on_release(trust: float, actor_importance: float) -> float:
     of its own preferred_release. actor_importance is the dominant, steeply-scaling term (a real
     A-lister at any trust level always outweighs a real nobody at any trust level — a total-
     nobody's importance term is 0, so trust can't move them off the floor at all); trust only
-    modulates an already-famous actor's own leverage up or down by a bounded +/-20%."""
+    modulates an already-famous actor's own leverage up or down by a bounded +/-20%. The power-4
+    curve means real influence takes real, top-tier fame — an actor who's merely above average
+    still gets mostly overruled."""
     importance_term = STUDIO_INFLUENCE_IMPORTANCE_COEF * (max(actor_importance, 0.0) / 100.0) ** STUDIO_INFLUENCE_IMPORTANCE_POWER
     trust_multiplier = 1.0 + STUDIO_INFLUENCE_TRUST_SWING * (trust - 50.0) / 50.0
     influence = STUDIO_INFLUENCE_BASE + importance_term * trust_multiplier
