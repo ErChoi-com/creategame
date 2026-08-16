@@ -31,7 +31,8 @@ from __future__ import annotations
 import random
 from dataclasses import replace
 
-from callback.engine.actor.offers import Role, offer_probability, resolve_casting_path, sample_role
+from callback.engine.actor.offers import Role, offer_probability, resolve_casting_path, sample_budget_millions, sample_role
+from callback.engine.core.util import clamp
 from callback.engine.actor.persona import GENRES
 from callback.engine.actor.positions import DIAL_LABELS, DIALS, PLAYER_LABELS, POSITIONS, generosity, upstaging
 from callback.engine.actor.prep import PREP_OPTIONS, WING_IT
@@ -204,9 +205,15 @@ class Session:
         the deal takes priority since it's the actor's standing commitment of the two."""
         deal = self.state.multi_picture_deal
         if deal is not None and deal.films_remaining > 0:
+            # The deal's guaranteed_budget_millions is a fee floor (built off quote_value), not a
+            # film budget — sample a real film budget plausible for this studio's own range so
+            # reception/marketing/ROI still resolve against a sane production budget, distinct
+            # from the fixed fee the deal actually guarantees.
+            deal_studio = STUDIOS[deal.studio_id]
+            film_budget = clamp(sample_budget_millions(self.rng), *deal_studio.budget_range)
             role = replace(
-                sample_role(self.rng, budget_millions=deal.guaranteed_budget_millions),
-                studio=deal.studio_id, budget_for_role=deal.guaranteed_budget_millions,
+                sample_role(self.rng), studio=deal.studio_id,
+                budget_for_role=deal.guaranteed_budget_millions, film_budget_millions=film_budget,
             )
             source = "deal"
         elif self._pending_spinoff_franchise_id is not None:
@@ -229,7 +236,8 @@ class Session:
             "index": index,
             "genre": role.genre,
             "billing": role.billing,
-            "budget_millions": round(role.budget_for_role, 2),
+            "budget_millions": round(role.film_budget_millions, 2),
+            "fee_millions": round(role.budget_for_role, 2),
             "available": True,
             "union": role.union,
             "studio_name": studio.name,
@@ -257,7 +265,8 @@ class Session:
                 "index": index,
                 "genre": role.genre,
                 "billing": role.billing,
-                "budget_millions": round(role.budget_for_role, 2),
+                "budget_millions": round(role.film_budget_millions, 2),
+                "fee_millions": round(role.budget_for_role, 2),
                 "available": would_offer,
                 "union": role.union,
                 "studio_name": studio.name,
@@ -597,7 +606,7 @@ class Session:
         _streaming_bid_summary below. Always includes the financing studio's own SELF_DISTRIBUTE_
         MULTIPLIER option: they just put it up on their own service for nothing — you get your
         budget back, no more."""
-        budget = self._role.budget_for_role
+        budget = self._role.film_budget_millions
         bidders = streaming_bidders(budget, self._role.studio)
         options = [
             {

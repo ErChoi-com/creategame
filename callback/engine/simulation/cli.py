@@ -71,7 +71,8 @@ def _listing_tags(o: dict) -> str:
 def _print_listings(listings: list[dict]) -> None:
     for o in listings:
         state = "" if o["available"] else "  (an audition — but it doesn't come through this year)"
-        print(f"  [{o['index'] + 1}] {o['genre'].title()} · {o['billing']} · {o['budget_millions']:.2f}M — "
+        fee = f"  (your fee: ${o['fee_millions']:.2f}M)" if "fee_millions" in o else ""
+        print(f"  [{o['index'] + 1}] {o['genre'].title()} · {o['billing']} · ${o['budget_millions']:.2f}M film{fee} — "
               f"{o['studio_name']}{_listing_tags(o)}{state}")
         print(f"       {o['studio_tagline']}")
 

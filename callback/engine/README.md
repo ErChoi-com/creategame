@@ -231,6 +231,23 @@ call. `simulate_project()` still just calls them in a straight line — no dynam
 object churn, the exact same sequence of `rng` draws as the old monolithic version — so the split
 costs nothing at runtime and every existing seed still reproduces byte-for-byte identical results.
 
+**Fixed a real conflation bug: a role's own fee and the film's whole production budget were the
+same number.** `offers.sample_role()` always sampled a real film budget (median $12M, up to a
+$300M tentpole) to pick which studio could plausibly finance it — then discarded that number,
+keeping only `budget_for_role`, a 5-35% slice of it meant to represent the actor's own fee ceiling.
+That slice was then reused for *everything* downstream: reception/marketing/ROI (`reception.budget`
+— literally commented "production budget," landing on a fee-sized number instead), studio-relations
+P&L, guild residuals, and the actor's own Deal negotiation, simultaneously. In practice this meant
+box-office math almost never ran against a genuine $80M+ production, even when the underlying film
+really was one, and a franchise holdout raise was inflating the film's whole reported "budget"
+instead of just the actor's own cut of it. `Role` now carries `film_budget_millions` (the real,
+independently-sampled production budget — drives reception/marketing/ROI/studio-selection/P&L) as
+a real field distinct from `budget_for_role` (the actor's own fee — drives only the Deal's fee
+negotiation and quote comparisons); `__post_init__` defaults `film_budget_millions` to
+`budget_for_role` for any hand-built `Role` that predates this field, so nothing that isn't
+`sample_role()` itself changes behavior. The Offer Board now shows both: the film's real budget
+and, separately, `(your fee: $X.XXM)`.
+
 **Multi-picture deals — future terms, not just this project's** (`leverage/multi_picture_deal.py`).
 Once Standing clears `MULTI_PICTURE_MIN_STANDING`, right after accepting a role, the actor can lock
 in 2-5 future films with that role's own financing studio at a fixed budget floor

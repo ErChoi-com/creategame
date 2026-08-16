@@ -67,6 +67,8 @@ class TestOfferBoardTypes(unittest.TestCase):
             self.assertIsInstance(offer["genre"], str)
             self.assertIsInstance(offer["billing"], str)
             self.assertIsInstance(offer["budget_millions"], float)
+            self.assertIsInstance(offer["fee_millions"], float)
+            self.assertGreaterEqual(offer["budget_millions"], offer["fee_millions"])
             self.assertIsInstance(offer["available"], bool)
             self.assertIsInstance(offer["studio_name"], str)
 

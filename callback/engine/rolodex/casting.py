@@ -89,7 +89,7 @@ def resolve_declined_role(
         director_skill=director_skill,
         craft_contribution=craft_contribution,
         genre=role.genre,
-        role_budget_millions=role.budget_for_role,
+        role_budget_millions=role.film_budget_millions,
         director_prestige=director_prestige,
         staleness_penalty=0.0,
         cast_star_power=cast_star_power,

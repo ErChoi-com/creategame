@@ -171,17 +171,18 @@ def accept_and_play(
     if result.favour_gain and costar_id is not None:
         leverage = replace(leverage, favours=leverage.favours.credit(costar_id, int(result.favour_gain)))
 
-    guild = add_residual_stream(state.guild, result.roi, role.budget_for_role)
+    guild = add_residual_stream(state.guild, result.roi, role.film_budget_millions)
     genre_heat = accumulate_heat(state.genre_heat, role.genre, result.roi)
 
     # The studio that financed this film remembers how it turned out, and so does a director you
     # specifically asked for — both real, both feeding straight back into future casting/skill
-    # numbers rather than sitting as an inert P&L ledger nobody reads.
-    studio_relations = update_relationship(state.studio_relations, role.studio, role.budget_for_role, result.roi, result.gross)
+    # numbers rather than sitting as an inert P&L ledger nobody reads. net_profit is a real
+    # gross-minus-budget reading, so this needs the film's actual production budget, not your fee.
+    studio_relations = update_relationship(state.studio_relations, role.studio, role.film_budget_millions, result.roi, result.gross)
     director_relations = state.director_relations
     if requested_director_npc_id is not None:
         director_relations = update_relationship(
-            director_relations, requested_director_npc_id, role.budget_for_role, result.roi, result.gross,
+            director_relations, requested_director_npc_id, role.film_budget_millions, result.roi, result.gross,
         )
 
     new_state = replace(

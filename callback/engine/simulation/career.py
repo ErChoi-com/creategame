@@ -250,14 +250,14 @@ def resolve_quality(
         palette_crit_effect += script_note.critic_delta
 
     studio = STUDIOS[role.studio]
-    marketing_share = marketing_share_for(studio, role.budget_for_role)
+    marketing_share = marketing_share_for(studio, role.film_budget_millions)
 
     reception = resolve_reception(
         script_quality=script_quality,
         director_skill=director.skill,
         craft_contribution=shoot.craft_contribution,
         genre=role.genre,
-        role_budget_millions=role.budget_for_role,
+        role_budget_millions=role.film_budget_millions,
         director_prestige=director.prestige,
         staleness_penalty=staleness,
         cast_star_power=cast_star_power,
@@ -290,7 +290,7 @@ def resolve_release_schedule(
         # Quality is already resolved — the sale happens after the movie has been made, and it
         # shows: a bad film draws a thinner, worse pool than a good one.
         bids = quality_adjusted_bids(
-            role.budget_for_role, role.studio, reception.film_critic_score, reception.audience_score, rng,
+            role.film_budget_millions, role.studio, reception.film_critic_score, reception.audience_score, rng,
         )
         chosen = streaming_bid_selector(bids) if streaming_bid_selector is not None else max(
             bids, key=lambda b: b.payout_millions,
@@ -322,9 +322,9 @@ def resolve_standing_update(state: ActorState, role: Role, reception: ReceptionR
     Attributes, Recognition, credits/ROI history. No rng of its own; purely a function of what
     resolve_quality/resolve_release_schedule already produced."""
     bw = BILLING_WEIGHT[role.billing]
-    heat_delta = delta_heat(bw, state.credits, role.budget_for_role, reception.roi, reception.audience_score)
+    heat_delta = delta_heat(bw, state.credits, role.film_budget_millions, reception.roi, reception.audience_score)
     prestige_delta = delta_prestige(bw, state.credits, reception.film_critic_score, shoot.spotlight)
-    affection_delta = delta_affection(bw, state.credits, role.budget_for_role, reception.audience_score)
+    affection_delta = delta_affection(bw, state.credits, role.film_budget_millions, reception.audience_score)
 
     new_standing = state.standing.copy()
     new_standing.add("heat", heat_delta)

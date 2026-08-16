@@ -81,6 +81,16 @@ class Role:
     installment_number: int = 0  # 0 = not a franchise entry; 1 = a new franchise; 2+ = a sequel
     source_material: str | None = None  # set by simulation._adaptations.maybe_attach_adaptation;
     # one of genre.adaptation.SOURCE_MATERIAL_TYPES, or None for an original screenplay
+    film_budget_millions: float | None = None  # the WHOLE film's production budget — distinct from
+    # budget_for_role (your own fee, a 5-35% slice of it). Drives reception/marketing/ROI/box-
+    # office math and studio selection; budget_for_role drives only the Deal's fee negotiation and
+    # quote comparisons. Defaults to budget_for_role in __post_init__ for any caller built before
+    # this field existed (hand-built test Roles, etc.) — sample_role() is the only place that sets
+    # a real, independently-sampled film budget.
+
+    def __post_init__(self) -> None:
+        if self.film_budget_millions is None:
+            object.__setattr__(self, "film_budget_millions", self.budget_for_role)
 
 
 def age_mismatch_penalty(char_age: int, your_age: int) -> float:
@@ -186,4 +196,5 @@ def sample_role(rng: random.Random, budget_millions: float | None = None) -> Rol
         budget_for_role=budget * rng.uniform(0.05, 0.35),  # this role's fee ceiling vs. total budget
         gatekeeper=gatekeeper,
         studio=studio,
+        film_budget_millions=budget,  # the real film budget — kept, not discarded, for reception/ROI/marketing
     )
