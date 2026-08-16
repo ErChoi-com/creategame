@@ -50,16 +50,25 @@ def character_creation(session: Session, auto: bool) -> None:
     print(f"\n{session.start(bg_key, amb_key)}\n")
 
 
-def offer_board_screen(session: Session, auto: bool) -> tuple[dict, bool]:
-    offer = session.roll_offer()
-    print("\n--- THIS YEAR'S OFFER ---")
-    print(f"  {offer['genre'].title()} · {offer['billing']} · {offer['budget_millions']:.2f}M budget")
-    print(f"  {offer['studio_name']} — {offer['studio_tagline']}")
-    if not offer["available"]:
-        print("  (An audition — but it doesn't come through this year.)")
-        return offer, False
-    choice = prompt("  [A]udition/accept or [D]ecline?", "A", auto)
-    return offer, choice.upper() != "D"
+def offer_board_screen(session: Session, auto: bool) -> int | None:
+    listings = session.offer_board()
+    print(f"\n--- THIS YEAR'S OFFER BOARD ({len(listings)} listings) ---")
+    for o in listings:
+        state = "" if o["available"] else "  (an audition — but it doesn't come through this year)"
+        print(f"  [{o['index'] + 1}] {o['genre'].title()} · {o['billing']} · {o['budget_millions']:.2f}M — "
+              f"{o['studio_name']}{state}")
+        print(f"       {o['studio_tagline']}")
+
+    available = [o for o in listings if o["available"]]
+    if not available:
+        print("  Nothing on the board came through this year.")
+        return None
+
+    options = [(str(o["index"]), f"{o['genre'].title()} ({o['billing']}, {o['budget_millions']:.2f}M) — {o['studio_name']}")
+               for o in available]
+    options.append(("__skip__", "Pass on everything this year"))
+    pick = choose(options, "  [A]udition/accept which one, or skip?", 0, auto)
+    return None if pick == "__skip__" else int(pick)
 
 
 def deal_screen(session: Session, auto: bool) -> None:
@@ -199,10 +208,10 @@ def run(auto: bool, seed: int, max_years: int) -> None:
             break
         print(f"\n=== AGE {session.age()} ===")
         pull_menu(session, auto)
-        offer, take_it = offer_board_screen(session, auto)
+        chosen_index = offer_board_screen(session, auto)
 
-        if take_it:
-            session.accept()
+        if chosen_index is not None:
+            session.accept(chosen_index)
             deal_screen(session, auto)
             script_notes_screen(session, auto)
             director_screen(session, auto)
@@ -213,8 +222,8 @@ def run(auto: bool, seed: int, max_years: int) -> None:
             post_release_screen(summary)
             awards_screen(session, auto)
         else:
-            result = session.decline()
-            print(f"    It went to someone else: {result['roi_band']}, {result['critic_band']} reviews.")
+            for result in session.decline_board():
+                print(f"    A {result['genre']} film went to someone else: {result['roi_band']}, {result['critic_band']} reviews.")
 
         print(f"  RECKONING — you are {session.standing_summary()} now.")
 

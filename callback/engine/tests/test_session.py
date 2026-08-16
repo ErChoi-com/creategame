@@ -10,16 +10,18 @@ from callback.engine.simulation.session import Session
 
 
 def _play_one_year(session: Session, max_attempts: int = 60) -> dict | None:
-    """Keeps declining until an offer actually comes through, then plays it minimally. Returns
-    the release summary, or None if the run ended (age cap) before anything came through."""
+    """Keeps declining whole boards until an offer actually comes through, then plays it
+    minimally. Returns the release summary, or None if the run ended (age cap) before anything
+    came through."""
     for _ in range(max_attempts):
         if session.is_over():
             return None
-        offer = session.roll_offer()
-        if not offer["available"]:
-            session.decline()
+        board = session.offer_board()
+        available = [o for o in board if o["available"]]
+        if not available:
+            session.decline_board()
             continue
-        session.accept()
+        session.accept(available[0]["index"])
         session.choose_deal(want_approvals=False)
         session.choose_prep("table_work")
         for _ in range(3):
@@ -53,50 +55,65 @@ class TestCharacterCreation(unittest.TestCase):
 
 
 class TestOfferBoardTypes(unittest.TestCase):
-    def test_roll_offer_returns_plain_dict(self):
+    def test_offer_board_returns_a_list_of_plain_dicts(self):
         session = Session(seed=4)
         session.start("conservatory", "work")
-        offer = session.roll_offer()
-        self.assertIsInstance(offer, dict)
-        self.assertIsInstance(offer["genre"], str)
-        self.assertIsInstance(offer["billing"], str)
-        self.assertIsInstance(offer["budget_millions"], float)
-        self.assertIsInstance(offer["available"], bool)
+        board = session.offer_board()
+        self.assertGreaterEqual(len(board), 3)  # OFFER_BOARD_MIN_LISTINGS
+        for offer in board:
+            self.assertIsInstance(offer["index"], int)
+            self.assertIsInstance(offer["genre"], str)
+            self.assertIsInstance(offer["billing"], str)
+            self.assertIsInstance(offer["budget_millions"], float)
+            self.assertIsInstance(offer["available"], bool)
+            self.assertIsInstance(offer["studio_name"], str)
 
     def test_accept_without_availability_raises(self):
         session = Session(seed=5)
         session.start("conservatory", "work")
-        # find a year where the offer is NOT available, to test the guard
+        # find a board where at least one listing is NOT available, to test the guard
         for _ in range(30):
-            offer = session.roll_offer()
-            if not offer["available"]:
+            board = session.offer_board()
+            unavailable = [o for o in board if not o["available"]]
+            if unavailable:
                 with self.assertRaises(ValueError):
-                    session.accept()
+                    session.accept(unavailable[0]["index"])
                 return
-            session.accept()
+            session.accept(board[0]["index"])
             session.choose_deal(False)
             session.choose_prep("table_work")
             for _ in range(3):
                 session.play_scene({d: "with" for d, _ in session.dial_options()})
             session.choose_release("wide")
-        self.skipTest("every offer in range came through — statistically unlikely, not a failure")
+        self.skipTest("every listing in range came through — statistically unlikely, not a failure")
 
-    def test_decline_returns_plain_dict_and_advances_age(self):
+    def test_accept_out_of_range_index_raises(self):
+        session = Session(seed=41)
+        session.start("conservatory", "work")
+        session.offer_board()
+        with self.assertRaises(ValueError):
+            session.accept(999)
+
+    def test_decline_board_returns_a_list_and_advances_age(self):
         session = Session(seed=6)
         session.start("conservatory", "work")
         start_age = session.age()
-        offer = session.roll_offer()
-        while offer["available"]:
-            session.accept()
+        board = session.offer_board()
+        available = [o for o in board if o["available"]]
+        while available:
+            session.accept(available[0]["index"])
             session.choose_deal(False)
             session.choose_prep("table_work")
             for _ in range(3):
                 session.play_scene({d: "with" for d, _ in session.dial_options()})
             session.choose_release("wide")
-            offer = session.roll_offer()
-        result = session.decline()
-        self.assertIsInstance(result, dict)
-        self.assertIsInstance(result["roi_band"], str)
+            board = session.offer_board()
+            available = [o for o in board if o["available"]]
+        results = session.decline_board()
+        self.assertIsInstance(results, list)
+        self.assertEqual(len(results), len(board))
+        for result in results:
+            self.assertIsInstance(result["roi_band"], str)
         self.assertGreater(session.age(), start_age)
 
 
@@ -123,11 +140,12 @@ def _get_to_prep(session: Session, max_attempts: int = 60) -> bool:
     for _ in range(max_attempts):
         if session.is_over():
             return False
-        offer = session.roll_offer()
-        if not offer["available"]:
-            session.decline()
+        board = session.offer_board()
+        available = [o for o in board if o["available"]]
+        if not available:
+            session.decline_board()
             continue
-        session.accept()
+        session.accept(available[0]["index"])
         return True
     return False
 
@@ -261,16 +279,17 @@ class TestObituary(unittest.TestCase):
         for _ in range(10):
             if session.is_over():
                 break
-            offer = session.roll_offer()
-            if offer["available"]:
-                session.accept()
+            board = session.offer_board()
+            available = [o for o in board if o["available"]]
+            if available:
+                session.accept(available[0]["index"])
                 session.choose_deal(False)
                 session.choose_prep("table_work")
                 for _ in range(3):
                     session.play_scene({d: "with" for d, _ in session.dial_options()})
                 session.choose_release("wide")
             else:
-                session.decline()
+                session.decline_board()
         summary = session.obituary_summary()
         self.assertIsInstance(summary["credits"], int)
         self.assertIsInstance(summary["declined"], list)

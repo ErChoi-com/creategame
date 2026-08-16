@@ -53,6 +53,8 @@ from callback.engine.simulation.full_career import (
 MAX_AGE = 90
 AWARDS_NOTICES_THRESHOLD = 68.0  # a project has to be genuinely well-received to be buzz-worthy
 FAVOUR_GAIN_ON_SERVED_AGENDA = 1
+OFFER_BOARD_MIN_LISTINGS = 3
+OFFER_BOARD_MAX_LISTINGS = 6
 STANDING_WEIGHTS = {"heat": 0.4, "prestige": 0.3, "affection": 0.3}  # a general-purpose read, not a gatekeeper profile
 
 
@@ -64,7 +66,8 @@ class Session:
         self.state: FullState | None = None
         self.ambition: str = ""
         self._role: Role | None = None
-        self._would_be_offered: bool = False
+        self._board: list[Role] = []
+        self._board_would_offer: list[bool] = []
         self._approvals: frozenset[str] = frozenset()
         self._prep_choice: str | None = None
         self._scenes: list[dict[str, str]] = []
@@ -114,43 +117,66 @@ class Session:
 
     # ---- the offer board ------------------------------------------------------------------
 
-    def roll_offer(self) -> dict:
-        role = offer_this_year(self.state, self.rng)
-        utility = utility_for(self.state, role)
-        path = resolve_casting_path(utility, role)
-        would_offer = path == "direct_offer" or self.rng.random() < offer_probability(utility, role.difficulty)
+    def offer_board(self, size: int | None = None) -> list[dict]:
+        """A real multi-listing board (§4.4's own vision) rather than a single yearly roll — the
+        engine's role generator (actor/offers.sample_role) isn't Standing-aware yet, so procedurally
+        generating more listings per year is this pass's mitigation: more looks at the dice, not a
+        smarter die. size=None picks a procedurally varying board (3-6 listings) each year."""
+        n = size if size is not None else self.rng.randint(OFFER_BOARD_MIN_LISTINGS, OFFER_BOARD_MAX_LISTINGS)
+        self._board = []
+        self._board_would_offer = []
+        listings = []
+        for i in range(n):
+            role = offer_this_year(self.state, self.rng)
+            utility = utility_for(self.state, role)
+            path = resolve_casting_path(utility, role)
+            would_offer = path == "direct_offer" or self.rng.random() < offer_probability(utility, role.difficulty)
+            self._board.append(role)
+            self._board_would_offer.append(would_offer)
+            studio = STUDIOS[role.studio]
+            listings.append({
+                "index": i,
+                "genre": role.genre,
+                "billing": role.billing,
+                "budget_millions": round(role.budget_for_role, 2),
+                "available": would_offer,
+                "union": role.union,
+                "studio_name": studio.name,
+                "studio_tagline": studio.tagline,
+            })
+        return listings
 
-        self._role = role
-        self._would_be_offered = would_offer
-        studio = STUDIOS[role.studio]
-        return {
-            "genre": role.genre,
-            "billing": role.billing,
-            "budget_millions": round(role.budget_for_role, 2),
-            "available": would_offer,
-            "union": role.union,
-            "studio_name": studio.name,
-            "studio_tagline": studio.tagline,
-        }
-
-    def accept(self) -> None:
-        if not self._would_be_offered:
-            raise ValueError("this offer never came through — check roll_offer()['available'] first")
+    def accept(self, index: int) -> None:
+        if not (0 <= index < len(self._board)):
+            raise ValueError("no such listing on this year's offer_board()")
+        if not self._board_would_offer[index]:
+            raise ValueError("this offer never came through — check offer_board()[index]['available'] first")
+        self._role = self._board[index]
+        # everything else on the board quietly resolves through the background industry (§10.0),
+        # same as a single declined offer always has — you only ever work one project a year.
+        for i, role in enumerate(self._board):
+            if i != index:
+                self.state = decline_and_resolve(self.state, role, self.rng)
         self._script_note = None
         self._orientation_npc_id = None
         self._orientation_effect = None
         self._requested_director_npc_id = None
 
-    def decline(self) -> dict:
-        """Resolves the role through the background industry (§10.0) and advances the year."""
-        self.state = decline_and_resolve(self.state, self._role, self.rng)
+    def decline_board(self) -> list[dict]:
+        """Passes on every listing on the board, resolves each through the background industry,
+        and advances the year once (still 0-1 projects/year — a bigger board is more choice about
+        *which* project, not more projects)."""
+        results = []
+        for role in self._board:
+            self.state = decline_and_resolve(self.state, role, self.rng)
+            record = self.state.declined[-1]
+            results.append({
+                "genre": record.role_genre,
+                "roi_band": roi_band(record.result.reception.roi),
+                "critic_band": critic_band(record.result.reception.film_critic_score),
+            })
         self.state = advance_between_years(self.state, self.rng, worked_this_year=False)
-        record = self.state.declined[-1]
-        return {
-            "genre": record.role_genre,
-            "roi_band": roi_band(record.result.reception.roi),
-            "critic_band": critic_band(record.result.reception.film_critic_score),
-        }
+        return results
 
     # ---- the deal -----------------------------------------------------------------------------
 
@@ -262,7 +288,7 @@ class Session:
         return [(s, RELEASE_LABELS[s]) for s in RELEASE_STRATEGIES]
 
     def choose_release(self, strategy: str) -> dict:
-        """Resolves the whole project — the one point everything collected since roll_offer()
+        """Resolves the whole project — the one point everything collected since offer_board()
         actually gets spent — and advances the year. Returns the Post & Release summary."""
         scenes = tuple(self._scenes) if len(self._scenes) == 3 else (self._scenes + [{}] * 3)[:3]
         self.state, result = accept_and_play(

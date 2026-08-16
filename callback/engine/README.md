@@ -44,7 +44,7 @@ would sit at exactly the same seam, importing only `Session`.
 
 ```
 Session.background_options() / ambition_options() / start()   character creation
-Session.roll_offer() / accept() / decline()                    the Offer Board
+Session.offer_board() / accept() / decline_board()             the Offer Board
 Session.approvals_available() / choose_deal()                  the Deal
 Session.prep_options() / choose_prep()                         Prep
 Session.dial_options() / position_options() / play_scene()     the Shoot
@@ -74,9 +74,10 @@ from callback.engine.simulation.session import Session
 
 session = Session(seed=42)
 session.start("conservatory", "work")
-offer = session.roll_offer()
-if offer["available"]:
-    session.accept()
+board = session.offer_board()
+available = [o for o in board if o["available"]]
+if available:
+    session.accept(available[0]["index"])
     session.choose_deal(want_approvals=False)
     session.choose_prep("table_work")
     for _ in range(3):
@@ -161,13 +162,22 @@ surface the studio's name and pitch on the Offer Board and again at Post & Relea
 
 - **`actor/offers.sample_role()`** is still a placeholder role generator — it doesn't scale a
   role's difficulty to the actor's own Standing the way the real offer board's Rolodex/agent-reach
-  filtering would. This is the reason a headless career currently lands few credits: most rolls
-  are simply too hard for a fresh actor. The fix is a real Standing-aware listing generator, not a
-  new formula — everything downstream of "you got the part" is already correct. Its budget draw
-  (`sample_budget_millions()`) got the same not-yet-Standing-aware treatment: a log-normal spread
-  from $1.5M to a real $300M tentpole ceiling, median ~$12M, replacing the old fixed five-tier
-  list — every value in range is reachable, not just five discrete stops, but which budget you
-  personally get offered still isn't scaled to your own career yet.
+  filtering would. This is the reason a headless career still lands relatively few credits per
+  offer seen: most individual rolls are simply too hard for a fresh actor. The fix is a real
+  Standing-aware listing generator, not a new formula — everything downstream of "you got the
+  part" is already correct. Its budget draw (`sample_budget_millions()`) got the same
+  not-yet-Standing-aware treatment: a log-normal spread from $1.5M to a real $300M tentpole
+  ceiling, median ~$12M, replacing the old fixed five-tier list — every value in range is
+  reachable, not just five discrete stops, but which budget you personally get offered still
+  isn't scaled to your own career yet.
+- **`Session.offer_board()`** mitigates the same gap from the other direction: instead of one
+  role rolled per year, it procedurally generates 3-6 listings (`OFFER_BOARD_MIN/MAX_LISTINGS`),
+  each independently run through `utility()`/`offer_probability()` against your real Standing —
+  more looks at the dice each year, not a smarter die. Accepting one listing quietly resolves
+  every other listing on that board through the background industry (§10.0), the same as a single
+  declined offer always has; declining the whole board (`decline_board()`) does the same for all
+  of them and advances the year once. Still 0-1 projects per year — more choice about *which*
+  film, not more films at once.
 - **`actor/palette.GENRE_DIAL_WEIGHTS`** and **`CANONICAL_ARCHETYPES`** are this pass's own
   documented readings, not undisclosed exact `design/` constants (§5.3 publishes target
   correlations, not the weight table itself). `verify.py creative` reports honestly against that
