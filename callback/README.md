@@ -40,6 +40,7 @@ than the other way round.
 node callback/sim/career-sim.mjs 3000    # §14.9 whole-career targets — 7/7
 node callback/sim/subsystems.mjs         # §14.1, §5.3-5.6, §9.3 — 16/16
 node callback/sim/agency.mjs             # the three rules breadth depends on — 4/4
+node callback/sim/production.mjs         # the three-scene shoot and the cut — 5/5
 node callback/sim/replay-test.mjs        # a save is a journal; replay must match
 node callback/sim/transcript.mjs 11      # one career, written out, to read
 node callback/sim/tune.mjs               # constant sweeps (GRID=... N=...)

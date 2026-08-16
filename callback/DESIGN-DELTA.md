@@ -249,3 +249,49 @@ Named honestly, because the review's complaint about this document was that it n
 
 The scope estimate in review §8 (4–6 years, 15–25 people for the full document) stands. What is
 here is the phase-0 slice the review asked for: a career that happens, verified end to end.
+
+## The shoot, played as three scenes instead of one
+
+§5.6 always modelled a performance as three beats — intro, turn, resolution — but the game only
+ever asked for one contrast-budget decision and spread it across the three formulaically. A
+shoot is now three real scenes (`SCENE_LABELS` in `engine/career.js`), each with its own dailies
+read, and the beats the model already computed are the beats the player actually plays.
+
+The engine change is additive, not a rewrite: `shoot()` takes an optional `scenePositions`
+(three position objects) alongside the original single `positions`, averages the three resolved
+outcomes into the exact same shape `shapePerformance()` has always consumed, and every existing
+caller — every sim policy, every save recorded before this change — never sets `scenePositions`
+and hits the original code path unchanged. `sim/production.mjs` holds three claims: three
+identical scene choices resolve to the same numbers a single choice always did (within float
+rounding); a career played entirely through three real, varying scene choices still meets every
+§14.9 target on its own; and the fourth approval below is reachable and bounded. The web
+interface (`web/app.js` `screenScene`) is the only thing that changed behaviour for a player —
+the calibrated harnesses are unaffected because they never ask for the new path.
+
+## The cut, the approval that did nothing
+
+Part 6 names four approvals — script, costar, director, cut — and only two of them were ever
+granted by anything (noted honestly above, in "What is not built"). `cut` is now real: it is
+granted by having your own production company or by being successful enough that editors expect
+you in the room (`M.standing > 58`, re-derived from the actual population distribution under
+`sim/production.mjs`, not asserted), and `fight_for_the_cut` (`engine/leverage.js`) spends it, or
+two favours with the director, to shift a pending film's Notices and Ensemble by a small, bounded
+amount (±5, the same order of magnitude as an on-set moment). It follows the pull-layer's own
+rules exactly: never prompted, gated by a resource rather than a permission, and it operates on
+`g.pending`/`c.project` the same way `festival_premiere` already did.
+
+## The language pass
+
+Two mechanics were renamed without touching a single tuned number. The positions grid printed
+its internal keys straight to the player (`with (0)`, `beyond (2)`) and called the leftover
+contrast a "budget" it "spent" against; `PERF_DIAL_LABELS`/`POSITION_LABELS`/`POSITION_HINTS`
+in `engine/data.js` are the plain-language surface now (`Match it`, `Go big`, `Room to push it
+this scene: 3 of 5 points used`) and `READ`/`POSITION_COST` — every calibrated number — are
+untouched underneath them.
+
+The ledger had the same fault the other way round: `Approvals` and `Positions` printed
+`[...g.approvals].join(', ')` — the raw Set of internal keys — and `Standing`, a composite of
+the four HUD meters net of scandal, sat next to them as a bare number with no context at all,
+the fifth stat in a four-stat display. `APPROVAL_LABELS`/`CAREER_POSITION_LABELS` (`engine/
+data.js`) replace the key dumps, and `Standing`/`Legibility` now carry the same "number — what
+that number means" pattern the ledger already used successfully in one place and nowhere else.

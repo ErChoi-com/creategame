@@ -80,10 +80,58 @@ export const SHAPES = {
   neon:         { pace: 18, colour: 44, scale: 4, intensity: 26, clarity: -12, texture: 24 },
 };
 
-// §5.5 the four performance dials and four positions.
+// §5.5 the four performance dials and four positions. The internal keys
+// (with/beneath/beyond/against, energy/volume/warmth/speed) are unchanged —
+// every tuned number in READ and every calibrated sim policy keys off them —
+// but nothing prints a raw key to the player. PERF_DIAL_LABELS and
+// POSITION_LABELS are the plain-language surface the interface uses instead.
 export const PERF_DIALS = ['energy', 'volume', 'warmth', 'speed'];
+export const PERF_DIAL_LABELS = {
+  energy: 'Energy', volume: 'Size', warmth: 'Warmth', speed: 'Tempo',
+};
+export const PERF_DIAL_HINTS = {
+  energy: 'How much force you bring to the scene',
+  volume: 'How much room you take up',
+  warmth: 'How open or guarded the character reads',
+  speed: 'How fast you play it',
+};
+
 export const POSITIONS = ['with', 'beneath', 'beyond', 'against'];
 export const POSITION_COST = { with: 0, beneath: 1, beyond: 2, against: 3 };
+// A plain-language name and one-line description for each stance, and the
+// number of points it costs — 0 to 3, same scale a player already reads as
+// "how bold is this."
+export const POSITION_LABELS = {
+  with: 'Match it', beneath: 'Hold back', beyond: 'Go big', against: 'Play against it',
+};
+export const POSITION_HINTS = {
+  with: 'Do what the scene is already asking for',
+  beneath: 'Underplay it — the stiller choice',
+  beyond: 'Bigger than the scene asks — it will be noticed',
+  against: 'Deliberate counterpoint — the boldest, riskiest choice',
+};
+
+// §6.7 approvals and §6.7 positions — two more Sets of internal keys that
+// used to print straight to the ledger ("costar, script, cut", "prodco,
+// teacher, board"). Note the name collision with POSITIONS above: those are
+// scene stances, these are the standing offices (guild seat, jury, your own
+// company) a career can accumulate. Different things, same English word —
+// which is exactly the kind of overlap this file exists to paper over before
+// it reaches a player.
+export const APPROVAL_LABELS = {
+  costar: 'say over your scene partner',
+  script: 'say over the script',
+  director: 'say over who directs you',
+  cut: 'a seat in the edit',
+};
+
+export const CAREER_POSITION_LABELS = {
+  guild: 'Guild officer',
+  juror: 'Festival juror',
+  prodco: 'Your own production company',
+  teacher: 'Teaching',
+  board: 'Studio board seat',
+};
 
 // READ[dial][position] = [forYou, forTheFilm]
 export const READ = {

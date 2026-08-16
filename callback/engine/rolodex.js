@@ -29,6 +29,7 @@ export const FAVOUR_SPENT = {
   hireWhoIName: 2,
   introduction: 1,
   publicBacking: 3,
+  protectCut: 2,        // a seat in the room while they assemble it
 };
 
 export class Rolodex {

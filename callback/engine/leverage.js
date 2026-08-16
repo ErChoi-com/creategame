@@ -293,6 +293,30 @@ const CHANGE_PROJECT = [
       return { text: 'You will not be doing that scene. They shot around you, coldly.' };
     },
   }),
+  A({
+    id: 'fight_for_the_cut',
+    category: 'On the project',
+    label: 'Fight for the cut',
+    blurb: 'Sit in the room while they assemble it. Nobody remembers the take you protected; they remember that you were there.',
+    cost: (g) => (g.approvals.has('cut') ? 'The director\'s patience' : '2 favours with the director'),
+    available: (g) => g.pending.some((p) => !p.cutFought),
+    salience: (g) => (g.pending.length ? 0.5 : 0),
+    run: (g, c) => {
+      const p = c.project || g.pending.find((x) => !x.cutFought);
+      if (!p) return { text: 'Nothing in the cutting room right now.' };
+      const free = g.approvals.has('cut');
+      if (!free && !g.rolodex.spend(p.director, 'protectCut', g.year)) {
+        return { text: 'Nobody owes the editor anything, and neither do you.' };
+      }
+      p.cutFought = true;
+      // A real trade: the scenes that are yours, at the film's expense — and
+      // the director notices whose picture this now is.
+      p.shaped.notices = clamp(p.shaped.notices + 5, 0, 100);
+      p.shaped.ensembleValue = clamp(p.shaped.ensembleValue - 4, 0, 100);
+      p.director.affinity = clamp(p.director.affinity - (free ? 2 : 5), -100, 100);
+      return { text: `${p.role.title} plays a little more like your film now, and a little less like theirs.` };
+    },
+  }),
 ];
 
 // ---------------------------------------------------------------------------

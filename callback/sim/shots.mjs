@@ -19,7 +19,7 @@ await shot('02-board');
 const want = new Set(['film', 'release', 'yearend', 'event', 'obit']);
 for (let i = 0; i < 900 && want.size; i++) {
   const h2 = ((await p.textContent('h2').catch(() => '')) || '').trim();
-  if (want.has('film') && h2.startsWith('The film they are making')) { await shot('04-film'); want.delete('film'); }
+  if (want.has('film') && h2 === 'The first scene') { await shot('04-film'); want.delete('film'); }
   if (want.has('release') && h2.endsWith('is out')) { await shot('05-release'); want.delete('release'); }
   if (want.has('yearend') && /is over$/.test(h2)) { await shot('06-yearend'); want.delete('yearend'); }
   if (want.has('event') && /^\d{4}$/.test(h2)) { await shot('09-event'); want.delete('event'); }

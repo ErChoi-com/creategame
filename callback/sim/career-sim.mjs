@@ -134,7 +134,7 @@ export function runCareer(seed, policy = defaultPolicy, opts = {}) {
   };
 }
 
-const TARGETS = [
+export const TARGETS = [
   {
     name: 'Median career length (years active)',
     target: '26 yrs',

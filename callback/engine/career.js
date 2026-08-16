@@ -68,6 +68,22 @@ export const PREP_OPTIONS = {
 export const MOMENTS = MOMENT_POOL.filter((m) => m.core);
 export { MOMENT_POOL };
 
+// §5.6 the three beats a shoot actually plays, in order. shapePerformance()
+// has always modelled a film this way; SCENE_LABELS is what turns that model
+// into three decisions instead of one.
+export const SCENE_LABELS = ['The first scene', 'The turn', 'The last scene'];
+
+// The mean of N resolvePositions() outputs, same shape in, same shape out —
+// so shapePerformance() cannot tell three real decisions from one repeated
+// three times, and a player who plays it safe in every scene gets exactly
+// what the single-choice path always gave them.
+function averageResolved(list) {
+  const keys = ['forYou', 'forFilm', 'spikiness', 'overspend', 'budget', 'cost', 'generosity', 'upstaging'];
+  const out = {};
+  for (const k of keys) out[k] = list.reduce((sum, r) => sum + r[k], 0) / list.length;
+  return out;
+}
+
 
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
@@ -804,12 +820,42 @@ export class Game {
       role.director.affinity = clamp(role.director.affinity + (swing > 0 ? 3 : -8), -100, 100);
     }
 
-    const resolved = M.resolvePositions(positions, {
-      genre: role.genre,
-      craft: a.attrs.craft,
-      directorCommand: command,
-      partnerPositions: this._costarPositions(role),
-    });
+    // §5.6 the three scenes, played for real. The default path resolves your
+    // positions once, exactly as before — every headless policy in sim/ still
+    // gets the identical resolved values it always did (resolvePositions is
+    // pure and deterministic, so one call with `positions` cannot diverge from
+    // this branch). When the interface hands over three separate choices —
+    // one per beat, dailies read between each — resolved is the average of
+    // three real decisions instead of a single formulaic spread, and it slots
+    // into the exact same shapePerformance() call below.
+    const scenePositions = choices.scenePositions && choices.scenePositions.length === 3
+      ? choices.scenePositions : null;
+    let resolved, sceneLog = null;
+    if (scenePositions) {
+      // One partner read for the whole shoot, not one per scene — a scene
+      // partner has a single overall stance here, same as the actor did in
+      // the single-choice path, so three identical scene choices consume
+      // exactly the randomness one choice always did and resolve to exactly
+      // the same numbers.
+      const partnerPositions = this._costarPositions(role);
+      sceneLog = scenePositions.map((pos, i) => {
+        const res = M.resolvePositions(pos, {
+          genre: role.genre,
+          craft: a.attrs.craft,
+          directorCommand: command,
+          partnerPositions,
+        });
+        return { label: SCENE_LABELS[i], positions: pos, resolved: res };
+      });
+      resolved = averageResolved(sceneLog.map((s) => s.resolved));
+    } else {
+      resolved = M.resolvePositions(positions, {
+        genre: role.genre,
+        craft: a.attrs.craft,
+        directorCommand: command,
+        partnerPositions: this._costarPositions(role),
+      });
+    }
     resolved.forFilm += ensembleNudge;
 
     const shaped = M.shapePerformance(perf.value, resolved, a.attrs.presence);
@@ -827,11 +873,13 @@ export class Game {
     }
 
     const project = {
-      role, film, palette, prep, chemistry, condition, positions, resolved, shaped,
+      role, film, palette, prep, chemistry, condition,
+      positions: scenePositions ? scenePositions[1] : positions,
+      resolved, shaped,
       perf, landmark, directorSkill: dSkill, director,
       releaseIn: this.rng.int(2, 5),
       prepFlag: prepChoice.flag || null,
-      momentLog,
+      momentLog, sceneLog,
     };
     this.pending.push(project);
     a.unionCredits += role.union ? 1 : 0;
@@ -1310,6 +1358,14 @@ export class Game {
 
     M.decayStanding(a.standing, this.yearBilling);
     a.recognition = clamp(a.recognition * M.K.recognitionKeep, 0, 100);
+
+    // §6.3 the fourth approval, earned rather than granted: a seat of your
+    // own (a production company) or being feared enough that editors already
+    // expect you in the room.
+    if (!this.approvals.has('cut') && (this.positions.has('prodco') || M.standing(a.standing) > 58)) {
+      this.approvals.add('cut');
+      this.say('The editors let you into the room now.', 'good');
+    }
 
     // Aging (§4.9): the look curve, the attribute curves, the cliff.
     a.age += 1;

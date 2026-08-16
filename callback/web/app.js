@@ -5,10 +5,11 @@
 //   PUSH — the game stops and asks you something. Budgeted, ~5 a year.
 //   PULL — you open the moves menu because you want to. Unbudgeted, ~30 verbs.
 
-import { Game, BACKGROUNDS, PREP_OPTIONS, MOMENTS } from '../engine/career.js';
+import { Game, BACKGROUNDS, PREP_OPTIONS, MOMENTS, SCENE_LABELS } from '../engine/career.js';
 import {
-  DIAL_LABELS, DIALS, PERF_DIALS, POSITIONS, POSITION_COST, READ, GENRE_DIAL_WEIGHT,
-  GENRE_NAMES,
+  DIAL_LABELS, DIALS, PERF_DIALS, PERF_DIAL_LABELS, PERF_DIAL_HINTS,
+  POSITIONS, POSITION_COST, POSITION_LABELS, POSITION_HINTS, READ, GENRE_DIAL_WEIGHT,
+  GENRE_NAMES, APPROVAL_LABELS, CAREER_POSITION_LABELS,
 } from '../engine/data.js';
 import { AMBITIONS, ambitionAdvice } from '../engine/ambition.js';
 import { ARCS_BY_ID } from '../engine/arcs.js';
@@ -105,7 +106,7 @@ function drawHud() {
     document.getElementById(`m-${k}`).style.width = `${a.standing[k]}%`;
     document.getElementById(`v-${k}`).textContent = a.standing[k].toFixed(0);
   }
-  document.getElementById('hud-quote').textContent = `quote ${money(a.quote)}`;
+  document.getElementById('hud-quote').textContent = `asking price ${money(a.quote)}`;
   document.getElementById('hud-money').textContent =
     `${money(game.money.net)} banked · ${money(game.money.lifetime)} lifetime`;
 
@@ -114,6 +115,23 @@ function drawHud() {
     (e) => el('li', { class: e.kind }, `${e.year} · ${e.text}`),
   ));
   drawState();
+}
+
+// Standing is a summary of the four HUD meters (net of scandal) — shown here
+// as a plain-English rung on a ladder, not a fifth unexplained number sitting
+// next to Heat/Prestige/Affection/Notoriety.
+function standingLabel(v) {
+  if (v < 20) return 'just getting started';
+  if (v < 40) return 'a working actor';
+  if (v < 60) return 'someone with a name';
+  if (v < 80) return 'a name people bid for';
+  return 'the industry front page';
+}
+
+function legibilityLabel(v) {
+  if (v < 36) return 'hard to place, which cuts both ways';
+  if (v > 70) return 'typecast';
+  return 'known for a few things';
 }
 
 // The quiet panel: everything you are carrying, none of it demanding anything.
@@ -126,15 +144,19 @@ function drawState() {
     ['Ambition', amb.value === '—'
       ? `${amb.label} — too early to say`
       : `${amb.label} — ${amb.value} (${amb.grade.toLowerCase()})`],
-    ['Standing', g.standing.toFixed(0)],
-    ['Legibility', `${g.legibility.toFixed(0)} — ${g.legibility < 36 ? 'unreadable'
-      : g.legibility > 70 ? 'typecast' : 'known for a few things'}`],
+    ['Standing', `${g.standing.toFixed(0)} — ${standingLabel(g.standing)}`],
+    ['Legibility', `${g.legibility.toFixed(0)} — ${legibilityLabel(g.legibility)}`],
     ['Favours owed you', g.favours.toFixed(0)],
-    g.scarcity > 0 ? ['Scarcity', g.scarcity.toFixed(0)] : null,
+    g.scarcity > 0
+      ? ['Staying away', g.scarcity > 24 ? 'they are starting to miss you' : 'noticed, not yet missed']
+      : null,
     g.franchise && !g.franchise.writtenOut
-      ? ['Franchise', `${g.franchise.title} — identification ${g.franchise.identification.toFixed(0)}`] : null,
-    g.approvals.size ? ['Approvals', [...g.approvals].join(', ')] : null,
-    g.positions.size ? ['Positions', [...g.positions].join(', ')] : null,
+      ? ['The franchise', `${g.franchise.title} — ${g.franchise.identification > 55 ? 'you are the reason it works'
+        : g.franchise.identification > 25 ? 'you are becoming the face of it' : 'one credit in, so far'}`] : null,
+    g.approvals.size
+      ? ['What you can veto', [...g.approvals].map((k) => APPROVAL_LABELS[k] || k).join('; ')] : null,
+    g.positions.size
+      ? ['Seats you hold', [...g.positions].map((k) => CAREER_POSITION_LABELS[k] || k).join(', ')] : null,
     g.development.length ? ['In development', g.development.map((s) => s.title).join(', ')] : null,
     g.mentees.length ? ['Taught', g.mentees.map((m) => `${m.person.name} (${m.power.toFixed(0)})`).join(', ')] : null,
     g.information.length ? ['You know things about', g.information.map((i) => i.about.name).join(', ')] : null,
@@ -199,6 +221,19 @@ function readsAs(dial, pos, genre) {
   const you = mine > 3.2 ? 'memorable' : mine > 1.8 ? 'noticed' : 'invisible';
   const film = forFilm > 0.8 ? 'helps the film' : forFilm < -0.4 ? 'costs the film' : 'neutral for the film';
   return `${phrases[pos]} — ${you}, ${film}`;
+}
+
+// A dailies line for the scene just shot — pure and client-side, so it costs
+// nothing to compute a preview between two scenes that have not happened yet
+// as far as the engine (and the save file) are concerned.
+function dailiesLine(pos, role) {
+  const resolved = M.resolvePositions(pos, {
+    genre: role.genre, craft: game.actor.attrs.craft, directorCommand: role.director.command,
+  });
+  if (resolved.overspend > 0.4) return `${role.director.name} watched the playback twice. That is a lot of scene.`;
+  if (resolved.forFilm > resolved.forYou + 1) return 'That one served the picture. Nobody will mention your name for it.';
+  if (resolved.forYou > 3) return 'That take is going in the reel.';
+  return 'A clean take. On to the next one.';
 }
 
 function currencyBars(resolved) {
@@ -448,7 +483,10 @@ function attempt(role) {
     );
     return;
   }
-  choice = { role, prep: game.standingOrders.prep, positions: null, moments: {} };
+  choice = {
+    role, prep: game.standingOrders.prep, positions: null,
+    scenePositions: null, sceneIndex: 0, moments: {},
+  };
   screenPrep();
 }
 
@@ -488,7 +526,7 @@ function screenPrep() {
 }
 
 // ---------------------------------------------------------------------------
-// 4. the film, and your positions against it
+// 4. the film, and the three scenes you actually play against it
 // ---------------------------------------------------------------------------
 function screenFilm(note) {
   const r = choice.role;
@@ -498,47 +536,75 @@ function screenFilm(note) {
     choice.positions = game.autoPositions(r);
     return resolveShoot(note);
   }
-  if (!choice.positions) choice.positions = game.autoPositions(r);
   game.countPush('stance');
+  if (!choice.scenePositions) choice.scenePositions = [null, null, null];
+  choice.sceneIndex = 0;
+  screenScene(note);
+}
+
+function screenScene(note) {
+  const r = choice.role;
+  const i = choice.sceneIndex;
+  const coh = M.coherence(choice.palette);
+  if (!choice.scenePositions[i]) {
+    // Carry the last scene's read forward as the starting point — a real
+    // choice each time, not a blank form three times over.
+    choice.scenePositions[i] = i === 0 ? game.autoPositions(r) : { ...choice.scenePositions[i - 1] };
+  }
+  const pos = choice.scenePositions[i];
 
   clear();
   drawHud();
   const budget = M.contrastBudget(game.actor.attrs.craft, r.director.command);
-  const spent = PERF_DIALS.reduce((a, d) => a + POSITION_COST[choice.positions[d]], 0);
+  const points = Math.max(1, Math.round(budget));
+  const spent = PERF_DIALS.reduce((a, d) => a + POSITION_COST[pos[d]], 0);
 
   put(
-    note ? el('p', { class: 'flash' }, note) : null,
-    el('h2', {}, 'The film they are making'),
-    el('p', { class: 'lede' },
-      `${r.director.name} is shooting something ${coh.value > 65 ? 'very much like'
-        : coh.value > 40 ? 'loosely in the shape of' : 'that does not resemble'} `
-      + `${article(coh.nearest.replace(/_/g, ' '))}. Coherence ${coh.value.toFixed(0)}`
-      + `${coh.value < 40 ? ' — wide open. It is a mess or it is a landmark.' : '.'}`),
-    el('div', { class: 'palette' }, DIALS.flatMap((d) => [
-      el('div', { class: 'l' }, DIAL_LABELS[d][0]),
-      el('div', { class: 'track' }, el('i', { style: `left:${((choice.palette[d] + 50) / 100) * 100}%` })),
-      el('div', { class: 'r' }, DIAL_LABELS[d][1]),
-    ])),
-    el('h3', { class: 'section' }, 'What you play against it'),
+    i === 0 && note ? el('p', { class: 'flash' }, note) : null,
+    i > 0 ? el('p', { class: 'flash' }, dailiesLine(choice.scenePositions[i - 1], r)) : null,
+    el('h2', {}, SCENE_LABELS[i]),
+    el('div', { class: 'scene-progress' }, [0, 1, 2].map((n) => el('span', {
+      class: n === i ? 'on' : n < i ? 'done' : '',
+    }))),
+  );
+  if (i === 0) {
+    put(
+      el('p', { class: 'lede' },
+        `${r.director.name} is shooting something ${coh.value > 65 ? 'very much like'
+          : coh.value > 40 ? 'loosely in the shape of' : 'that does not resemble'} `
+        + `${article(coh.nearest.replace(/_/g, ' '))}. Coherence ${coh.value.toFixed(0)}`
+        + `${coh.value < 40 ? ' — wide open. It is a mess or it is a landmark.' : '.'}`),
+      el('div', { class: 'palette' }, DIALS.flatMap((d) => [
+        el('div', { class: 'l' }, DIAL_LABELS[d][0]),
+        el('div', { class: 'track' }, el('i', { style: `left:${((choice.palette[d] + 50) / 100) * 100}%` })),
+        el('div', { class: 'r' }, DIAL_LABELS[d][1]),
+      ])),
+    );
+  }
+  put(
+    el('h3', { class: 'section' }, 'How you play it'),
     el('p', {},
-      'With: you move as the film moves. Beneath: the calm inside it. Beyond: the most of it '
-      + 'on screen. Against: counterpoint. Every position costs, and you have only so much.'),
+      'Four choices, and each one is its own scale: match what the scene already wants, hold '
+      + 'back and underplay it, go bigger than it asks, or play deliberately against it. The '
+      + 'bolder the choice, the more it costs — you only have so much room before it reads as '
+      + 'too much.'),
   );
 
   const table = el('table', { class: 'dials' });
   for (const d of PERF_DIALS) {
     table.append(el('tr', {},
-      el('td', {}, d),
+      el('td', { title: PERF_DIAL_HINTS[d] }, PERF_DIAL_LABELS[d]),
       el('td', {},
         el('div', {}, POSITIONS.map((p) => el('button', {
-          class: choice.positions[d] === p ? 'selected' : '',
-          onclick: () => { choice.positions[d] = p; screenFilm(); },
-        }, `${p} (${POSITION_COST[p]})`))),
-        el('div', { class: 'reads' }, readsAs(d, choice.positions[d], r.genre)),
+          class: pos[d] === p ? 'selected' : '',
+          title: `${POSITION_HINTS[p]} (${POSITION_COST[p]} point${POSITION_COST[p] === 1 ? '' : 's'})`,
+          onclick: () => { pos[d] = p; screenScene(); },
+        }, POSITION_LABELS[p]))),
+        el('div', { class: 'reads' }, readsAs(d, pos[d], r.genre)),
       ),
     ));
   }
-  const resolved = M.resolvePositions(choice.positions, {
+  const resolved = M.resolvePositions(pos, {
     genre: r.genre,
     craft: game.actor.attrs.craft,
     directorCommand: r.director.command,
@@ -546,13 +612,18 @@ function screenFilm(note) {
   put(table,
     currencyBars(resolved),
     el('div', { class: `budgetline${spent > budget ? ' over' : ''}` },
-      `contrast budget ${budget.toFixed(1)} · spending ${spent}`
-      + (spent > budget ? ' — over. Critics will call it mannered.' : '')),
+      `Room to push it this scene: ${spent} of ${points} point${points === 1 ? '' : 's'} used`
+      + (spent > budget ? ' — more than the scene can hold. Critics will call it mannered.' : '')),
     el('div', { class: 'row' },
-      el('button', { class: 'primary', onclick: () => resolveShoot() }, 'Shoot it'),
+      el('button', { class: 'primary', onclick: () => nextScene() }, i < 2 ? 'Shoot the scene' : 'Wrap the shoot'),
       el('button', { onclick: () => screenMoves({ current: r }, `Before you shoot ${r.title}`) },
         'Do something about the project'),
     ));
+}
+
+function nextScene() {
+  if (choice.sceneIndex < 2) { choice.sceneIndex += 1; screenScene(); return; }
+  resolveShoot();
 }
 
 // ---------------------------------------------------------------------------
@@ -584,7 +655,10 @@ function runMoments(list, i, note) {
 
 function finishShoot(note) {
   const project = act('shoot', [{
-    prep: choice.prep, positions: choice.positions, moments: choice.moments,
+    prep: choice.prep,
+    positions: choice.positions,
+    scenePositions: choice.scenePositions || undefined,
+    moments: choice.moments,
   }]);
   drawHud();
   clear();
