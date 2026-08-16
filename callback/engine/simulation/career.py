@@ -139,6 +139,7 @@ def simulate_project(
     orientation_effect: ModifierResult | None = None,
     director_override: tuple[float, float, float] | None = None,
     franchise_audience_bonus: float = 0.0,
+    streaming_multiplier_override: float | None = None,
 ) -> tuple[ActorState, ProjectResult]:
     """script_note: design/part-05 §5.15's script-notes push (actor/script_notes.py), only
     meaningful if the player holds script approval — the caller enforces that gate.
@@ -221,11 +222,15 @@ def simulate_project(
         opening_marketing_coef=OPENING_MARKETING_COEF,
     )
     if release_strategy is not None:
+        streaming_multiplier = (
+            streaming_multiplier_override if streaming_multiplier_override is not None
+            else STREAMING_BUYOUT_MULTIPLIER + studio.streaming_multiplier_delta
+        )
         reception = apply_release_strategy(
             reception, release_strategy, rng, cast_star_power=cast_star_power,
             festival_tier_bonus=studio.festival_tier_bonus,
             marketing_share=marketing_share, rights_share=RIGHTS_SHARE + studio.rights_share_delta,
-            streaming_multiplier=STREAMING_BUYOUT_MULTIPLIER + studio.streaming_multiplier_delta,
+            streaming_multiplier=streaming_multiplier,
         )
 
     bw = {"lead": 1.0, "supporting": 0.55, "bit": 0.2, "extra": 0.0}[role.billing]

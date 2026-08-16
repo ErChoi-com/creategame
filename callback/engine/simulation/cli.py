@@ -203,7 +203,21 @@ def shoot_screen(session: Session, auto: bool) -> None:
 def release_screen(session: Session, auto: bool) -> dict:
     print("  RELEASE STRATEGY:")
     key = choose(session.release_options(), "  Choose:", 0, auto)
-    return session.choose_release(key)
+    if key != "streaming":
+        return session.choose_release(key)
+
+    bids = session.streaming_bid_options()
+    print("  STREAMING RIGHTS — competing offers:")
+    options = [
+        (str(i), (f"{b['studio_name']} — puts it up for nothing, you just get your budget back"
+                   if b["self_distribute"] else
+                   f"{b['studio_name']} — ${b['payout_millions']:.1f}M ({b['multiplier']}x budget)"))
+        for i, b in enumerate(bids)
+    ]
+    best_index = max(range(len(bids)), key=lambda i: bids[i]["payout_millions"])
+    pick = choose(options, "  Sell to:", best_index, auto)
+    chosen = bids[int(pick)]
+    return session.choose_release(key, streaming_multiplier=chosen["multiplier"])
 
 
 def post_release_screen(summary: dict) -> None:

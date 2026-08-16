@@ -106,3 +106,29 @@ def pick_studio(budget_millions: float, rng: random.Random) -> Studio:
     if not fits:
         return STUDIOS["mid_major"]
     return rng.choice(fits)
+
+
+# A streaming buyer who isn't in the business of financing your kind of film at all doesn't bid —
+# the same budget-range gate pick_studio() already uses, not a second concept.
+def _can_credibly_bid(studio: Studio, budget_millions: float) -> bool:
+    lo, hi = studio.budget_range
+    return lo * 0.5 <= budget_millions <= hi * 1.5  # a wider band than financing — buying rights
+    #                                                   is a smaller commitment than making it
+
+
+SELF_DISTRIBUTE_MULTIPLIER = 1.0  # your own financing studio just puts it up — you get your budget
+                                   # back and nothing more, the "for nothing" option
+
+
+def streaming_bidders(budget_millions: float, financing_studio_id: str) -> list[Studio]:
+    """A real bidding pool, not one flat number: every studio whose money actually plays in this
+    budget range makes an offer at its own §8.3-style terms (STREAMING_BUYOUT_MULTIPLIER +
+    streaming_multiplier_delta) — deliberately deterministic (no rng) so the pool is a stable menu
+    a player can compare and choose from, not a fresh roll each look. Always includes the film's
+    own financing studio, who can either bid their normal streaming terms or — see
+    SELF_DISTRIBUTE_MULTIPLIER — just put it up for nothing rather than sell the rights at all."""
+    financing = STUDIOS[financing_studio_id]
+    bidders = [s for s in STUDIOS.values() if _can_credibly_bid(s, budget_millions)]
+    if financing not in bidders:
+        bidders = [financing, *bidders]
+    return bidders

@@ -112,12 +112,16 @@ def accept_and_play(
     orientation_npc_id: str | None = None,
     orientation_effect=None,
     requested_director_npc_id: str | None = None,
+    streaming_multiplier_override: float | None = None,
 ) -> tuple[FullState, ProjectResult]:
     """script_note: actor.script_notes.ScriptNoteEffect, from a Session-level script-approval
     push. orientation_npc_id + orientation_effect: the tracked co-star this project centres on
     and positions.generosity()/upstaging()'s resulting ModifierResult. requested_director_npc_id:
     a tracked Rolodex director pulled onto the project in place of the usual random NPC sample —
-    the caller (Session) is responsible for having already spent the favour this costs."""
+    the caller (Session) is responsible for having already spent the favour this costs.
+    streaming_multiplier_override: the specific competing streaming buyer's own terms
+    (simulation._relationships-style — a real choice among multiple bidders, not just the
+    financing studio's own default), in place of that studio's own streaming_multiplier_delta."""
     # §9.3's GenreHeat, accumulated from every resolved film (yours and the background
     # industry's, §10.0) feeds real GenreDemand back into this project's own box office —
     # a hot genre isn't just trades-digest flavor, it changes what your film actually earns.
@@ -139,6 +143,7 @@ def accept_and_play(
         genre_demand_override=demand, release_strategy=release_strategy,
         script_note=script_note, orientation_effect=orientation_effect, director_override=director_override,
         franchise_audience_bonus=franchise_audience_bonus(role, state.franchises),
+        streaming_multiplier_override=streaming_multiplier_override,
     )
 
     franchises = update_franchise_after_project(

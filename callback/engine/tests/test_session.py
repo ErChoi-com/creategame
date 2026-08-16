@@ -218,6 +218,35 @@ class TestBoxOfficeBonus(unittest.TestCase):
             self.assertEqual(summary["box_office_bonus_millions"], 0.0)
 
 
+class TestStreamingBidding(unittest.TestCase):
+    def test_streaming_bid_options_are_plain_data_and_include_self_distribute(self):
+        session = Session(seed=40)
+        session.start("conservatory", "work")
+        if not _get_to_prep(session):
+            self.skipTest("no offer came through — RNG variance, not a bug")
+        session.choose_deal(False)
+        bids = session.streaming_bid_options()
+        self.assertTrue(bids)
+        for b in bids:
+            self.assertIsInstance(b["studio_name"], str)
+            self.assertIsInstance(b["payout_millions"], float)
+        self.assertTrue(any(b["self_distribute"] for b in bids))
+
+    def test_choosing_a_specific_bid_drives_the_actual_payout(self):
+        session = Session(seed=41)
+        session.start("conservatory", "work")
+        if not _get_to_prep(session):
+            self.skipTest("no offer came through — RNG variance, not a bug")
+        session.choose_deal(False)
+        bids = session.streaming_bid_options()
+        session.choose_prep("table_work")
+        for _ in range(3):
+            session.play_scene({d: "with" for d, _ in session.dial_options()})
+        self_distribute = next(b for b in bids if b["self_distribute"])
+        summary = session.choose_release("streaming", streaming_multiplier=self_distribute["multiplier"])
+        self.assertAlmostEqual(summary["roi"], self_distribute["multiplier"], places=2)
+
+
 class TestScriptNotes(unittest.TestCase):
     def test_unavailable_without_script_approval(self):
         session = Session(seed=20)

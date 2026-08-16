@@ -181,6 +181,18 @@ a studio weighted by the film's own budget (`studios.pick_studio()` — a $4M fi
 the blockbuster machine, a $200M one never lands at the indie house), and the CLI/`Session`
 surface the studio's name and pitch on the Offer Board and again at Post & Release.
 
+**Streaming rights are a real bidding pool, not one flat buyout.** `studios.streaming_bidders()`
+gathers every studio whose money credibly plays at this budget (a wider band than who could have
+*financed* it — buying rights is a smaller commitment than making it), each offering its own
+`STREAMING_BUYOUT_MULTIPLIER + streaming_multiplier_delta` terms — deterministic, so it's a stable
+menu to compare rather than a fresh roll every time you look. The pool always includes the film's
+own financing studio, who can either bid their normal terms *or* — `SELF_DISTRIBUTE_MULTIPLIER`
+— just put it up on their own service for nothing: you get exactly your budget back, no more, no
+less, the literal "for nothing" option. `Session.streaming_bid_options()` surfaces the whole pool;
+`choose_release("streaming", streaming_multiplier=...)` threads whichever bid you pick all the way
+down through `accept_and_play()`/`simulate_project()` into the actual `ReceptionResult`, so the
+number you agreed to is the number that resolves — not the financing studio's own default.
+
 **Franchises and directors are now real, interacting systems, not just data sitting in `genre/`
 and `director/` unreached** (`simulation/_franchises.py`). Two previously-dormant systems —
 §9.5's sequel-value curve (`genre/franchise.py`) and §6.4-6.5's Indispensability holdout

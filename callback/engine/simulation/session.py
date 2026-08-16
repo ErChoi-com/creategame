@@ -35,9 +35,9 @@ from callback.engine.actor.offers import Role, offer_probability, resolve_castin
 from callback.engine.actor.persona import GENRES
 from callback.engine.actor.positions import DIAL_LABELS, DIALS, PLAYER_LABELS, POSITIONS, generosity, upstaging
 from callback.engine.actor.prep import PREP_OPTIONS, WING_IT
-from callback.engine.actor.release import RELEASE_STRATEGIES, WIDE, LIMITED, weekly_gross_curve
+from callback.engine.actor.release import RELEASE_STRATEGIES, STREAMING_BUYOUT_MULTIPLIER, WIDE, LIMITED, weekly_gross_curve
 from callback.engine.actor.script_notes import SCRIPT_NOTE_OPTIONS, apply_script_note
-from callback.engine.actor.studios import STUDIOS
+from callback.engine.actor.studios import SELF_DISTRIBUTE_MULTIPLIER, STUDIOS, streaming_bidders
 from callback.engine.awards.awards import NarrativeContext, buzz_score, narrative_bonus
 from callback.engine.leverage.approvals import (
     box_office_bonus_earned,
@@ -423,11 +423,40 @@ class Session:
     def release_options() -> list[tuple[str, str]]:
         return [(s, RELEASE_LABELS[s]) for s in RELEASE_STRATEGIES]
 
-    def choose_release(self, strategy: str) -> dict:
+    def streaming_bid_options(self) -> list[dict]:
+        """A real bidding pool for streaming rights, not one flat studio-default number — every
+        studio whose money plays in this budget range makes an offer at its own terms, deterministic
+        (no rng) so it's a stable menu to compare rather than a fresh roll each look. Always
+        includes the financing studio's own SELF_DISTRIBUTE_MULTIPLIER option: they just put it up
+        on their own service for nothing — you get your budget back, no more."""
+        budget = self._role.budget_for_role
+        bidders = streaming_bidders(budget, self._role.studio)
+        options = [
+            {
+                "studio_id": s.id, "studio_name": s.name,
+                "multiplier": round(STREAMING_BUYOUT_MULTIPLIER + s.streaming_multiplier_delta, 2),
+                "payout_millions": round(budget * (STREAMING_BUYOUT_MULTIPLIER + s.streaming_multiplier_delta), 2),
+                "self_distribute": False,
+            }
+            for s in bidders
+        ]
+        financing = STUDIOS[self._role.studio]
+        options.append({
+            "studio_id": financing.id, "studio_name": financing.name,
+            "multiplier": SELF_DISTRIBUTE_MULTIPLIER,
+            "payout_millions": round(budget * SELF_DISTRIBUTE_MULTIPLIER, 2),
+            "self_distribute": True,
+        })
+        return options
+
+    def choose_release(self, strategy: str, streaming_multiplier: float | None = None) -> dict:
         """Resolves the whole project — the one point everything collected since offer_board()
         actually gets spent. Does not advance the year itself (see end_year()) — you might also
         work on directing this same year; acting and directing no longer compete for the same
-        calendar slot."""
+        calendar slot.
+
+        streaming_multiplier: only meaningful when strategy == "streaming" — the specific bidder's
+        terms from streaming_bid_options(), in place of the financing studio's own default."""
         scenes = tuple(self._scenes) if len(self._scenes) == 3 else (self._scenes + [{}] * 3)[:3]
         franchise_installment = self._role.installment_number
         self.state, result = accept_and_play(
@@ -437,6 +466,7 @@ class Session:
             orientation_npc_id=self._orientation_npc_id,
             orientation_effect=self._orientation_effect,
             requested_director_npc_id=self._requested_director_npc_id,
+            streaming_multiplier_override=streaming_multiplier if strategy == "streaming" else None,
         )
         bonus = box_office_bonus_earned(result.gross, result.roi) if self._box_office_bonus_negotiated else 0.0
         self._acting_worked_this_year = True

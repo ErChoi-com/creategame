@@ -8,7 +8,7 @@ import unittest
 
 from callback.engine.actor.reception import BREAK_EVEN_MARKETING_SHARE, RIGHTS_SHARE, resolve_reception
 from callback.engine.actor.release import STREAMING_BUYOUT_MULTIPLIER, STREAMING, apply_release_strategy
-from callback.engine.actor.studios import STUDIOS, marketing_share_for, pick_studio
+from callback.engine.actor.studios import SELF_DISTRIBUTE_MULTIPLIER, STUDIOS, marketing_share_for, pick_studio, streaming_bidders
 
 
 class TestStudioProfiles(unittest.TestCase):
@@ -95,6 +95,26 @@ class TestStreamerBuyoutBonus(unittest.TestCase):
         )
         flat = apply_release_strategy(reception, STREAMING, rng)
         self.assertGreater(boosted.gross, flat.gross)
+
+
+class TestStreamingBidders(unittest.TestCase):
+    def test_financing_studio_is_always_in_the_pool(self):
+        bidders = streaming_bidders(30.0, "prestige")
+        self.assertIn(STUDIOS["prestige"], bidders)
+
+    def test_bigger_budgets_draw_more_bidders_than_a_tiny_indie_film(self):
+        small = streaming_bidders(3.0, "indie")
+        big = streaming_bidders(30.0, "mid_major")
+        self.assertGreaterEqual(len(big), len(small))
+
+    def test_bidders_are_deterministic_no_rng_needed(self):
+        first = streaming_bidders(30.0, "mid_major")
+        second = streaming_bidders(30.0, "mid_major")
+        self.assertEqual([s.id for s in first], [s.id for s in second])
+
+    def test_self_distribute_multiplier_is_break_even_only(self):
+        # "for nothing" — you get exactly your budget back, no more, no less.
+        self.assertEqual(SELF_DISTRIBUTE_MULTIPLIER, 1.0)
 
 
 if __name__ == "__main__":
