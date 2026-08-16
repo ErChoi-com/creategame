@@ -101,7 +101,7 @@ class TestSessionDirectorIntegration(unittest.TestCase):
             self.assertIsInstance(key, str)
             self.assertIsInstance(label, str)
 
-    def test_advance_directing_advances_the_shared_calendar(self):
+    def test_advance_directing_leaves_the_calendar_to_end_year(self):
         session = Session(seed=14)
         session.start("conservatory", "work")
         _unlock_directing(session)
@@ -111,7 +111,32 @@ class TestSessionDirectorIntegration(unittest.TestCase):
         result = session.advance_directing("rewrite")
         self.assertIn("greenlit", result)
         self.assertIn("momentum", result)
+        self.assertEqual(session.age(), start_age)  # advance_directing() no longer touches the calendar
+        session.end_year()
         self.assertGreater(session.age(), start_age)
+
+    def test_acting_and_directing_can_both_happen_in_the_same_year(self):
+        session = Session(seed=20)
+        session.start("conservatory", "work")
+        _unlock_directing(session)
+        session.become_director()
+        session.start_directing_project("drama", "low")
+        start_age = session.age()
+
+        session.advance_directing("rewrite")  # directing work this year
+
+        board = session.offer_board()
+        available = [o for o in board if o["available"]]
+        if available:  # RNG-dependent; only meaningful when an offer actually came through
+            session.accept(available[0]["index"])
+            session.choose_deal(False)
+            session.choose_prep("table_work")
+            for _ in range(3):
+                session.play_scene({d: "with" for d, _ in session.dial_options()})
+            session.choose_release("wide")  # acting work the SAME year
+
+        session.end_year()  # the calendar advances exactly once for both
+        self.assertEqual(session.age(), start_age + 1)
 
     def test_a_directed_project_can_eventually_greenlight_and_resolve(self):
         session = Session(seed=15)

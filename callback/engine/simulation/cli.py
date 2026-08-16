@@ -289,12 +289,12 @@ def pull_menu(session: Session, auto: bool) -> None:
                   f"net P&L ${r['net_profit_millions']:.1f}M")
 
 
-def directing_career_screen(session: Session, auto: bool) -> bool:
-    """A distinct menu, not the acting screens repurposed — fused into the same Session, but a
-    separate track with its own year. Returns True if this year was spent directing (the shared
-    calendar has already advanced); False means proceed with the acting flow as usual."""
+def directing_career_screen(session: Session, auto: bool) -> None:
+    """A distinct menu, not the acting screens repurposed — fused into the same Session, and no
+    longer competing with acting for the year: this can run in the same turn as an acting offer,
+    before or after it. Session.end_year() is what actually advances the calendar, once, later."""
     if not session.directing_unlocked():
-        return False
+        return
 
     if not session.is_directing():
         choice = prompt(
@@ -302,12 +302,12 @@ def directing_career_screen(session: Session, auto: bool) -> bool:
             "Step behind the camera? [Y]/[N]", "N", auto,
         )
         if choice.upper() != "Y":
-            return False
+            return
         print(f"    {session.become_director()}")
 
-    choice = prompt("  This year: [A]ct, or work on [D]irecting?", "A", auto)
-    if choice.upper() != "D":
-        return False
+    choice = prompt("  Work on directing this year too, alongside acting? [Y]/[N]", "Y", auto)
+    if choice.upper() != "Y":
+        return
 
     status = session.director_status()
     print(f"\n  --- DIRECTING ({status['standing']}, {status['credits']} credit(s)) ---")
@@ -333,7 +333,6 @@ def directing_career_screen(session: Session, auto: bool) -> bool:
         print("    Shelved in the drawer for now.")
     else:
         print(f"    Still in development — momentum now {result['momentum']}.")
-    return True
 
 
 def run(auto: bool, seed: int, max_years: int) -> None:
@@ -346,17 +345,9 @@ def run(auto: bool, seed: int, max_years: int) -> None:
         print(f"\n=== AGE {session.age()} ===")
         pull_menu(session, auto)
 
-        if directing_career_screen(session, auto):
-            print(f"  RECKONING — you are {session.standing_summary()} now.")
-            if session.age() % 5 == 0:
-                print("  THE TRADES:")
-                for line in session.trades():
-                    print(f"    - {line}")
-            if not auto:
-                cont = prompt("\n[Enter] to continue, [q] to end the run:", "", auto)
-                if cont.lower() == "q":
-                    break
-            continue
+        # Directing and acting are two independent tracks now — both can happen in the same year;
+        # directing_career_screen never advances the calendar, so order between them doesn't matter.
+        directing_career_screen(session, auto)
 
         chosen_index = offer_board_screen(session, auto)
 
@@ -379,6 +370,7 @@ def run(auto: bool, seed: int, max_years: int) -> None:
             for result in session.decline_board():
                 print(f"    A {result['genre']} film went to someone else: {result['roi_band']}, {result['critic_band']} reviews.")
 
+        session.end_year()
         print(f"  RECKONING — you are {session.standing_summary()} now.")
 
         if session.age() % 5 == 0:

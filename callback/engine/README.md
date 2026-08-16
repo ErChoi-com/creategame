@@ -54,6 +54,7 @@ Session.trades() / rolodex_summary() / interact()               the pull menu: T
 Session.leverage_status() / try_advance_agent_tier() / disappear()   the pull menu: Leverage
 Session.franchise_status() / holdout_available() / request_holdout() the pull menu: Franchises
 Session.directing_unlocked() / become_director() / advance_directing()   a second career, fused in
+Session.end_year()                                              advances the shared calendar once
 Session.obituary_summary()                                      the closing obituary
 ```
 
@@ -85,6 +86,7 @@ if available:
     for _ in range(3):
         session.play_scene({d: "with" for d, _ in session.dial_options()})
     print(session.choose_release("wide"))
+session.end_year()  # advances the shared calendar once — call after resolving whatever you did this year
 ```
 
 Anything below `Session` (`full_career.py`, `career.py`, every `actor/`/`rolodex/`/`leverage/`
@@ -216,13 +218,16 @@ distinct menu, not the acting screens repurposed:
   cast through `studios.pick_studio()`/`marketing_share_for()` exactly like an acting role,
   resolved through the same `resolve_reception()`, and feeds the same `world.genre_cycle` heat and
   Guild residuals afterward. One box-office model, not two.
-- **One shared calendar, one Standing philosophy.** A directed project's own `StandingModel` is
-  the same `core.meters.StandingModel` actor/standing.py configures (§3.3's "one Standing model"
-  rule, made literal again) — grown off the same `delta_heat`/`delta_prestige`/`delta_affection`
-  formulas, just with a director's own billing weight (always 1.0 — you're the whole show).
-  `full_career.advance_between_years()` runs once a year for *both* tracks together: a year spent
-  in development hell still ages you, decays your acting Standing, and re-ranks your Rolodex,
-  exactly as a declined acting offer already does.
+- **One shared calendar, one Standing philosophy — and acting and directing no longer compete for
+  it.** A directed project's own `StandingModel` is the same `core.meters.StandingModel`
+  actor/standing.py configures (§3.3's "one Standing model" rule, made literal again) — grown off
+  the same `delta_heat`/`delta_prestige`/`delta_affection` formulas, just with a director's own
+  billing weight (always 1.0 — you're the whole show). Every action that resolves an outcome
+  (`choose_release()`, `decline_board()`, `request_holdout()`, `advance_directing()`,
+  `disappear()`) applies its own Standing/money/state deltas immediately but no longer touches the
+  calendar itself — `Session.end_year()` is the one call that actually advances it, so you can work
+  a directing project *and* accept, shoot, and release an acting role in the same year, in either
+  order, and the calendar still only moves once.
 
 **A box-office bonus is a real, higher-bar Deal option** (`leverage/approvals.py`'s
 `BOX_OFFICE_BONUS_STANDING_THRESHOLD`, deliberately set well above the 65-Standing bar approvals

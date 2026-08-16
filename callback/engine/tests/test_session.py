@@ -121,9 +121,11 @@ class TestOfferBoardTypes(unittest.TestCase):
             for _ in range(3):
                 session.play_scene({d: "with" for d, _ in session.dial_options()})
             session.choose_release("wide")
+            session.end_year()
             board = session.offer_board()
             available = [o for o in board if o["available"]]
         results = session.decline_board()
+        session.end_year()
         self.assertIsInstance(results, list)
         self.assertEqual(len(results), len(board))
         for result in results:
@@ -314,14 +316,15 @@ class TestRolodexAndLeverageReachable(unittest.TestCase):
         message = session.try_advance_agent_tier()
         self.assertIsInstance(message, str)
 
-    def test_disappear_is_reachable_and_advances_the_year(self):
+    def test_disappear_is_reachable_and_end_year_advances_the_calendar(self):
         session = Session(seed=10)
         session.start("conservatory", "work")
         start_age = session.age()
         message = session.disappear()
         self.assertIsInstance(message, str)
-        self.assertGreater(session.age(), start_age)
         self.assertGreater(session.leverage_status()["scarcity"], 0)
+        session.end_year()
+        self.assertGreater(session.age(), start_age)
 
     def test_trades_is_reachable(self):
         session = Session(seed=11)

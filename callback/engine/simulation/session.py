@@ -105,6 +105,11 @@ class Session:
         self._orientation_npc_id: str | None = None
         self._orientation_effect = None
         self._requested_director_npc_id: str | None = None
+        # This year's calendar-advance inputs, accumulated by whatever you did this year (acting
+        # and/or directing — see end_year()) and applied exactly once when the year actually ends.
+        self._acting_worked_this_year: bool = False
+        self._pending_billing: str | None = None
+        self._pending_bonus_income: float = 0.0
 
     # ---- character creation ----------------------------------------------------------------
 
@@ -210,8 +215,8 @@ class Session:
 
     def decline_board(self) -> list[dict]:
         """Passes on every listing on the board, resolves each through the background industry,
-        and advances the year once (still 0-1 projects/year — a bigger board is more choice about
-        *which* project, not more projects)."""
+        Does not advance the year itself — you might still work on directing this year (see
+        end_year()); call that once you're done with everything this year's turn covers."""
         results = []
         for role in self._board:
             self.state = decline_and_resolve(self.state, role, self.rng)
@@ -221,7 +226,6 @@ class Session:
                 "roi_band": roi_band(record.result.reception.roi),
                 "critic_band": critic_band(record.result.reception.film_critic_score),
             })
-        self.state = advance_between_years(self.state, self.rng, worked_this_year=False)
         return results
 
     # ---- franchises (design §9.5's sequel-value curve + §6.4-6.5's Indispensability holdout) --
@@ -270,8 +274,7 @@ class Session:
 
         self.state = replace(self.state, franchises=franchises)
         if not proceeds:
-            self.state = advance_between_years(self.state, self.rng, worked_this_year=False)
-            self._role = None
+            self._role = None  # no project this year — the year still advances via end_year()
 
         return {
             "paid": outcome.they_paid,
@@ -422,7 +425,9 @@ class Session:
 
     def choose_release(self, strategy: str) -> dict:
         """Resolves the whole project — the one point everything collected since offer_board()
-        actually gets spent — and advances the year. Returns the Post & Release summary."""
+        actually gets spent. Does not advance the year itself (see end_year()) — you might also
+        work on directing this same year; acting and directing no longer compete for the same
+        calendar slot."""
         scenes = tuple(self._scenes) if len(self._scenes) == 3 else (self._scenes + [{}] * 3)[:3]
         franchise_installment = self._role.installment_number
         self.state, result = accept_and_play(
@@ -434,9 +439,9 @@ class Session:
             requested_director_npc_id=self._requested_director_npc_id,
         )
         bonus = box_office_bonus_earned(result.gross, result.roi) if self._box_office_bonus_negotiated else 0.0
-        self.state = advance_between_years(
-            self.state, self.rng, worked_this_year=True, billing=self._role.billing, bonus_income=bonus,
-        )
+        self._acting_worked_this_year = True
+        self._pending_billing = self._role.billing
+        self._pending_bonus_income = bonus
         self._last_result = result
         self._scenes = []
 
@@ -544,10 +549,9 @@ class Session:
 
     def disappear(self) -> str:
         """§6.6 — a real pull action: skip the next offer on purpose, banking Scarcity for a
-        better one when you come back."""
+        better one when you come back. Doesn't advance the year itself (see end_year())."""
         lev = self.state.leverage
         self.state = replace(self.state, leverage=replace(lev, scarcity=accumulate_scarcity(lev.scarcity)))
-        self.state = advance_between_years(self.state, self.rng, worked_this_year=False)
         return "You go quiet for a year. People notice, eventually, when you come back."
 
     # ---- directing — a second career fused into this same Session/FullState ------------------
@@ -611,7 +615,8 @@ class Session:
 
     def advance_directing(self, action: str) -> dict:
         """One year's directing work — mirrors choose_release()'s one-project-a-year cadence on
-        the acting side. Advances the shared calendar exactly once, whether or not a film resulted."""
+        the acting side. Does not advance the shared calendar itself (see end_year()) — acting and
+        directing no longer compete for the same year; you can do both in the same turn."""
         demand = world_genre_demand(self.state.genre_heat, self.state.director.current_genre)
         director, info = apply_dev_action_and_advance(self.state.director, action, demand, self.rng)
 
@@ -622,7 +627,6 @@ class Session:
             guild = add_residual_stream(guild, info["roi"], info["budget"])
 
         self.state = replace(self.state, director=director, genre_heat=genre_heat, guild=guild)
-        self.state = advance_between_years(self.state, self.rng, worked_this_year=False)
 
         result = {"greenlit": info["greenlit"], "dead": info["dead"], "frozen": info.get("frozen", False),
                   "momentum": info["momentum"]}
@@ -636,6 +640,23 @@ class Session:
                 "gross_millions": info["gross_millions"],
             })
         return result
+
+    # ---- the calendar — advances exactly once per year, however much you did in it -----------
+
+    def end_year(self) -> None:
+        """The one point the shared calendar actually moves: aging, Standing decay, Life, the
+        Guild, Rolodex re-ranking, franchise dormancy. Call this once per year after resolving
+        whatever combination of acting and/or directing you did — choose_release()/decline_board()/
+        request_holdout()/advance_directing()/disappear() all resolve their own outcome (Standing
+        deltas, money, a directed film's own result) immediately, but none of them touch the
+        calendar anymore, so acting and directing are free to both happen in the same year."""
+        self.state = advance_between_years(
+            self.state, self.rng, worked_this_year=self._acting_worked_this_year,
+            billing=self._pending_billing, bonus_income=self._pending_bonus_income,
+        )
+        self._acting_worked_this_year = False
+        self._pending_billing = None
+        self._pending_bonus_income = 0.0
 
     # ---- the obituary -----------------------------------------------------------------------
 
