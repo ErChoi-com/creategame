@@ -35,8 +35,25 @@ themselves a narrative identity: §5.6 now names the three-act structure the `in
 weighting was always a numeric description of (setup, set piece, resolution), and names what the
 turn concretely *is* per genre — the first kill, the confrontation, the falling-out, the reveal —
 and which of §5.5's four dials is most likely carrying it, without changing a single formula
-either section already specified. Parts 1–3, 7–13, and 15 are the original v8 text; none of that
-was built yet, and this pass didn't touch it.
+either section already specified.
+
+**A full connective pass then went across every Part**, not just the built ones, looking
+specifically for §3.3's own rule — one Standing model, one Legibility engine, one Rolodex, one
+calendar — stated as an intention but not actually honoured. It found, and fixed, real ones: §8.2
+still carried its own box-office model with different constants from §4.10's, the exact
+two-models problem §4.10 already claimed to have fixed and hadn't, in this section, actually
+fixed; §7.3 said it was "amending" §4.7's performance formula with a Director Command term that
+§4.7 never actually showed; §10.6 called its own era system "sketched in §4.14" after §4.14 had
+explicitly said that content was removed; §13's build plan cited "the edit as three real choices"
+at §5.8 (script register) instead of §5.14 (the actual edit); and half a dozen mechanics —
+franchise backend as a retirement plan, the two career-switching Rolodex-transfer tables, the
+declined-offers list tracked in §5.17 and paid off in §11.8, Animation's odd fit as a "genre" when
+§4.2's own affinity vector has no such entry — were specified twice in different Parts with no
+link between the two, or specified once with no pointer from where a reader would naturally look
+for it. All fixed with cross-references or, where two versions had actually diverged, one
+canonical formula that the other Part now reads instead of restating. Parts 1–3, 7–13, and 15 are
+still substantially the original v8 text — none of that was built — but they no longer contradict
+Part 4/5/6 or each other where they touch the same mechanic.
 
 **Part 0 is the editing pass.** It states the rules every system has to pass and lists what came
 out: the decision load per in-game year drops from ~55 to ~15 without removing a mechanic. Read it first.

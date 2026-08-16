@@ -169,6 +169,8 @@ Quote (your asking price, in $M) =
 
 That quote curve is deliberately exponential — the top of the market pays wildly more than the middle, which is true, and which makes the climb feel like a climb.
 
+*(This section describes one Standing — the single-region form the actor spine was built and verified against. §10.5's fuller design tracks all four meters per region, with a `globalBleed` coefficient governing how much of one region's Standing carries into another; Part 12's schema shows the shape of it. Nothing here contradicts that — it's the same four numbers and the same formulas, just not yet split by region. If regions are ever built, this is the section that gains a subscript, not one that gets replaced.)*
+
 **Gatekeeper weightings** (used in 4.4):
 
 | Gatekeeper | Heat | Prestige | Affection | Notoriety |
@@ -284,11 +286,21 @@ Then:
 ```
 Base = 0.28·Craft + 0.18·Instinct + 0.16·Presence
      + 0.16·Fit + 0.12·Prep + 0.10·Chemistry
+     + 0.06·(DirectorCommand − 50)          // v9 — §7.3 called this an amendment to this
+                                             // formula and never landed it here; every shoot has
+                                             // a director, NPC or player, so it isn't optional and
+                                             // belongs in the baseline, not a patch applied
+                                             // elsewhere. §7.2 defines Command; §7.3 shows what a
+                                             // Command-90 director is worth to a cast member who
+                                             // never picks up a camera themselves.
 
-DirectionMult = 0.86 + 0.0028 · DirectorSkill              // 0.86 – 1.14
-ConditionMult = 0.80 + 0.0020 · Condition                  // 0.80 – 1.00
-                                                            // Condition from health,
-                                                            // burnout, substances
+DirectionMult = 0.86 + 0.0028 · DirectorSkill              // 0.86 – 1.14  — DirectorSkill itself
+                                                            // is §7.3's formula; a role's director
+                                                            // is always a real character, NPC or
+                                                            // player, never a bare parameter
+ConditionMult = 0.80 + 0.0020 · Condition                  // 0.80 – 1.00 — Condition is §11.1's
+                                                            // formula (health, burnout debt,
+                                                            // substance load, Resilience)
 
 σ = 16 − 0.09 · Craft                                       // craft = consistency
 Roll = Normal(0, σ)
@@ -402,7 +414,7 @@ AudienceScore   = 0.62·ProjectQuality
                 + N(0, 4.5)
 ```
 
-**Box office — v9: one model, not two.** The original spec carried this shape here *and* a differently-structured one in §8.2 for the studio layer, never reconciled — two box-office models computing different numbers for the same release. This is now the only one, and both actor and studio read it:
+**Box office — v9: one model, not two.** The original spec carried this shape here *and* a differently-structured one in §8.2 for the studio layer, never reconciled — two box-office models computing different numbers for the same release, down to different opening-weekend coefficients (0.92 here, 0.80 there) and one carrying a `GenreDemand` nudge on legs the other didn't. This is now the only one; §8.2 reads it rather than restating it, and this version keeps the better piece of each — the actor-side derivation discipline below, and the studio-side model's named `Zeitgeist` term for what legs actually measure:
 
 ```
 Budget      = role.budget / eraMultiplier            // v9 — derived at resolution time, never
@@ -419,13 +431,15 @@ BreakEven   = Budget × (1 + 0.45) / 0.62              // marketing share, and t
                                                        // player is shown so ROI reads as more
                                                        // than a bare ratio
 Opening     = Budget × (0.92 + 0.005·CastStarPower + 0.005·GenreDemand) × (Budget/30)^−0.10
+Zeitgeist   = AudienceScore + 0.5·(GenreDemand − 50) + N(0, 12)     // "did it catch on" — legs
+                                                                     // measure something partly
+                                                                     // outside the film itself, and
+                                                                     // naming it is what makes the
+                                                                     // fat tail in §8.2's slate
+                                                                     // outcomes legible instead of
+                                                                     // asserted
 Legs        = clamp(1.7 + 0.048·(AudienceScore − 50)
-                     + 0.032·max(0, z − 70)^1.5, 1.15, 8.0)     // z = AudienceScore + N(0,12);
-                                                                 // the extra term is the
-                                                                 // legitimate-hit tail — word of
-                                                                 // mouth compounding past a
-                                                                 // threshold, not just a wider
-                                                                 // opening
+                     + 0.032·max(0, Zeitgeist − 70)^1.5, 1.15, 8.0)
 Gross       = Opening × Legs
 ROI         = (0.62 × Gross) / (Budget + Marketing)
 ```
@@ -529,7 +543,9 @@ Notoriety is generated by on-set behavior, relationships, substance arcs, politi
 ## 4.14 Era and life — see Parts 10 and 11
 
 v3 carried summary stubs here for the era system and the life layer. Parts 10 and 11 replaced them
-entirely, and two half-descriptions of one system is worse than one description. They're gone.
+entirely, and two half-descriptions of one system is worse than one description. They're gone —
+this section is a pointer, not a summary: §10.6 for eras, §11 for the life layer, and neither of
+those sections has anything left here to sketch or reconcile against.
 
 ---
 

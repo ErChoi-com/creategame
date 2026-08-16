@@ -40,7 +40,7 @@ Taste is also the hardest attribute to raise: +1/yr from watching films, reading
 
 ## 7.3 DirectorSkill — the bridge to the actor model
 
-Everything in Part 4 that reads `DirectorSkill` and `DirectorPrestige` now resolves against a real character, whether NPC or player.
+Everything in Part 4 that reads `DirectorSkill` and `DirectorPrestige` now resolves against a real character, whether NPC or player. `DirectorPrestige` is not a parallel stat invented for this Part — it's the same `Prestige` meter from §4.3's shared Standing model, read for whoever is directing instead of whoever is acting. `DirectorStanding` (§7.4's `PackageStrength`, §8.1's stage thresholds) is the same composite `Standing` scalar, same formula, same source. One Standing model (§3.3's own rule) means literally one: nothing in this Part computes it a second way.
 
 ```
 DirectorSkill = 0.34·Vision + 0.28·Command + 0.38·Craft
@@ -54,12 +54,12 @@ DirectorSkill = 0.34·Vision + 0.28·Command + 0.38·Craft
 // sd from 15.0 to 16.7 moves every correlation by at most 0.01, so the merge is safe.
 ```
 
-**And Command reaches into the cast's performance roll directly.** Amend §4.7:
+**And Command reaches into the cast's performance roll directly** — §4.7's `Base` already carries `+0.06·(DirectorCommand − 50)` as part of its baseline, not a patch bolted on from over here, because every shoot has a director whether or not the player is one:
 
 ```
 Base = 0.28·Craft + 0.18·Instinct + 0.16·Presence
      + 0.16·Fit + 0.12·Prep + 0.10·Chemistry
-     + 0.06·(DirectorCommand − 50)          // ← NEW
+     + 0.06·(DirectorCommand − 50)
 
 DirectionMult = 0.86 + 0.0028·DirectorSkill
 ```
@@ -153,7 +153,7 @@ Going more than 25% over budget: the studio takes final cut, *or* your next proj
 
 ## 7.7 The edit — the inversion, precisely
 
-This is the payoff of the whole career. In §4.10 an actor eats `PostLuck ~ N(52, 14)` blind. As a director:
+This is the payoff of the whole career. In §4.10 an actor eats `PostLuck ~ N(52, 14)` blind. As a director, `PostLuck` stops being a blind roll and becomes yours to steer with the attributes below — and §5.14 is where that steering becomes three concrete decisions (runtime, whose film it is, the ending), not just a better-tuned formula. As a director:
 
 ```
 PostLuck = 45 + 0.30·(Craft − 50) + 0.25·(Taste − 50)

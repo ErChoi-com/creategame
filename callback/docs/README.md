@@ -82,7 +82,12 @@ found, folded back into the document:
 
 Every `*(v9 — ...)*` note in the design doc marks one of these, in place, next to the v8 text it
 corrects — there is no separate delta document. Parts 1–3, 7–13, and 15 are original v8 text and
-haven't been built or touched.
+haven't been built or touched — but a full connective pass has since gone across all of them
+looking specifically for §3.3's own rule (one Standing model, one Legibility engine, one Rolodex,
+one calendar) stated but not honoured: a box-office model duplicated between §4.10 and §8.2 with
+different constants, a director-side formula amendment that never actually landed in the actor
+formula it amended, a handful of mechanics specified twice in different Parts with no link between
+them. All now cross-referenced or unified — see `design/00-index.md`'s changelog for the full list.
 
 **Not yet folded back in:** `callback-sim.py` and `callback-career-sim.py` still test the *original*
 v8 constants, so running them now reproduces the review's failing numbers on purpose — they haven't

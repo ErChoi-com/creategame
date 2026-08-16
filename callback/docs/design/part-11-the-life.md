@@ -62,7 +62,7 @@ It's a small thing. It's also the sort of thing a game about this profession sho
 
 The caretaking block is another under-modeled career killer: a 47-year-old actor whose mother needs care loses half their availability for four years, right at the pivot point where they most need to be working. No villain, no scandal, just arithmetic.
 
-**Second generation.** Retire and play your child: inherit the Rolodex at 70%, start with a large `Heat` advantage — and carry a permanent **−15 Prestige nepotism penalty that is only cleared by one genuinely great performance** (`YourNotices > 82`). Until then, every review mentions your parent.
+**Second generation.** Retire and play your child: inherit the Rolodex at 70% — the same transfer mechanic §7.11 uses for switching careers mid-life (there, Rolodex moves at 100%, Prestige at 60%, Heat at 35%, Affection at 80%; a generation is a harder cut than a career change, which is why this figure sits below all four) — start with a large `Heat` advantage, and carry a permanent **−15 Prestige nepotism penalty that is only cleared by one genuinely great performance** (`YourNotices > 82`). Until then, every review mentions your parent.
 
 ## 11.5 Politics and activism
 
@@ -97,7 +97,7 @@ LifestyleFloor:
 
 Work the numbers. A $6M peak year sets a lifestyle floor of $3.3M. Income stops. Five years later the floor is still $2.17M/yr against no income. **The floor is stickier than the career.** Houses, staff, the plane you leased, the family you support, the manager who put everything in one bad development deal.
 
-The escape valves are real too: residuals from a deep filmography (§10.1), a franchise backend that pays for decades, selling your likeness (§10.6), commercial work in a territory where you're still huge (§10.4), or simply *cutting the floor* — which is available at any time, costs Affection with your own entourage, and is the correct move that almost nobody makes in time.
+The escape valves are real too: residuals from a deep filmography (§10.1), a franchise backend that pays for decades (§6.4's `RecastCost` and §6.5's holdout and gross-points leverage — Indispensability is, among other things, a retirement plan), selling your likeness (§10.6), commercial work in a territory where you're still huge (§10.4), or simply *cutting the floor* — which is available at any time, costs Affection with your own entourage, and is the correct move that almost nobody makes in time.
 
 ## 11.7 Aging, mortality, legacy
 
@@ -114,7 +114,7 @@ The run ends with a generated retrospective covering every career you had:
 - Awards won, lost, and campaigned for
 - Your collaborators, with the number of films you made together
 - The strikes you held and the ones you crossed
-- **The roles you declined, and what became of them** — who took them, what they won
+- **The roles you declined, and what became of them** — who took them, what they won. §5.17 names this list from the other end, quietly, the whole way through a career: the films you wanted to make against the films you made.
 - The people you kept, and the ones you didn't
 
 That last section is the whole game's payoff, and the reason every declined offer is tracked from the first minute of play.

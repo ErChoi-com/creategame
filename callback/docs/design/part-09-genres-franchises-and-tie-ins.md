@@ -20,6 +20,8 @@ Right now the doc treats genre as a modifier on a critic score. It should be a d
 | **Period / war** | $40–120M | Poor to moderate | +5 | High | Prestige machine, expensive to make |
 | **Family** | $50–150M | Good | −2 | Low | Merchandise engine; content restrictions |
 
+*(v9 — Animation sits oddly in this table, and it's worth saying why rather than leaving it unexplained: §4.2's `GenreAffinity` — the vector Persona and typecasting actually track — has ten entries, and animation isn't one of them, because it isn't a genre in that sense. You can make an animated comedy, an animated family film, an animated period piece. It's the production medium, and §10.5 treats it that way — "Voice / animation," a lane defined by what gate it removes (no Look, no age cliff), not by what story it tells. This table keeps its own Animation row because the economics genuinely are distinct — the merchandise multiplier and budget norms don't belong to any one of the ten genres — but a role's `archetype`/`genre` tags underneath an animated film are still whichever of the ten actually fit it, and Persona updates against those, not against "animation" as its own affinity.)*
+
 ### Why horror matters more than it looks
 
 Horror's numbers are real and extreme, and they create the design's most important on-ramp: **it is the one genre where a nobody with no Standing can make a film that actually works.** Budgets are small enough to self-finance, the audience doesn't care about stars, and critical failure barely dents the returns.

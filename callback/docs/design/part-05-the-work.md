@@ -456,7 +456,7 @@ Track, quietly, two lists: **the films you wanted to make, and the films you mad
 
 Every project you seriously considered and passed on for money, schedule, or fear goes in the first list. Every swing you didn't take. Every script you loved that died in development.
 
-There is no meter and no penalty. It's not a morality system and the game never comments. It simply appears at the end, in the obituary, next to the filmography — and for some careers the two lists are the same, and for most they are not.
+There is no meter and no penalty. It's not a morality system and the game never comments. It simply appears at the end, in the obituary (§11.8 — "the roles you declined, and what became of them," the same tracked list named here from the other end), next to the filmography — and for some careers the two lists are the same, and for most they are not.
 
 That's not a mechanic. It's the reason to build the rest of it.
 

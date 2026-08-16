@@ -43,22 +43,15 @@ The single most important thing a studio does is choose a *portfolio*, and the n
 
 Read that carefully, because it's the studio game in one table: **the indie strategy is by far the safest and can never make you big. The blockbuster strategy has the best expected value and can lose $171M in a bad year — enough to get you fired.** Both are correct answers to different questions, which is what a good strategic choice looks like.
 
-The updated box-office model behind those numbers:
+The box-office model behind those numbers is §4.10's — *v9: this section used to carry its own differently-tuned copy (a different opening coefficient, `Zeitgeist` defined here and nowhere else), which was exactly the two-box-office-models problem §4.10 says it fixed and, until this pass, hadn't actually fixed here. One model now; this section reads it.* The one piece worth restating is the marketing curve, which is genuinely studio-side (an actor never sees it) and doesn't live in §4.10 at all:
 
 ```
 Marketing(b) = 0.35b if b<10 ; 0.48b if b<50 ; 0.55b if b<100 ; 0.80b otherwise
-
-Opening = Budget × (0.80 + 0.004·CastStarPower + 0.005·GenreDemand)
-                 × (Budget/30)^−0.10        // small films punch above their weight
-
-Zeitgeist = AudienceScore + 0.5·(GenreDemand − 50) + N(0, 12)   // "did it catch on"
-Legs      = clamp(1.7 + 0.048·(AudienceScore − 50)
-                      + 0.032·max(0, Zeitgeist − 70)^1.5, 1.15, 8.0)
-
-Gross = Opening × Legs
 ```
 
-The `Zeitgeist` term is what makes breakouts possible. It's deliberately *not* pure quality — a film catches on for reasons partly outside the film. Without it the model had no fat tail and every studio went bankrupt; with it, one film in twenty pays for the slate. That's the actual shape of the business.
+*(§4.10's `BreakEven` uses a flat 0.45 rather than this curve — deliberately: it's the number shown to an actor reading one release card, and a flat approximation is honest at that resolution, while a studio managing a slate needs the real budget-tiered curve above. The two are not meant to be forced into agreement; 0.45 sits inside the <$50M tier's 0.48, which is roughly where the flat figure was tuned to read correctly most often. If both figures ever need to move together, this is where that dependency lives.)*
+
+`Zeitgeist` (§4.10) is what makes breakouts possible. It's deliberately *not* pure quality — a film catches on for reasons partly outside the film. Without it the model had no fat tail and every studio went bankrupt; with it, one film in twenty pays for the slate. That's the actual shape of the business.
 
 Studios also greenlight *on purpose*: budget correlates with the demand and star power you buy with it (`CastStarPower ~ N(35 + 0.19·Budget, 16)`, `GenreDemand ~ N(52 + 0.10·Budget, 13)`) and, pointedly, **with worse scripts** (`ScriptQuality ~ N(62 − 0.020·Budget, 14)`). Tentpole screenplays are compromised by committee. That single negative coefficient generates most of the texture in the tier table.
 

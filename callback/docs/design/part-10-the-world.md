@@ -101,7 +101,7 @@ Making it in Hollywood after Bollywood stardom is a fresh climb *with a head sta
 
 ## 10.6 Technology eras and obsolescence events
 
-The era system sketched in §4.14, made structural. Each transition rewrites `GenreDemand`, the gatekeeper weight table, and **at least one rule of the game.**
+*(v9 — this used to be introduced as "the era system sketched in §4.14," which no longer holds: §4.14 explicitly removed its own stub content in favour of this section, so it has nothing left to sketch. The dependency runs one way — this is the only place the era system lives.)* Each transition rewrites `GenreDemand`, the gatekeeper weight table, and **at least one rule of the game.**
 
 | Shift | What it obsoletes | Mechanic |
 |---|---|---|
