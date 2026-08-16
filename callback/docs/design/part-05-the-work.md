@@ -305,6 +305,10 @@ No hidden roll, no gamble on information you don't have. You can see the cost an
 
 §4.7 cut on-set events to three. Here is what those three should be. Not weather and catering — **the actual moments where the work is decided.**
 
+**v9 — three slots, not three fixed events.** Built and played, this needed one more layer than the original draft specified: a fixed pool of exactly these three categories, asked every time, reads as a form after the second shoot of a career. What actually holds up is a **pool drawn from what the production specifically is**, with the three below as the baseline that can always fire and a wider set of situational moments layered on top of it — a stunt on an action picture, a night-shoot schedule that's not survivable, a co-star who's late and everyone's pretending not to notice, pages rewritten and pushed under the trailer door an hour before call, a director's doubt you can't read because you've never worked with them before, a press visit that turns into a story. Which of these are even *possible* depends on the production's own chaos level, its genre, and whether this director is a stranger or someone you have history with — a calm, familiar set simply doesn't generate half of them.
+
+The count stays three (§0.2's budget), but **which three** is drawn fresh each time from whatever the production can actually produce, so thirty shoots don't feel like the same three questions thirty times. And per §0.3 Rule 3, the pool itself narrows with experience: a newcomer gets asked about nearly everything a chaotic set can throw up; twenty years and forty pictures in, most of it resolves on its own — not because the moments stop happening, but because an experienced actor has a standing answer for the ones they've already answered a hundred times, and the game stops asking about only those. The moments below are the ones that never stop being asked, on any set, at any age — the actual center the situational pool surrounds.
+
 ### 1. The scene that isn't working
 
 | Choice | Effect |
@@ -386,6 +390,8 @@ THE ENDING
 If the player is the actor, they get a `YourNotices` number that doesn't match the work they know they did — and no explanation. If the player is the director, they hold someone's year in their hands while that person is at home waiting.
 
 It should be discoverable, but late: at a retrospective, in a memoir, from a crew member decades on, in the obituary. **The film you thought failed you was a choice somebody made in a room you weren't in.** That's the most human thing this simulation can do, and it costs three lines of code.
+
+**v9 — this is no longer strictly true, and the exception is the whole reason §6.3 exists.** An actor holding **a seat in the edit** (§6.3 — earned through a production company, or through being successful enough that editors expect you there, well short of the director's Final Cut above) is no longer purely at the mercy of the three decisions in this section: they get one bounded push of their own on the finished cut, small enough that it never overrides what the director actually decided, real enough that "the room you weren't in" stops being categorically true for the actors who worked for the right to be in it. Most careers never clear that bar, and for them everything above still holds exactly as written — the seat is earned, not given, and it moves the needle, not the outcome.
 
 ## 5.15 Script notes
 
