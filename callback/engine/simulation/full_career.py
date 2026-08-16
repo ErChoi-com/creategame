@@ -113,6 +113,7 @@ def accept_and_play(
     orientation_effect=None,
     requested_director_npc_id: str | None = None,
     streaming_multiplier_override: float | None = None,
+    streaming_bid_selector=None,
 ) -> tuple[FullState, ProjectResult]:
     """script_note: actor.script_notes.ScriptNoteEffect, from a Session-level script-approval
     push. orientation_npc_id + orientation_effect: the tracked co-star this project centres on
@@ -144,6 +145,7 @@ def accept_and_play(
         script_note=script_note, orientation_effect=orientation_effect, director_override=director_override,
         franchise_audience_bonus=franchise_audience_bonus(role, state.franchises),
         streaming_multiplier_override=streaming_multiplier_override,
+        streaming_bid_selector=streaming_bid_selector,
     )
 
     franchises = update_franchise_after_project(

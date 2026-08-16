@@ -13,6 +13,8 @@ import random
 from dataclasses import dataclass
 
 from callback.engine.actor.reception import BREAK_EVEN_MARKETING_SHARE, RIGHTS_SHARE
+from callback.engine.actor.release import STREAMING_BUYOUT_MULTIPLIER
+from callback.engine.core.util import clamp
 
 # How much a marketing share above/below the 0.45 baseline moves the opening-weekend multiplier.
 # A studio spending 10 points of budget more than baseline buys roughly a 6% bigger opening —
@@ -121,10 +123,10 @@ SELF_DISTRIBUTE_MULTIPLIER = 1.0  # your own financing studio just puts it up �
 
 
 def streaming_bidders(budget_millions: float, financing_studio_id: str) -> list[Studio]:
-    """A real bidding pool, not one flat number: every studio whose money actually plays in this
-    budget range makes an offer at its own §8.3-style terms (STREAMING_BUYOUT_MULTIPLIER +
-    streaming_multiplier_delta) — deliberately deterministic (no rng) so the pool is a stable menu
-    a player can compare and choose from, not a fresh roll each look. Always includes the film's
+    """The candidate pool by budget alone — every studio whose money actually plays in this budget
+    range, deterministic (no rng). This is a wide, pre-sale "who could plausibly buy this" list;
+    it says nothing about whether any of them actually want THIS film once it's finished — see
+    quality_adjusted_bids() for the real offers once the movie is made. Always includes the film's
     own financing studio, who can either bid their normal streaming terms or — see
     SELF_DISTRIBUTE_MULTIPLIER — just put it up for nothing rather than sell the rights at all."""
     financing = STUDIOS[financing_studio_id]
@@ -132,3 +134,67 @@ def streaming_bidders(budget_millions: float, financing_studio_id: str) -> list[
     if financing not in bidders:
         bidders = [financing, *bidders]
     return bidders
+
+
+# "Perception can differ and vary within a certain range" — each outside bidder reads the finished
+# film's quality with its own noise, not one shared number.
+QUALITY_PERCEPTION_SPREAD = 10.0
+# Below this perceived quality a non-financing buyer just doesn't bid at all — an awful, un-hyped
+# film can draw zero outside offers, not merely a cheap one.
+QUALITY_BID_FLOOR = 30.0
+QUALITY_MULTIPLIER_FLOOR = 0.55
+QUALITY_MULTIPLIER_CEILING = 1.45
+
+
+def _quality_multiplier(perceived_quality: float) -> float:
+    # 50 (an average film) leaves the base streaming multiplier unchanged; better or worse
+    # perceived quality scales the payout up or down from there.
+    return clamp(0.5 + perceived_quality / 100.0, QUALITY_MULTIPLIER_FLOOR, QUALITY_MULTIPLIER_CEILING)
+
+
+@dataclass(frozen=True)
+class StreamingBid:
+    studio_id: str
+    studio_name: str
+    multiplier: float
+    payout_millions: float
+    self_distribute: bool
+
+
+def quality_adjusted_bids(
+    budget_millions: float,
+    financing_studio_id: str,
+    film_critic_score: float,
+    audience_score: float,
+    rng: random.Random,
+) -> list[StreamingBid]:
+    """The real streaming offers — resolved once the film is actually finished and its quality is
+    known, not a budget-only preview. A great film draws more bidders at better terms; an awful one
+    draws few or none, since each outside buyer's read on it varies (QUALITY_PERCEPTION_SPREAD)
+    instead of everyone agreeing on the same verdict. The financing studio's own offer (its normal
+    terms, plus the always-available SELF_DISTRIBUTE_MULTIPLIER "for nothing" option) is unaffected
+    by quality — they already own the film either way."""
+    financing = STUDIOS[financing_studio_id]
+    quality = (film_critic_score + audience_score) / 2.0
+    pool = [s for s in STUDIOS.values() if _can_credibly_bid(s, budget_millions) and s is not financing]
+
+    bids: list[StreamingBid] = []
+    for studio in pool:
+        perceived = clamp(rng.gauss(quality, QUALITY_PERCEPTION_SPREAD), 0.0, 100.0)
+        if perceived < QUALITY_BID_FLOOR:
+            continue  # this buyer passes on it entirely
+        multiplier = (STREAMING_BUYOUT_MULTIPLIER + studio.streaming_multiplier_delta) * _quality_multiplier(perceived)
+        bids.append(StreamingBid(
+            studio.id, studio.name, round(multiplier, 2), round(budget_millions * multiplier, 2), False,
+        ))
+
+    financing_multiplier = STREAMING_BUYOUT_MULTIPLIER + financing.streaming_multiplier_delta
+    bids.append(StreamingBid(
+        financing.id, financing.name, round(financing_multiplier, 2),
+        round(budget_millions * financing_multiplier, 2), False,
+    ))
+    bids.append(StreamingBid(
+        financing.id, financing.name, SELF_DISTRIBUTE_MULTIPLIER,
+        round(budget_millions * SELF_DISTRIBUTE_MULTIPLIER, 2), True,
+    ))
+    return bids

@@ -34,10 +34,10 @@ from callback.engine.actor.positions import (
 )
 from callback.engine.actor.prep import resolve_prep
 from callback.engine.actor.reception import RIGHTS_SHARE, resolve_reception
-from callback.engine.actor.release import STREAMING_BUYOUT_MULTIPLIER, WIDE, apply_release_strategy
+from callback.engine.actor.release import STREAMING, STREAMING_BUYOUT_MULTIPLIER, WIDE, apply_release_strategy
 from callback.engine.actor.script_notes import ScriptNoteEffect
 from callback.engine.actor.shape import resolve_shape
-from callback.engine.actor.studios import OPENING_MARKETING_COEF, STUDIOS, marketing_share_for
+from callback.engine.actor.studios import OPENING_MARKETING_COEF, STUDIOS, StreamingBid, marketing_share_for, quality_adjusted_bids
 from callback.engine.actor.standing import (
     RecognitionMeter,
     HEAT_KEEP,
@@ -140,6 +140,7 @@ def simulate_project(
     director_override: tuple[float, float, float] | None = None,
     franchise_audience_bonus: float = 0.0,
     streaming_multiplier_override: float | None = None,
+    streaming_bid_selector=None,
 ) -> tuple[ActorState, ProjectResult]:
     """script_note: design/part-05 §5.15's script-notes push (actor/script_notes.py), only
     meaningful if the player holds script approval — the caller enforces that gate.
@@ -149,6 +150,13 @@ def simulate_project(
     requested director (e.g. a tracked Rolodex NPC) standing in for the usual random NPC sample.
     franchise_audience_bonus: §9.5's sequel-value curve (simulation._franchises.franchise_audience_
     bonus), a real AudienceScore bonus for a franchise installment — 0.0 for a standalone film.
+    streaming_bid_selector: only consulted when release_strategy == "streaming" and no explicit
+    streaming_multiplier_override is given. The film's quality is known by this point (resolve_
+    reception has already run) — called with the real, quality-adjusted bid pool (studios.
+    quality_adjusted_bids: fewer or zero outside bidders for a bad film, each buyer's own noisy
+    read on it) and must return the chosen StreamingBid. Defaults to auto-accepting the best offer
+    when no selector is given, so callers that don't care about the sale (verify.py, tests, the
+    rest of simulate_career's loop) don't need to supply one.
     """
     palette = palette or generate_palette(role.genre, rng)
 
@@ -222,10 +230,22 @@ def simulate_project(
         opening_marketing_coef=OPENING_MARKETING_COEF,
     )
     if release_strategy is not None:
-        streaming_multiplier = (
-            streaming_multiplier_override if streaming_multiplier_override is not None
-            else STREAMING_BUYOUT_MULTIPLIER + studio.streaming_multiplier_delta
-        )
+        if release_strategy == STREAMING and streaming_multiplier_override is None:
+            # Quality (film_critic_score/audience_score, on `reception` above) is already resolved
+            # — the sale happens after the movie has been made, and it shows: a bad film draws a
+            # thinner, worse pool than a good one.
+            bids = quality_adjusted_bids(
+                role.budget_for_role, role.studio, reception.film_critic_score, reception.audience_score, rng,
+            )
+            chosen = streaming_bid_selector(bids) if streaming_bid_selector is not None else max(
+                bids, key=lambda b: b.payout_millions,
+            )
+            streaming_multiplier = chosen.multiplier
+        else:
+            streaming_multiplier = (
+                streaming_multiplier_override if streaming_multiplier_override is not None
+                else STREAMING_BUYOUT_MULTIPLIER + studio.streaming_multiplier_delta
+            )
         reception = apply_release_strategy(
             reception, release_strategy, rng, cast_star_power=cast_star_power,
             festival_tier_bonus=studio.festival_tier_bonus,

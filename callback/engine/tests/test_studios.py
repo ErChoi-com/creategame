@@ -8,7 +8,14 @@ import unittest
 
 from callback.engine.actor.reception import BREAK_EVEN_MARKETING_SHARE, RIGHTS_SHARE, resolve_reception
 from callback.engine.actor.release import STREAMING_BUYOUT_MULTIPLIER, STREAMING, apply_release_strategy
-from callback.engine.actor.studios import SELF_DISTRIBUTE_MULTIPLIER, STUDIOS, marketing_share_for, pick_studio, streaming_bidders
+from callback.engine.actor.studios import (
+    SELF_DISTRIBUTE_MULTIPLIER,
+    STUDIOS,
+    marketing_share_for,
+    pick_studio,
+    quality_adjusted_bids,
+    streaming_bidders,
+)
 
 
 class TestStudioProfiles(unittest.TestCase):
@@ -115,6 +122,40 @@ class TestStreamingBidders(unittest.TestCase):
     def test_self_distribute_multiplier_is_break_even_only(self):
         # "for nothing" — you get exactly your budget back, no more, no less.
         self.assertEqual(SELF_DISTRIBUTE_MULTIPLIER, 1.0)
+
+
+class TestQualityAdjustedBids(unittest.TestCase):
+    def test_an_awful_film_draws_fewer_outside_bidders_than_a_great_one(self):
+        awful_count = sum(
+            len(quality_adjusted_bids(30.0, "mid_major", 10.0, 10.0, random.Random(i))) for i in range(50)
+        )
+        great_count = sum(
+            len(quality_adjusted_bids(30.0, "mid_major", 90.0, 90.0, random.Random(i))) for i in range(50)
+        )
+        self.assertLess(awful_count, great_count)
+
+    def test_an_awful_film_can_draw_zero_outside_bidders(self):
+        # financing studio's own offer + self-distribute always remain — but nobody else bites.
+        bids = quality_adjusted_bids(30.0, "mid_major", 2.0, 2.0, random.Random(7))
+        non_financing = [b for b in bids if b.studio_id != "mid_major"]
+        self.assertEqual(non_financing, [])
+
+    def test_financing_studio_and_self_distribute_are_always_present_regardless_of_quality(self):
+        bids = quality_adjusted_bids(30.0, "mid_major", 0.0, 0.0, random.Random(1))
+        self.assertTrue(any(b.studio_id == "mid_major" and not b.self_distribute for b in bids))
+        self.assertTrue(any(b.self_distribute for b in bids))
+
+    def test_perception_varies_bidder_to_bidder_not_one_shared_number(self):
+        bids = quality_adjusted_bids(30.0, "mid_major", 60.0, 60.0, random.Random(3))
+        outside = [b for b in bids if b.studio_id != "mid_major" and not b.self_distribute]
+        self.assertGreaterEqual(len(outside), 2)
+        self.assertGreater(len({b.multiplier for b in outside}), 1)
+
+    def test_a_great_film_earns_more_than_a_mediocre_one_from_the_same_bidder_pool(self):
+        rng_a, rng_b = random.Random(9), random.Random(9)
+        mediocre = quality_adjusted_bids(30.0, "mid_major", 50.0, 50.0, rng_a)
+        great = quality_adjusted_bids(30.0, "mid_major", 95.0, 95.0, rng_b)
+        self.assertGreater(max(b.payout_millions for b in great), max(b.payout_millions for b in mediocre))
 
 
 if __name__ == "__main__":

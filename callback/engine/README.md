@@ -188,10 +188,22 @@ gathers every studio whose money credibly plays at this budget (a wider band tha
 menu to compare rather than a fresh roll every time you look. The pool always includes the film's
 own financing studio, who can either bid their normal terms *or* — `SELF_DISTRIBUTE_MULTIPLIER`
 — just put it up on their own service for nothing: you get exactly your budget back, no more, no
-less, the literal "for nothing" option. `Session.streaming_bid_options()` surfaces the whole pool;
-`choose_release("streaming", streaming_multiplier=...)` threads whichever bid you pick all the way
-down through `accept_and_play()`/`simulate_project()` into the actual `ReceptionResult`, so the
-number you agreed to is the number that resolves — not the financing studio's own default.
+less, the literal "for nothing" option. `Session.streaming_bid_options()` surfaces a budget-only
+*preview* pool before the film is made — nobody's seen it yet, so it can't reflect quality.
+
+**The real sale happens after the movie is made, and quality decides who shows up.**
+`studios.quality_adjusted_bids()` is resolved inside `choose_release("streaming")` itself, once
+`resolve_reception()` has already produced the film's actual `film_critic_score`/`audience_score`
+(`career.py` never reorders this — the quality terms are computed before any release strategy is
+ever applied). Each outside bidder reads that quality with its own noise
+(`QUALITY_PERCEPTION_SPREAD`, "perception can differ and vary within a certain range"), and a buyer
+whose perceived read falls below `QUALITY_BID_FLOOR` simply doesn't bid — an awful film, especially
+one that never got a wide release, can draw a thin outside pool or none at all. `choose_release`
+takes an optional `streaming_bid_selector(bids) -> StreamingBid` callback (the CLI's
+`release_screen()` uses it to show the real, quality-shaped offers and let you pick); with no
+selector it auto-accepts the best offer. The financing studio's own terms and the
+`SELF_DISTRIBUTE_MULTIPLIER` "for nothing" option are always on the table regardless of quality —
+they already own the film either way.
 
 **Franchises and directors are now real, interacting systems, not just data sitting in `genre/`
 and `director/` unreached** (`simulation/_franchises.py`). Two previously-dormant systems —

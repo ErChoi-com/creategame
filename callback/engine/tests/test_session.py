@@ -246,6 +246,39 @@ class TestStreamingBidding(unittest.TestCase):
         summary = session.choose_release("streaming", streaming_multiplier=self_distribute["multiplier"])
         self.assertAlmostEqual(summary["roi"], self_distribute["multiplier"], places=2)
 
+    def test_the_real_bid_pool_is_offered_after_quality_is_known_not_before(self):
+        session = Session(seed=42)
+        session.start("conservatory", "work")
+        if not _get_to_prep(session):
+            self.skipTest("no offer came through — RNG variance, not a bug")
+        session.choose_deal(False)
+        session.choose_prep("table_work")
+        for _ in range(3):
+            session.play_scene({d: "with" for d, _ in session.dial_options()})
+
+        seen_bids = []
+
+        def selector(bids):
+            seen_bids.extend(bids)
+            return max(bids, key=lambda b: b.payout_millions)
+
+        summary = session.choose_release("streaming", streaming_bid_selector=selector)
+        self.assertTrue(seen_bids)
+        self.assertIsInstance(summary["streaming_buyer"], str)
+        self.assertIn("roi", summary)
+
+    def test_no_selector_defaults_to_auto_accepting_the_best_offer(self):
+        session = Session(seed=43)
+        session.start("conservatory", "work")
+        if not _get_to_prep(session):
+            self.skipTest("no offer came through — RNG variance, not a bug")
+        session.choose_deal(False)
+        session.choose_prep("table_work")
+        for _ in range(3):
+            session.play_scene({d: "with" for d, _ in session.dial_options()})
+        summary = session.choose_release("streaming")
+        self.assertIsNotNone(summary["streaming_buyer"])
+
 
 class TestScriptNotes(unittest.TestCase):
     def test_unavailable_without_script_approval(self):

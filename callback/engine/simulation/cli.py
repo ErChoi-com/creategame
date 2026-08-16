@@ -206,18 +206,22 @@ def release_screen(session: Session, auto: bool) -> dict:
     if key != "streaming":
         return session.choose_release(key)
 
-    bids = session.streaming_bid_options()
-    print("  STREAMING RIGHTS — competing offers:")
-    options = [
-        (str(i), (f"{b['studio_name']} — puts it up for nothing, you just get your budget back"
-                   if b["self_distribute"] else
-                   f"{b['studio_name']} — ${b['payout_millions']:.1f}M ({b['multiplier']}x budget)"))
-        for i, b in enumerate(bids)
-    ]
-    best_index = max(range(len(bids)), key=lambda i: bids[i]["payout_millions"])
-    pick = choose(options, "  Sell to:", best_index, auto)
-    chosen = bids[int(pick)]
-    return session.choose_release(key, streaming_multiplier=chosen["multiplier"])
+    def pick_bid(bids):
+        # Resolved after the film is actually made — quality decided who showed up to bid.
+        print("  STREAMING RIGHTS — the finished film draws its own offers:")
+        options = [
+            (str(i), (f"{b.studio_name} — puts it up for nothing, you just get your budget back"
+                       if b.self_distribute else
+                       f"{b.studio_name} — ${b.payout_millions:.1f}M ({b.multiplier}x budget)"))
+            for i, b in enumerate(bids)
+        ]
+        if len(bids) == 1:
+            print(f"    Nobody else bit — {bids[0].studio_name} is the only offer on the table.")
+        best_index = max(range(len(bids)), key=lambda i: bids[i].payout_millions)
+        pick = choose(options, "  Sell to:", best_index, auto)
+        return bids[int(pick)]
+
+    return session.choose_release(key, streaming_bid_selector=pick_bid)
 
 
 def post_release_screen(summary: dict) -> None:

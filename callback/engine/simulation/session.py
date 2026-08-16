@@ -424,11 +424,14 @@ class Session:
         return [(s, RELEASE_LABELS[s]) for s in RELEASE_STRATEGIES]
 
     def streaming_bid_options(self) -> list[dict]:
-        """A real bidding pool for streaming rights, not one flat studio-default number — every
-        studio whose money plays in this budget range makes an offer at its own terms, deterministic
-        (no rng) so it's a stable menu to compare rather than a fresh roll each look. Always
-        includes the financing studio's own SELF_DISTRIBUTE_MULTIPLIER option: they just put it up
-        on their own service for nothing — you get your budget back, no more."""
+        """A rough, budget-only preview of who could plausibly buy streaming rights — before the
+        film is actually made, nobody's seen it yet, so this can't reflect quality. Deterministic
+        (no rng): a stable menu to compare, not a fresh roll each look. The real offers, shaped by
+        the finished film's actual quality (fewer or worse bidders for a bad film, each buyer's own
+        noisy read on it), are resolved inside choose_release("streaming") itself — see
+        _streaming_bid_summary below. Always includes the financing studio's own SELF_DISTRIBUTE_
+        MULTIPLIER option: they just put it up on their own service for nothing — you get your
+        budget back, no more."""
         budget = self._role.budget_for_role
         bidders = streaming_bidders(budget, self._role.studio)
         options = [
@@ -449,16 +452,35 @@ class Session:
         })
         return options
 
-    def choose_release(self, strategy: str, streaming_multiplier: float | None = None) -> dict:
+    def choose_release(
+        self, strategy: str, streaming_multiplier: float | None = None, streaming_bid_selector=None,
+    ) -> dict:
         """Resolves the whole project — the one point everything collected since offer_board()
         actually gets spent. Does not advance the year itself (see end_year()) — you might also
         work on directing this same year; acting and directing no longer compete for the same
         calendar slot.
 
-        streaming_multiplier: only meaningful when strategy == "streaming" — the specific bidder's
-        terms from streaming_bid_options(), in place of the financing studio's own default."""
+        streaming_multiplier: only meaningful when strategy == "streaming" — a specific, already-
+        known buyer's terms (e.g. the financing studio's own SELF_DISTRIBUTE_MULTIPLIER option from
+        streaming_bid_options()), skipping the real quality-aware bid pool entirely.
+        streaming_bid_selector: only meaningful when strategy == "streaming" and no
+        streaming_multiplier is given. Called with the real bid pool (list[actor.studios.
+        StreamingBid]) once the finished film's quality is actually known — an awful, no-wide-
+        release film can draw a thin or empty outside pool, since each buyer's read on it varies.
+        Must return the chosen StreamingBid. Defaults to auto-accepting the best offer when no
+        selector is given."""
         scenes = tuple(self._scenes) if len(self._scenes) == 3 else (self._scenes + [{}] * 3)[:3]
         franchise_installment = self._role.installment_number
+        chosen_bid = {}
+
+        def _capture(bids):
+            nonlocal chosen_bid
+            picked = streaming_bid_selector(bids) if streaming_bid_selector is not None else max(
+                bids, key=lambda b: b.payout_millions,
+            )
+            chosen_bid = {"studio_name": picked.studio_name, "self_distribute": picked.self_distribute}
+            return picked
+
         self.state, result = accept_and_play(
             self.state, self._role, self._prep_choice or "table_work", scenes, self.rng,
             release_strategy=strategy,
@@ -467,6 +489,7 @@ class Session:
             orientation_effect=self._orientation_effect,
             requested_director_npc_id=self._requested_director_npc_id,
             streaming_multiplier_override=streaming_multiplier if strategy == "streaming" else None,
+            streaming_bid_selector=_capture if strategy == "streaming" and streaming_multiplier is None else None,
         )
         bonus = box_office_bonus_earned(result.gross, result.roi) if self._box_office_bonus_negotiated else 0.0
         self._acting_worked_this_year = True
@@ -476,6 +499,8 @@ class Session:
         self._scenes = []
 
         return {
+            "streaming_buyer": chosen_bid.get("studio_name"),
+            "streaming_self_distributed": chosen_bid.get("self_distribute", False),
             "performance_band": performance_band(result.performance),
             "critic_band": critic_band(result.film_critic_score),
             "critic_score": round(result.film_critic_score),
