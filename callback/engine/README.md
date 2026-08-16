@@ -168,6 +168,14 @@ studio financing it), but the two numbers stay visibly separate rather than beco
 Shelved, and an unsold Festival submission all zero out `marketing` (no distributor ever spent it),
 while the production `budget` itself is untouched in every strategy.
 
+**Fixed a real scale bug in Streaming's ROI.** Every release path's `roi` is a multiple where 1.0
+means exact break-even (`simulation/bands.ROI_BANDS`' own scale: 0.9 "close to even", 1.3
+"profitable", ...) — Streaming's used to compute `(payout − budget) / budget`, a *gain fraction*
+where 0.0 means break-even instead. A guaranteed-profitable `streaming_multiplier > 1.0` deal (the
+whole point of the flat §8.3 buyout) was landing well under the 0.9 "close to even" threshold on
+that scale and banding as **"a loss"** every single time, despite always paying out more than the
+budget. Now `roi = payout / budget`, on the same scale as everything else.
+
 `offers.sample_role()` now assigns
 a studio weighted by the film's own budget (`studios.pick_studio()` — a $4M film never lands at
 the blockbuster machine, a $200M one never lands at the indie house), and the CLI/`Session`

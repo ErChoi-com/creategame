@@ -105,8 +105,11 @@ def apply_release_strategy(
 
     if strategy == STREAMING:
         # §8.3's own framing: "no theatrical" — the flat buyout replaces marketing spend entirely.
+        # roi is a multiple (1.0 = exact break-even), matching every other release path and
+        # simulation/bands.ROI_BANDS' own scale — NOT a gain fraction (0.0 = break-even), which
+        # would silently misband a guaranteed-profitable streaming_multiplier > 1.0 deal as a loss.
         payout = reception.budget * streaming_multiplier
-        roi = (payout - reception.budget) / reception.budget if reception.budget > 0 else 0.0
+        roi = payout / reception.budget if reception.budget > 0 else 0.0
         return replace(reception, gross=payout, marketing=0.0, roi=roi)
 
     if strategy == SHELVED:

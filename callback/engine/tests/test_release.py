@@ -43,6 +43,17 @@ class TestReleaseStrategies(unittest.TestCase):
         self.assertEqual(streamed.marketing, 0.0)
         self.assertEqual(streamed.budget, r.budget)  # production budget itself is untouched
 
+    def test_streaming_roi_is_a_multiple_not_a_gain_fraction(self):
+        """Regression: streaming's roi must sit on the same 1.0-is-break-even scale every other
+        release path uses (and simulation/bands.ROI_BANDS assumes) — a guaranteed-profitable
+        streaming_multiplier > 1.0 deal must never band as "a loss"."""
+        from callback.engine.actor.release import STREAMING_BUYOUT_MULTIPLIER
+        from callback.engine.simulation.bands import roi_band
+        r = _reception(budget=20.0)
+        streamed = apply_release_strategy(r, STREAMING, random.Random(1))
+        self.assertAlmostEqual(streamed.roi, STREAMING_BUYOUT_MULTIPLIER)
+        self.assertNotEqual(roi_band(streamed.roi), "a loss")
+
     def test_shelved_zeroes_marketing_too(self):
         r = _reception()
         shelved = apply_release_strategy(r, SHELVED, random.Random(1))
