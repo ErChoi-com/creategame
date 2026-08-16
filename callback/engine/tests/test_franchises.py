@@ -96,14 +96,14 @@ class TestUpdateFranchiseAfterProject(unittest.TestCase):
         standing = new_standing_model()
         franchises = {}
         role1 = _role(franchise_id="fr_006", installment_number=1)
-        franchises = update_franchise_after_project(franchises, role1, notices=70.0, audience_score=75.0,
+        franchises = update_franchise_after_project(franchises, role1, spotlight=70.0, audience_score=75.0,
                                                       standing_model=standing, current_year=0,
                                                       requested_director_npc_id="n_010")
         f1 = franchises["fr_006"]
         self.assertEqual(f1.installments_starred, 1)
 
         role2 = _role(franchise_id="fr_006", installment_number=2)
-        franchises = update_franchise_after_project(franchises, role2, notices=75.0, audience_score=80.0,
+        franchises = update_franchise_after_project(franchises, role2, spotlight=75.0, audience_score=80.0,
                                                       standing_model=standing, current_year=2,
                                                       requested_director_npc_id="n_010")
         f2 = franchises["fr_006"]

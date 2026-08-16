@@ -31,7 +31,7 @@ class TestNarrativeBonus(unittest.TestCase):
 
 
 class TestBuzzAndVoting(unittest.TestCase):
-    def test_higher_notices_gives_higher_buzz_on_average(self):
+    def test_higher_spotlight_gives_higher_buzz_on_average(self):
         rng_a, rng_b = random.Random(1), random.Random(1)
         low = buzz_score(30, 50, 1.0, 50, 0, 0, rng_a)
         high = buzz_score(90, 50, 1.0, 50, 0, 0, rng_b)

@@ -87,8 +87,8 @@ def new_actor(age: int = 22, attrs: Attributes | None = None) -> ActorState:
 class ProjectResult:
     role: Role
     cast_via: str
-    notices: float
-    ensemble: float
+    spotlight: float
+    craft_contribution: float
     performance: float
     project_quality: float
     film_critic_score: float
@@ -173,14 +173,14 @@ def simulate_project(
     scene_reads = tuple(resolve_scene_positions(choice, role.genre, budget) for choice in scene_choices)
     shape_result = resolve_shape(scene_reads, perf_result.performance)  # type: ignore[arg-type]
 
-    notices_pen, ensemble_pen = overspend_penalty(shape_result.total_overspend)
-    notices = max(shape_result.notices + notices_pen, state.attrs.notices_floor())
-    ensemble = shape_result.ensemble + ensemble_pen
+    spotlight_pen, craft_contribution_pen = overspend_penalty(shape_result.total_overspend)
+    spotlight = max(shape_result.spotlight + spotlight_pen, state.attrs.spotlight_floor())
+    craft_contribution = shape_result.craft_contribution + craft_contribution_pen
 
     npc_affinity_delta = 0.0
     if orientation_effect is not None:
-        notices = notices + orientation_effect.you_notices
-        ensemble = ensemble + orientation_effect.film_ensemble
+        spotlight = spotlight + orientation_effect.you_spotlight
+        craft_contribution = craft_contribution + orientation_effect.film_craft_contribution
         npc_affinity_delta = orientation_effect.affinity_delta
 
     # genre_demand_override lets a caller with real §9.3 GenreHeat (simulation/full_career.py,
@@ -205,7 +205,7 @@ def simulate_project(
     reception = resolve_reception(
         script_quality=script_quality,
         director_skill=director_skill,
-        ensemble=ensemble,
+        craft_contribution=craft_contribution,
         genre=role.genre,
         role_budget_millions=role.budget_for_role,
         director_prestige=director_prestige,
@@ -229,7 +229,7 @@ def simulate_project(
 
     bw = {"lead": 1.0, "supporting": 0.55, "bit": 0.2, "extra": 0.0}[role.billing]
     heat_delta = delta_heat(bw, state.credits, role.budget_for_role, reception.roi, reception.audience_score)
-    prestige_delta = delta_prestige(bw, state.credits, reception.film_critic_score, notices)
+    prestige_delta = delta_prestige(bw, state.credits, reception.film_critic_score, spotlight)
     affection_delta = delta_affection(bw, state.credits, role.budget_for_role, reception.audience_score)
 
     new_standing = state.standing.copy()
@@ -239,7 +239,7 @@ def simulate_project(
 
     new_persona = state.persona.update(role.genre, role.archetype, role.billing, reception.audience_score)
     new_attrs = state.attrs.with_deltas(craft=prep_result.craft_delta, resilience=prep_result.resilience_delta)
-    new_recognition = state.recognition.add(notices) if role.billing in ("supporting", "bit") else state.recognition
+    new_recognition = state.recognition.add(spotlight) if role.billing in ("supporting", "bit") else state.recognition
 
     new_state = replace(
         state,
@@ -255,8 +255,8 @@ def simulate_project(
     result = ProjectResult(
         role=role,
         cast_via="project",
-        notices=notices,
-        ensemble=ensemble,
+        spotlight=spotlight,
+        craft_contribution=craft_contribution,
         performance=perf_result.performance,
         project_quality=reception.project_quality,
         film_critic_score=reception.film_critic_score,

@@ -66,24 +66,24 @@ def _one_project(rng: random.Random, genre: str | None = None):
 def reception(n: int = 20000, seed: int = 3) -> None:
     print("=== §14.1 RECEPTION MODEL ===")
     rng = random.Random(seed)
-    perf, fc, notices, aud, roi = [], [], [], [], []
+    perf, fc, spotlight, aud, roi = [], [], [], [], []
     for _ in range(n):
         r = _one_project(rng)
         perf.append(r.performance)
         fc.append(r.film_critic_score)
-        notices.append(r.notices)
+        spotlight.append(r.spotlight)
         aud.append(r.audience_score)
         roi.append(r.roi)
 
     print(f"Performance   mean {st.mean(perf):6.1f}  sd {st.pstdev(perf):5.1f}")
     print(f"FilmCritic    mean {st.mean(fc):6.1f}  sd {st.pstdev(fc):5.1f}")
-    print(f"Notices       mean {st.mean(notices):6.1f}  sd {st.pstdev(notices):5.1f}")
+    print(f"Spotlight       mean {st.mean(spotlight):6.1f}  sd {st.pstdev(spotlight):5.1f}")
     print(f"AudienceScore mean {st.mean(aud):6.1f}  sd {st.pstdev(aud):5.1f}")
     print(f"ROI           median {st.median(roi):.2f}  profitable {100*sum(1 for x in roi if x>1)/len(roi):.0f}%")
     print()
 
     checks = [
-        ("Performance <-> Notices", corr(perf, notices), (0.70, 0.80)),
+        ("Performance <-> Spotlight", corr(perf, spotlight), (0.70, 0.80)),
         ("Performance <-> FilmCritic", corr(perf, fc), (0.40, 0.48)),
         ("Performance <-> ROI", corr(perf, roi), (0.20, 0.30)),
         ("FilmCritic <-> ROI", corr(fc, roi), (0.20, 0.30)),
@@ -121,7 +121,7 @@ def creative_decisions(n_per_genre: int = 4000, seed: int = 7) -> None:
     ]:
         print(f"  {label:34s} budget = {contrast_budget(craft, command):.1f}")
 
-    print("\n-- showiest allocation must NOT maximise Notices --")
+    print("\n-- showiest allocation must NOT maximise Spotlight --")
     named_allocations = {
         "steady (mostly with)": ({"energy": "with", "volume": "with", "warmth": "with", "speed": "with"},) * 3,
         "shaped (one against)": (
@@ -142,9 +142,9 @@ def creative_decisions(n_per_genre: int = 4000, seed: int = 7) -> None:
             state = _sample_actor(rng)
             role = sample_role(rng)
             _, result = simulate_project(state, role, "table_work", allocation, rng)
-            totals.append(result.notices)
+            totals.append(result.spotlight)
         means[label] = st.mean(totals)
-        print(f"  {label:26s} mean Notices = {means[label]:6.1f}")
+        print(f"  {label:26s} mean Spotlight = {means[label]:6.1f}")
     ok = means["shaped (one against)"] > means["showy (against + beyond)"]
     print(f"  {'OK ' if ok else '<<<'} shaped > showy: {ok}")
 

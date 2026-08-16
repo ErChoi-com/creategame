@@ -142,7 +142,7 @@ def accept_and_play(
     )
 
     franchises = update_franchise_after_project(
-        state.franchises, role, result.notices, result.audience_score,
+        state.franchises, role, result.spotlight, result.audience_score,
         new_actor_state.standing, current_year(state), requested_director_npc_id,
     )
 

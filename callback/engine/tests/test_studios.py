@@ -45,7 +45,7 @@ class TestPickStudio(unittest.TestCase):
 class TestMarketingAffectsReception(unittest.TestCase):
     def _resolve(self, marketing_share, rng):
         return resolve_reception(
-            script_quality=60, director_skill=60, ensemble=60, genre="drama",
+            script_quality=60, director_skill=60, craft_contribution=60, genre="drama",
             role_budget_millions=30, director_prestige=50, staleness_penalty=0,
             cast_star_power=50, genre_demand=55, rng=rng,
             marketing_share=marketing_share, opening_marketing_coef=0.60,
@@ -59,14 +59,14 @@ class TestMarketingAffectsReception(unittest.TestCase):
     def test_default_marketing_share_matches_flat_baseline_behaviour(self):
         rng_a, rng_b = random.Random(5), random.Random(5)
         default_result = resolve_reception(
-            script_quality=60, director_skill=60, ensemble=60, genre="drama",
+            script_quality=60, director_skill=60, craft_contribution=60, genre="drama",
             role_budget_millions=30, director_prestige=50, staleness_penalty=0,
             cast_star_power=50, genre_demand=55, rng=rng_a,
         )
         explicit_result = self._resolve(BREAK_EVEN_MARKETING_SHARE, rng_b)
         # opening_marketing_coef=0 by default, so an explicit baseline share matches the old flat path
         self.assertAlmostEqual(default_result.opening, resolve_reception(
-            script_quality=60, director_skill=60, ensemble=60, genre="drama",
+            script_quality=60, director_skill=60, craft_contribution=60, genre="drama",
             role_budget_millions=30, director_prestige=50, staleness_penalty=0,
             cast_star_power=50, genre_demand=55, rng=random.Random(5),
             marketing_share=BREAK_EVEN_MARKETING_SHARE, opening_marketing_coef=0.0,
@@ -77,7 +77,7 @@ class TestStreamerBuyoutBonus(unittest.TestCase):
     def test_streamer_studio_bonus_multiplier_beats_flat_preset(self):
         rng = random.Random(3)
         reception = resolve_reception(
-            script_quality=60, director_skill=60, ensemble=60, genre="drama",
+            script_quality=60, director_skill=60, craft_contribution=60, genre="drama",
             role_budget_millions=30, director_prestige=50, staleness_penalty=0,
             cast_star_power=50, genre_demand=55, rng=rng,
         )

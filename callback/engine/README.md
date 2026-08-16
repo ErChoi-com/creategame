@@ -125,7 +125,7 @@ actually making rather than life/politics side systems:
   `Session.script_notes_available()` / `script_note_options()` / `choose_script_note()`.
 - **Scene-partner orientation** — `actor/positions.py`'s `generosity()`/`upstaging()` formulas
   existed but were never called from anywhere; picking a tracked Rolodex co-star and choosing to
-  play generous or upstage them now actually shifts notices, ensemble, and the relationship, and
+  play generous or upstage them now actually shifts Spotlight, Craft Contribution, and the relationship, and
   generosity credits that NPC a Leverage favour. `Session.costar_options()` /
   `orientation_options()` / `choose_orientation()`.
 - **Requesting your director** — spend a Leverage favour to pull a specific tracked Rolodex
@@ -184,7 +184,7 @@ not bolted on as a side mode:
   passion-project engagement bump to their skill term — continuity is rewarded the same way the
   formula already rewards a director who cares about the project.
 - **Indispensability is a real, playable holdout, not a stat that just sits there.** Every sequel
-  updates `character_identification()`/`indispensability()` off your real Notices, the audience's
+  updates `character_identification()`/`indispensability()` off your real Spotlight, the audience's
   response, and your own Standing's `star_power()`. Once it crosses a threshold,
   `Session.holdout_available()` opens up `Session.request_holdout()` — the studio either pays a
   real fee increase, calls your bluff and proceeds at the original terms, or recasts the part

@@ -23,7 +23,7 @@ CARETAKING_AGE_CHANCE_COEF = 0.004
 SECOND_GEN_ROLODEX_TRANSFER = 0.70
 SECOND_GEN_PRESTIGE_TRANSFER = 0.0  # not carried — a new career starts on its own merit
 SECOND_GEN_NEPOTISM_PENALTY = -15.0
-SECOND_GEN_NEPOTISM_CLEAR_NOTICES = 82.0
+SECOND_GEN_NEPOTISM_CLEAR_SPOTLIGHT = 82.0
 
 
 @dataclass(frozen=True)
@@ -65,5 +65,5 @@ def maybe_generate_caretaking(family: FamilyState, age: int, rng: random.Random)
     return family
 
 
-def nepotism_penalty_cleared(your_notices: float) -> bool:
-    return your_notices > SECOND_GEN_NEPOTISM_CLEAR_NOTICES
+def nepotism_penalty_cleared(your_spotlight: float) -> bool:
+    return your_spotlight > SECOND_GEN_NEPOTISM_CLEAR_SPOTLIGHT

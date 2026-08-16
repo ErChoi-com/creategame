@@ -1,5 +1,5 @@
 """design/part-05-the-work.md §5.5, §5.7 — the four positions, the contrast budget, and the two
-named modifiers (Generosity, Upstaging) that consume/produce Notices and Ensemble around a scene.
+named modifiers (Generosity, Upstaging) that consume/produce Spotlight and CraftContribution around a scene.
 """
 from __future__ import annotations
 
@@ -40,17 +40,17 @@ GENRE_DIAL_REWEIGHT: dict[tuple[str, str], float] = {
 }
 
 CONTRAST_BUDGET_DIVISOR = 28.0
-OVERSPEND_NOTICES_COEF = 5.0
-OVERSPEND_ENSEMBLE_COEF = 3.0
+OVERSPEND_SPOTLIGHT_COEF = 5.0
+OVERSPEND_CRAFT_CONTRIBUTION_COEF = 3.0
 
-GENEROSITY_YOU_NOTICES = -1.5
-GENEROSITY_THEM_NOTICES = 2.5
-GENEROSITY_FILM_ENSEMBLE = 1.5
+GENEROSITY_YOU_SPOTLIGHT = -1.5
+GENEROSITY_THEM_SPOTLIGHT = 2.5
+GENEROSITY_FILM_CRAFT_CONTRIBUTION = 1.5
 GENEROSITY_FAVOUR = 1
 
-UPSTAGING_YOU_NOTICES = 2.0
-UPSTAGING_THEM_NOTICES = -2.0
-UPSTAGING_FILM_ENSEMBLE = -1.5
+UPSTAGING_YOU_SPOTLIGHT = 2.0
+UPSTAGING_THEM_SPOTLIGHT = -2.0
+UPSTAGING_FILM_CRAFT_CONTRIBUTION = -1.5
 
 
 def contrast_budget(craft: float, director_command: float) -> float:
@@ -88,17 +88,17 @@ def resolve_scene_positions(choices: dict[str, str], genre: str, budget: float) 
 
 
 def overspend_penalty(overspend: float) -> tuple[float, float]:
-    """Returns (notices_penalty, ensemble_penalty) — both already negative-signed deltas."""
+    """Returns (spotlight_penalty, craft_contribution_penalty) — both already negative-signed deltas."""
     if overspend <= 0:
         return 0.0, 0.0
-    return -OVERSPEND_NOTICES_COEF * overspend, -OVERSPEND_ENSEMBLE_COEF * overspend
+    return -OVERSPEND_SPOTLIGHT_COEF * overspend, -OVERSPEND_CRAFT_CONTRIBUTION_COEF * overspend
 
 
 @dataclass(frozen=True)
 class ModifierResult:
-    you_notices: float
-    them_notices: float
-    film_ensemble: float
+    you_spotlight: float
+    them_spotlight: float
+    film_craft_contribution: float
     you_favour: float = 0.0
     affinity_delta: float = 0.0
 
@@ -106,9 +106,9 @@ class ModifierResult:
 def generosity(their_affinity_gain: float = 0.0) -> ModifierResult:
     """Playing Beneath on a dial where your scene partner plays Beyond or Against."""
     return ModifierResult(
-        you_notices=GENEROSITY_YOU_NOTICES,
-        them_notices=GENEROSITY_THEM_NOTICES,
-        film_ensemble=GENEROSITY_FILM_ENSEMBLE,
+        you_spotlight=GENEROSITY_YOU_SPOTLIGHT,
+        them_spotlight=GENEROSITY_THEM_SPOTLIGHT,
+        film_craft_contribution=GENEROSITY_FILM_CRAFT_CONTRIBUTION,
         you_favour=GENEROSITY_FAVOUR,
         affinity_delta=their_affinity_gain,
     )
@@ -117,8 +117,8 @@ def generosity(their_affinity_gain: float = 0.0) -> ModifierResult:
 def upstaging(affinity_loss: float = -1.0) -> ModifierResult:
     """Playing Beyond in a scene partner's moment."""
     return ModifierResult(
-        you_notices=UPSTAGING_YOU_NOTICES,
-        them_notices=UPSTAGING_THEM_NOTICES,
-        film_ensemble=UPSTAGING_FILM_ENSEMBLE,
+        you_spotlight=UPSTAGING_YOU_SPOTLIGHT,
+        them_spotlight=UPSTAGING_THEM_SPOTLIGHT,
+        film_craft_contribution=UPSTAGING_FILM_CRAFT_CONTRIBUTION,
         affinity_delta=affinity_loss,
     )

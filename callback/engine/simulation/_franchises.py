@@ -23,7 +23,7 @@ SEQUEL_CHANCE = 0.35  # if you have an eligible open franchise, a listing this y
 SEQUEL_ELIGIBLE_MAX_DORMANT_YEARS = 4  # a franchise dormant longer than this isn't greenlighting a sequel
 FRANCHISE_INDISPENSABILITY_HOLDOUT_THRESHOLD = 30.0
 DEFAULT_CONTRACTUAL_HOLD = 50.0  # §6.4 names this as a real input; not otherwise modeled this pass
-DEFAULT_CAST_AVERAGE_STAR_POWER = 50.0  # same — the rest of the ensemble's own star power isn't tracked per-NPC
+DEFAULT_CAST_AVERAGE_STAR_POWER = 50.0  # same — the rest of the cast's own star power isn't tracked per-NPC
 
 
 @dataclass(frozen=True)
@@ -83,7 +83,7 @@ def director_continuity_bonus(role: Role, franchises: dict, requested_director_n
 def update_franchise_after_project(
     franchises: dict,
     role: Role,
-    notices: float,
+    spotlight: float,
     audience_score: float,
     standing_model: StandingModel,
     current_year: int,
@@ -94,7 +94,7 @@ def update_franchise_after_project(
     prior = franchises.get(role.franchise_id) or FranchiseEntry(
         franchise_id=role.franchise_id, genre=role.genre, studio_id=role.studio,
     )
-    new_character_id = character_identification(prior.character_id, notices, memorability=audience_score)
+    new_character_id = character_identification(prior.character_id, spotlight, memorability=audience_score)
     new_installments = prior.installments_starred + 1
     new_indispensability = indispensability(
         new_character_id, new_installments, star_power(standing_model),

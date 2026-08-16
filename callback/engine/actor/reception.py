@@ -1,6 +1,6 @@
 """design/part-04-the-actor.md §4.10 — Reception: the decoupling.
 
-Takes Notices/Ensemble from actor/shape.py rather than recomputing them — §4.10's own v9 note
+Takes Spotlight/CraftContribution from actor/shape.py rather than recomputing them — §4.10's own v9 note
 states there is now exactly one code path producing those two numbers, and this module is the
 consumer, not a second producer.
 """
@@ -15,7 +15,7 @@ from callback.engine.core.util import clamp
 # ProjectQuality weights.
 PQ_SCRIPT = 0.31
 PQ_DIRECTOR_SKILL = 0.22
-PQ_ENSEMBLE = 0.29
+PQ_CRAFT_CONTRIBUTION = 0.29
 PQ_PRODUCTION_VALUE = 0.08
 PQ_POST_LUCK = 0.10
 POST_LUCK_MEAN = 52.0
@@ -69,7 +69,7 @@ class ReceptionResult:
 def resolve_reception(
     script_quality: float,
     director_skill: float,
-    ensemble: float,
+    craft_contribution: float,
     genre: str,
     role_budget_millions: float,
     director_prestige: float,
@@ -97,7 +97,7 @@ def resolve_reception(
     project_quality = clamp(
         PQ_SCRIPT * script_quality
         + PQ_DIRECTOR_SKILL * director_skill
-        + PQ_ENSEMBLE * ensemble
+        + PQ_CRAFT_CONTRIBUTION * craft_contribution
         + PQ_PRODUCTION_VALUE * production_value(role_budget_millions)
         + PQ_POST_LUCK * post_luck,
         0.0, 100.0,

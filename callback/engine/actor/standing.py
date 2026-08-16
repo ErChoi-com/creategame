@@ -33,14 +33,14 @@ HEAT_AUD_CENTRE = 52.0
 # ΔPrestige / ΔAffection constants.
 PRESTIGE_CRITIC_COEF = 0.11
 PRESTIGE_CRITIC_CENTRE = 57.0
-PRESTIGE_NOTICES_COEF = 0.26
-PRESTIGE_NOTICES_CENTRE = 54.0
+PRESTIGE_SPOTLIGHT_COEF = 0.26
+PRESTIGE_SPOTLIGHT_CENTRE = 54.0
 AFFECTION_AUD_COEF = 0.10
 AFFECTION_AUD_CENTRE = 55.0
 
 # Recognition — the bridge out of bit parts, deliberately not Standing (§4.3).
 RECOGNITION_COEF = 0.42
-RECOGNITION_NOTICES_CENTRE = 51.0
+RECOGNITION_SPOTLIGHT_CENTRE = 51.0
 RECOGNITION_DECAY = 0.90
 RECOGNITION_DECAY_FAST = 0.80  # once Standing clears 45, it's done its job
 
@@ -97,10 +97,10 @@ def delta_heat(billing_weight: float, credits: int, budget_millions: float, roi:
     return billing_weight * discovery(credits) * reach(budget_millions) * r
 
 
-def delta_prestige(billing_weight: float, credits: int, film_critic_score: float, your_notices: float) -> float:
+def delta_prestige(billing_weight: float, credits: int, film_critic_score: float, your_spotlight: float) -> float:
     return billing_weight * discovery(credits) * (
         PRESTIGE_CRITIC_COEF * (film_critic_score - PRESTIGE_CRITIC_CENTRE)
-        + PRESTIGE_NOTICES_COEF * (your_notices - PRESTIGE_NOTICES_CENTRE)
+        + PRESTIGE_SPOTLIGHT_COEF * (your_spotlight - PRESTIGE_SPOTLIGHT_CENTRE)
     )
 
 
@@ -108,8 +108,8 @@ def delta_affection(billing_weight: float, credits: int, budget_millions: float,
     return billing_weight * discovery(credits) * reach(budget_millions) * AFFECTION_AUD_COEF * (audience_score - AFFECTION_AUD_CENTRE)
 
 
-def delta_recognition(your_notices: float) -> float:
-    return RECOGNITION_COEF * max(0.0, your_notices - RECOGNITION_NOTICES_CENTRE)
+def delta_recognition(your_spotlight: float) -> float:
+    return RECOGNITION_COEF * max(0.0, your_spotlight - RECOGNITION_SPOTLIGHT_CENTRE)
 
 
 def star_power(standing_model: StandingModel) -> float:
@@ -153,8 +153,8 @@ class RecognitionMeter:
 
     value: float = 0.0
 
-    def add(self, your_notices: float) -> "RecognitionMeter":
-        return RecognitionMeter(clamp(self.value + delta_recognition(your_notices), 0.0, 100.0))
+    def add(self, your_spotlight: float) -> "RecognitionMeter":
+        return RecognitionMeter(clamp(self.value + delta_recognition(your_spotlight), 0.0, 100.0))
 
     def decay(self, standing: float) -> "RecognitionMeter":
         factor = RECOGNITION_DECAY_FAST if standing >= 45.0 else RECOGNITION_DECAY

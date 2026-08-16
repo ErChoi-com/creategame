@@ -16,7 +16,7 @@ from callback.engine.actor.reception import BREAK_EVEN_MARKETING_SHARE, RIGHTS_S
 
 # How much a marketing share above/below the 0.45 baseline moves the opening-weekend multiplier.
 # A studio spending 10 points of budget more than baseline buys roughly a 6% bigger opening —
-# visibility, not quality; resolve_reception's quality terms (script/director/ensemble) are
+# visibility, not quality; resolve_reception's quality terms (script/director/craft_contribution) are
 # untouched by any of this, exactly as release.py's own docstring insists a release strategy
 # never changes whether the film is good.
 OPENING_MARKETING_COEF = 0.60

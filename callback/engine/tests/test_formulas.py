@@ -1,12 +1,12 @@
 """actor/ formula edge cases, including the two v9-fixed values this pass must not regress:
-the open-offer Utility margin (14, not the broken pre-v9 25) and the Presence Notices-floor
-coefficient (0.42, not the pre-v9 0.10 that never bound against a Notices mean of ~58).
+the open-offer Utility margin (14, not the broken pre-v9 25) and the Presence Spotlight-floor
+coefficient (0.42, not the pre-v9 0.10 that never bound against a Spotlight mean of ~58).
 """
 from __future__ import annotations
 
 import unittest
 
-from callback.engine.actor.attributes import Attributes, PRESENCE_NOTICES_FLOOR_COEF
+from callback.engine.actor.attributes import Attributes, PRESENCE_SPOTLIGHT_FLOOR_COEF
 from callback.engine.actor.offers import (
     OPEN_OFFER_UTILITY_MARGIN,
     Role,
@@ -23,15 +23,15 @@ class TestV9Fixes(unittest.TestCase):
         self.assertEqual(OPEN_OFFER_UTILITY_MARGIN, 14.0)
 
     def test_notices_floor_coefficient_is_0_42_not_0_10(self):
-        self.assertEqual(PRESENCE_NOTICES_FLOOR_COEF, 0.42)
+        self.assertEqual(PRESENCE_SPOTLIGHT_FLOOR_COEF, 0.42)
 
-    def test_notices_floor_binds_for_high_presence(self):
-        # A Notices mean around 58 (per §14.1) should be bindable by a high-Presence floor at the
+    def test_spotlight_floor_binds_for_high_presence(self):
+        # A Spotlight mean around 58 (per §14.1) should be bindable by a high-Presence floor at the
         # v9 coefficient — the exact failure mode the v9 note describes for the old 0.10 value.
         attrs = Attributes(presence=90)
-        self.assertGreater(attrs.notices_floor(), 37.0)  # 0.42 * 90 = 37.8
+        self.assertGreater(attrs.spotlight_floor(), 37.0)  # 0.42 * 90 = 37.8
         low_presence = Attributes(presence=20)
-        self.assertLess(low_presence.notices_floor(), 10.0)  # 0.42 * 20 = 8.4, well under a 58 mean
+        self.assertLess(low_presence.spotlight_floor(), 10.0)  # 0.42 * 20 = 8.4, well under a 58 mean
 
     def test_direct_offer_requires_margin_above_14(self):
         role = Role(project_id="p1", genre="drama", archetype="everyman", billing="lead",
@@ -74,10 +74,10 @@ class TestFitScore(unittest.TestCase):
 
 
 class TestContrastBudget(unittest.TestCase):
-    def test_overspend_penalizes_notices_and_ensemble(self):
-        notices_pen, ensemble_pen = overspend_penalty(2.0)
-        self.assertEqual(notices_pen, -10.0)  # -5 * 2
-        self.assertEqual(ensemble_pen, -6.0)  # -3 * 2
+    def test_overspend_penalizes_spotlight_and_craft_contribution(self):
+        spotlight_pen, craft_contribution_pen = overspend_penalty(2.0)
+        self.assertEqual(spotlight_pen, -10.0)  # -5 * 2
+        self.assertEqual(craft_contribution_pen, -6.0)  # -3 * 2
 
     def test_no_overspend_no_penalty(self):
         self.assertEqual(overspend_penalty(0.0), (0.0, 0.0))

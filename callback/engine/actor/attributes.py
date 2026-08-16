@@ -13,11 +13,11 @@ from callback.engine.core.util import clamp
 CORE_ATTRS = ("craft", "instinct", "presence", "resilience")
 GATE_ATTRS = ("voice", "physicality", "look")
 
-# v9 fix (§4.1): "Your Notices floor = 0.42 x Presence — was 0.10; at that weight the floor could
-# never bind against a Notices mean of 58, so the verb never actually fired for anyone." At 0.42
+# v9 fix (§4.1): "Your Spotlight floor = 0.42 x Presence — was 0.10; at that weight the floor could
+# never bind against a Spotlight mean of 58, so the verb never actually fired for anyone." At 0.42
 # it does: a magnetic actor can be still and be noticed for it. This is the floor Presence sets on
-# whatever shape.py computes for Notices, applied by simulation/career.py after the shoot resolves.
-PRESENCE_NOTICES_FLOOR_COEF = 0.42
+# whatever shape.py computes for Spotlight, applied by simulation/career.py after the shoot resolves.
+PRESENCE_SPOTLIGHT_FLOOR_COEF = 0.42
 
 
 @dataclass(frozen=True)
@@ -51,5 +51,5 @@ class Attributes:
         this method exists now so that pass doesn't need to change this class's shape."""
         return replace(self, **{k: getattr(self, k) + v for k, v in deltas.items()}).clamped()
 
-    def notices_floor(self) -> float:
-        return PRESENCE_NOTICES_FLOOR_COEF * self.presence
+    def spotlight_floor(self) -> float:
+        return PRESENCE_SPOTLIGHT_FLOOR_COEF * self.presence

@@ -36,11 +36,11 @@ HOLDOUT_FAILURE_NOTORIETY = 15.0
 HOLDOUT_REPEAT_PENALTY = -8.0
 
 
-def character_identification(prior: float, notices_this_installment: float, memorability: float) -> float:
-    """Grows with installments, with Notices in the role, and with the character's memorability.
+def character_identification(prior: float, spotlight_this_installment: float, memorability: float) -> float:
+    """Grows with installments, with Spotlight in the role, and with the character's memorability.
     design/ doesn't publish an exact growth formula beyond "grows with" these three; this pass's
     documented reading is an additive nudge, capped 0-100."""
-    growth = 0.15 * max(0.0, notices_this_installment - 50.0) + 0.10 * memorability
+    growth = 0.15 * max(0.0, spotlight_this_installment - 50.0) + 0.10 * memorability
     return clamp(prior + growth, 0.0, 100.0)
 
 

@@ -1,6 +1,6 @@
 """design/part-04-the-actor.md §4.11 — BuzzScore, narrative bonuses, category strategy, vote
 splitting, campaign cost. "Awards do not reward being good; they reward being seen to be good" —
-BuzzScore reads YourNotices, not the hidden Performance number.
+BuzzScore reads YourSpotlight, not the hidden Performance number.
 """
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from dataclasses import dataclass
 
 from callback.engine.core.util import clamp
 
-BUZZ_NOTICES_WEIGHT = 0.34
+BUZZ_SPOTLIGHT_WEIGHT = 0.34
 BUZZ_CRITIC_WEIGHT = 0.20
 BUZZ_CAMPAIGN_WEIGHT = 0.14
 BUZZ_PRESTIGE_WEIGHT = 0.12
@@ -86,7 +86,7 @@ def category_fraud(rng: random.Random) -> tuple[float, bool, float]:
 
 
 def buzz_score(
-    your_notices: float,
+    your_spotlight: float,
     film_critic_score: float,
     campaign_spend: float,
     prestige: float,
@@ -95,7 +95,7 @@ def buzz_score(
     rng: random.Random,
 ) -> float:
     return clamp(
-        BUZZ_NOTICES_WEIGHT * your_notices
+        BUZZ_SPOTLIGHT_WEIGHT * your_spotlight
         + BUZZ_CRITIC_WEIGHT * film_critic_score
         + BUZZ_CAMPAIGN_WEIGHT * campaign_spend
         + BUZZ_PRESTIGE_WEIGHT * prestige

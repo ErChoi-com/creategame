@@ -11,7 +11,7 @@ has a method that returns exactly that, already shaped for printing.
 This is also where the built-but-previously-unreachable systems get wired into actual play:
 rolodex/interactions.py (check in / show up / read their agenda / vouch), leverage/catalogue.py
 (agent-tier progression, Disappear/Scarcity), and awards/awards.py (a real campaign after a
-Notices-worthy project) were all implemented and tested earlier but never called from anywhere a
+Spotlight-worthy project) were all implemented and tested earlier but never called from anywhere a
 player could reach. They're reachable through this file now.
 
 leverage/indispensability.py's holdout is wired in too, now that simulation/_franchises.py gives
@@ -78,7 +78,7 @@ from callback.engine.simulation.full_career import (
 )
 
 MAX_AGE = 90
-AWARDS_NOTICES_THRESHOLD = 68.0  # a project has to be genuinely well-received to be buzz-worthy
+AWARDS_SPOTLIGHT_THRESHOLD = 68.0  # a project has to be genuinely well-received to be buzz-worthy
 FAVOUR_GAIN_ON_SERVED_AGENDA = 1
 OFFER_BOARD_MIN_LISTINGS = 20
 OFFER_BOARD_MAX_LISTINGS = 30
@@ -470,7 +470,7 @@ class Session:
     # ---- awards (§4.11) — wired in for the first time here -------------------------------
 
     def awards_campaign_available(self) -> bool:
-        return self._last_result is not None and self._last_result.notices >= AWARDS_NOTICES_THRESHOLD
+        return self._last_result is not None and self._last_result.spotlight >= AWARDS_SPOTLIGHT_THRESHOLD
 
     def run_awards_campaign(self, spend_millions: float = 1.0) -> dict:
         """A real BuzzScore campaign, resolved on the spot against a handful of generated
@@ -480,7 +480,7 @@ class Session:
         prestige = self.state.actor.standing["prestige"]
         ctx = NarrativeContext(is_first_nomination=self.state.actor.credits <= 3, age=self.state.actor.age)
         bonus = narrative_bonus(ctx)
-        your_buzz = buzz_score(r.notices, r.film_critic_score, spend_millions, prestige, bonus, 0.0, self.rng)
+        your_buzz = buzz_score(r.spotlight, r.film_critic_score, spend_millions, prestige, bonus, 0.0, self.rng)
         competitors = [
             buzz_score(self.rng.gauss(55, 15), self.rng.gauss(55, 10), self.rng.uniform(0.2, 2.0),
                        self.rng.gauss(50, 20), 0.0, 0.0, self.rng)

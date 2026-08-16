@@ -75,7 +75,7 @@ def _resolve_directed_film(
     marketing_share = marketing_share_for(studio, project.budget_ask)
 
     cast_star_power = clamp(30.0 + 0.5 * project.attached_star_bankability + rng.gauss(0.0, 10.0), 0.0, 100.0)
-    ensemble = clamp(rng.gauss(55.0 + 0.10 * state.attrs.command, 15.0), 0.0, 100.0)
+    craft_contribution = clamp(rng.gauss(55.0 + 0.10 * state.attrs.command, 15.0), 0.0, 100.0)
     passion_project = project.attached_star_bankability < PASSION_PROJECT_STAR_THRESHOLD
     skill = director_skill(state.attrs, passion_project, rng)
     steered_luck = steered_post_luck(state.attrs.craft, state.attrs.efficiency, rng)
@@ -83,7 +83,7 @@ def _resolve_directed_film(
     reception = resolve_reception(
         script_quality=state.current_true_script_quality,
         director_skill=skill,
-        ensemble=ensemble,
+        craft_contribution=craft_contribution,
         genre=genre,
         role_budget_millions=project.budget_ask,
         director_prestige=state.standing["prestige"],

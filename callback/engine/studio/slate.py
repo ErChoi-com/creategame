@@ -29,7 +29,7 @@ def resolve_slate_film(tier: str, genre: str, rng: random.Random) -> ReceptionRe
     return resolve_reception(
         script_quality=clamp(rng.gauss(62.0 - 0.020 * budget, 14), 0, 100),  # §8.2 — bigger budgets, worse scripts
         director_skill=clamp(rng.gauss(58, 16), 5, 100),
-        ensemble=clamp(rng.gauss(58, 16), 0, 100),
+        craft_contribution=clamp(rng.gauss(58, 16), 0, 100),
         genre=genre,
         role_budget_millions=budget,
         director_prestige=clamp(rng.gauss(50, 20), 0, 100),

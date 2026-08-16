@@ -80,14 +80,14 @@ def resolve_declined_role(
         director_skill = clamp(rng.gauss(55, 16), 5, 100)
         cast_star_power = clamp(rng.gauss(40, 20), 0, 100)
 
-    ensemble = clamp(rng.gauss(58, 16), 0, 100)
+    craft_contribution = clamp(rng.gauss(58, 16), 0, 100)
     script_quality = clamp(rng.gauss(58, 15), 0, 100)
     genre_demand = genre_demand_override if genre_demand_override is not None else clamp(rng.gauss(55, 15), 0, 100)
 
     reception = resolve_reception(
         script_quality=script_quality,
         director_skill=director_skill,
-        ensemble=ensemble,
+        craft_contribution=craft_contribution,
         genre=role.genre,
         role_budget_millions=role.budget_for_role,
         director_prestige=director_prestige,
