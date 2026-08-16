@@ -11,6 +11,8 @@ from callback.engine.actor.release import STREAMING_BUYOUT_MULTIPLIER, STREAMING
 from callback.engine.actor.studios import (
     SELF_DISTRIBUTE_MULTIPLIER,
     STUDIOS,
+    actor_influence_on_release,
+    decide_release_strategy,
     marketing_share_for,
     pick_studio,
     quality_adjusted_bids,
@@ -156,6 +158,31 @@ class TestQualityAdjustedBids(unittest.TestCase):
         mediocre = quality_adjusted_bids(30.0, "mid_major", 50.0, 50.0, rng_a)
         great = quality_adjusted_bids(30.0, "mid_major", 95.0, 95.0, rng_b)
         self.assertGreater(max(b.payout_millions for b in great), max(b.payout_millions for b in mediocre))
+
+
+class TestReleaseDecision(unittest.TestCase):
+    def test_trusted_a_lister_has_far_more_influence_than_a_burned_nobody(self):
+        low = actor_influence_on_release(trust=10.0, actor_importance=5.0)
+        high = actor_influence_on_release(trust=90.0, actor_importance=95.0)
+        self.assertLess(low, high)
+        self.assertGreaterEqual(low, 0.0)
+        self.assertLessEqual(high, 1.0)
+
+    def test_studio_always_has_final_say_never_a_guarantee_either_way(self):
+        self.assertLess(actor_influence_on_release(trust=100.0, actor_importance=100.0), 1.0)
+        self.assertGreater(actor_influence_on_release(trust=0.0, actor_importance=0.0), 0.0)
+
+    def test_low_influence_reliably_lands_on_the_studios_own_preference(self):
+        studio = STUDIOS["mid_major"]  # preferred_release="wide"
+        rng = random.Random(5)
+        outcomes = [decide_release_strategy(studio, "streaming", 10.0, 5.0, rng) for _ in range(200)]
+        self.assertGreater(outcomes.count(studio.preferred_release), outcomes.count("streaming"))
+
+    def test_high_influence_reliably_honors_the_actors_request(self):
+        studio = STUDIOS["mid_major"]
+        rng = random.Random(6)
+        outcomes = [decide_release_strategy(studio, "streaming", 95.0, 95.0, rng) for _ in range(200)]
+        self.assertGreater(outcomes.count("streaming"), outcomes.count(studio.preferred_release))
 
 
 if __name__ == "__main__":

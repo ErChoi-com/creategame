@@ -51,6 +51,11 @@ def update_relationship(relations: dict, subject_id: str, budget_millions: float
     return {**relations, subject_id: updated}
 
 
+def trust_of(relations: dict, subject_id: str) -> float:
+    rel = relations.get(subject_id)
+    return rel.trust if rel is not None else TRUST_DEFAULT
+
+
 def utility_bonus_from_trust(relations: dict, subject_id: str) -> float:
     rel = relations.get(subject_id)
     if rel is None:

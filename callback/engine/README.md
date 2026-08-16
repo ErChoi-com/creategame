@@ -205,6 +205,28 @@ selector it auto-accepts the best offer. The financing studio's own terms and th
 `SELF_DISTRIBUTE_MULTIPLIER` "for nothing" option are always on the table regardless of quality —
 they already own the film either way.
 
+**The studio has the final say on release strategy — you only get real input.**
+`Session.choose_release(strategy)`'s `strategy` argument is a *request*, not a command:
+`studios.decide_release_strategy()` honors it with probability `actor_influence_on_release(trust,
+standing_score)` — a function of how much this studio trusts you (`studio_relations`, off actual
+project P&L) and how big a star you currently are right now (Standing's own `standing_score`) —
+and otherwise releases the film its own way (`Studio.preferred_release`). A nobody's ask barely
+moves the needle; a trusted A-lister's is close to a mandate, but the studio always keeps some say
+either way (`STUDIO_INFLUENCE_FLOOR`/`CEILING` — never a guaranteed yes or no). The resolved
+summary reports both `requested_release` and whether `studio_overruled` it, and the CLI prints the
+override when it happens.
+
+**A single project's resolution is now four separable stages, not one ~150-line function.**
+`simulation/career.py` used to do the whole shoot-through-standing-update chain inline; it's now
+`resolve_shoot()` (prep/fit/chemistry/Performance/the three-scene shape), `resolve_quality()`
+(critic/audience score and baseline box office — resolved once, never touched again), `resolve_
+release_schedule()` (how the finished film actually reaches an audience, including the streaming
+bid pool above), and `resolve_standing_update()` (Standing/Persona/Attributes/Recognition deltas).
+Each stage is independently callable and testable through a plain `(state, rng) -> result`-shaped
+call. `simulate_project()` still just calls them in a straight line — no dynamic dispatch, no extra
+object churn, the exact same sequence of `rng` draws as the old monolithic version — so the split
+costs nothing at runtime and every existing seed still reproduces byte-for-byte identical results.
+
 **Franchises and directors are now real, interacting systems, not just data sitting in `genre/`
 and `director/` unreached** (`simulation/_franchises.py`). Two previously-dormant systems —
 §9.5's sequel-value curve (`genre/franchise.py`) and §6.4-6.5's Indispensability holdout

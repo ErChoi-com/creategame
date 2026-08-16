@@ -92,6 +92,40 @@ STUDIOS: dict[str, Studio] = {
 STUDIO_IDS = tuple(STUDIOS.keys())
 
 
+# The studio has the final say on how a film gets released — your request is real input, not a
+# choice you simply get to make. How much it actually sways them scales with how much they trust
+# you (studio_relations) and how big a star you currently are (Standing's own standing_score,
+# 0-100): a nobody's ask is noise against the studio's own preferred_release; a trusted A-lister's
+# is close to a mandate.
+STUDIO_INFLUENCE_BASE = 0.10
+STUDIO_INFLUENCE_TRUST_COEF = 0.35  # (trust-50)/100 -> -0.35..0.35
+STUDIO_INFLUENCE_IMPORTANCE_COEF = 0.45  # standing_score/100 -> 0..0.45
+STUDIO_INFLUENCE_FLOOR = 0.03  # even a burned, nobody actor sometimes gets their way
+STUDIO_INFLUENCE_CEILING = 0.92  # even the biggest star doesn't always overrule the studio
+
+
+def actor_influence_on_release(trust: float, actor_importance: float) -> float:
+    """Probability the studio actually goes with the actor's requested release strategy instead
+    of its own preferred_release."""
+    trust_component = (trust - 50.0) / 100.0
+    importance_component = actor_importance / 100.0
+    influence = (
+        STUDIO_INFLUENCE_BASE
+        + STUDIO_INFLUENCE_TRUST_COEF * trust_component
+        + STUDIO_INFLUENCE_IMPORTANCE_COEF * importance_component
+    )
+    return clamp(influence, STUDIO_INFLUENCE_FLOOR, STUDIO_INFLUENCE_CEILING)
+
+
+def decide_release_strategy(
+    studio: Studio, requested_strategy: str, trust: float, actor_importance: float, rng: random.Random,
+) -> str:
+    """The studio's actual call — requested_strategy only wins with probability
+    actor_influence_on_release(); otherwise the studio releases the film its own way."""
+    influence = actor_influence_on_release(trust, actor_importance)
+    return requested_strategy if rng.random() < influence else studio.preferred_release
+
+
 def marketing_share_for(studio: Studio, budget_millions: float) -> float:
     if studio.tiered_marketing:
         return _tentpole_marketing_share(budget_millions)

@@ -37,7 +37,8 @@ from callback.engine.actor.positions import DIAL_LABELS, DIALS, PLAYER_LABELS, P
 from callback.engine.actor.prep import PREP_OPTIONS, WING_IT
 from callback.engine.actor.release import RELEASE_STRATEGIES, STREAMING_BUYOUT_MULTIPLIER, WIDE, LIMITED, weekly_gross_curve
 from callback.engine.actor.script_notes import SCRIPT_NOTE_OPTIONS, apply_script_note
-from callback.engine.actor.studios import SELF_DISTRIBUTE_MULTIPLIER, STUDIOS, streaming_bidders
+from callback.engine.actor.standing import standing_score
+from callback.engine.actor.studios import SELF_DISTRIBUTE_MULTIPLIER, STUDIOS, decide_release_strategy, streaming_bidders
 from callback.engine.awards.awards import NarrativeContext, buzz_score, narrative_bonus
 from callback.engine.leverage.approvals import (
     box_office_bonus_earned,
@@ -62,7 +63,7 @@ from callback.engine.simulation._director import (
 from callback.engine.world.genre_cycle import accumulate_heat
 from callback.engine.world.genre_cycle import genre_demand as world_genre_demand
 from callback.engine.world.guild import add_residual_stream
-from callback.engine.simulation._relationships import trust_band, utility_bonus_from_trust
+from callback.engine.simulation._relationships import trust_band, trust_of, utility_bonus_from_trust
 from callback.engine.simulation._release_labels import RELEASE_LABELS
 from callback.engine.simulation.bands import audience_band, critic_band, performance_band, relationship_band, roi_band, standing_band
 from callback.engine.simulation.career import ProjectResult
@@ -460,17 +461,30 @@ class Session:
         work on directing this same year; acting and directing no longer compete for the same
         calendar slot.
 
-        streaming_multiplier: only meaningful when strategy == "streaming" — a specific, already-
-        known buyer's terms (e.g. the financing studio's own SELF_DISTRIBUTE_MULTIPLIER option from
-        streaming_bid_options()), skipping the real quality-aware bid pool entirely.
-        streaming_bid_selector: only meaningful when strategy == "streaming" and no
-        streaming_multiplier is given. Called with the real bid pool (list[actor.studios.
+        strategy is your *request*, not the final word — the studio decides (studios.
+        decide_release_strategy()). How often you actually get your way scales with how much this
+        studio trusts you (studio_relations) and how big a star you currently are (Standing's own
+        standing_score); otherwise it releases the film its own way (Studio.preferred_release).
+        The resolved summary reports both what you asked for and what actually happened.
+
+        streaming_multiplier: only meaningful when the studio's actual decision is "streaming" — a
+        specific, already-known buyer's terms (e.g. the financing studio's own SELF_DISTRIBUTE_
+        MULTIPLIER option from streaming_bid_options()), skipping the real quality-aware bid pool.
+        streaming_bid_selector: only meaningful when the studio's actual decision is "streaming"
+        and no streaming_multiplier is given. Called with the real bid pool (list[actor.studios.
         StreamingBid]) once the finished film's quality is actually known — an awful, no-wide-
         release film can draw a thin or empty outside pool, since each buyer's read on it varies.
         Must return the chosen StreamingBid. Defaults to auto-accepting the best offer when no
         selector is given."""
         scenes = tuple(self._scenes) if len(self._scenes) == 3 else (self._scenes + [{}] * 3)[:3]
         franchise_installment = self._role.installment_number
+
+        studio = STUDIOS[self._role.studio]
+        trust = trust_of(self.state.studio_relations, self._role.studio)
+        importance = standing_score(self.state.actor.standing)
+        actual_strategy = decide_release_strategy(studio, strategy, trust, importance, self.rng)
+        overruled = actual_strategy != strategy
+
         chosen_bid = {}
 
         def _capture(bids):
@@ -483,13 +497,13 @@ class Session:
 
         self.state, result = accept_and_play(
             self.state, self._role, self._prep_choice or "table_work", scenes, self.rng,
-            release_strategy=strategy,
+            release_strategy=actual_strategy,
             script_note=self._script_note,
             orientation_npc_id=self._orientation_npc_id,
             orientation_effect=self._orientation_effect,
             requested_director_npc_id=self._requested_director_npc_id,
-            streaming_multiplier_override=streaming_multiplier if strategy == "streaming" else None,
-            streaming_bid_selector=_capture if strategy == "streaming" and streaming_multiplier is None else None,
+            streaming_multiplier_override=streaming_multiplier if actual_strategy == "streaming" else None,
+            streaming_bid_selector=_capture if actual_strategy == "streaming" and streaming_multiplier is None else None,
         )
         bonus = box_office_bonus_earned(result.gross, result.roi) if self._box_office_bonus_negotiated else 0.0
         self._acting_worked_this_year = True
@@ -499,20 +513,22 @@ class Session:
         self._scenes = []
 
         return {
+            "requested_release": RELEASE_LABELS[strategy],
+            "studio_overruled": overruled,
             "streaming_buyer": chosen_bid.get("studio_name"),
             "streaming_self_distributed": chosen_bid.get("self_distribute", False),
             "performance_band": performance_band(result.performance),
             "critic_band": critic_band(result.film_critic_score),
             "critic_score": round(result.film_critic_score),
             "audience_band": audience_band(result.audience_score),
-            "release_label": RELEASE_LABELS[strategy],
+            "release_label": RELEASE_LABELS[actual_strategy],
             "studio_name": STUDIOS[result.studio_id].name,
             "roi_band": roi_band(result.roi),
             "gross_millions": round(result.gross, 1),
             "budget_millions": round(result.budget, 1),
             "marketing_millions": round(result.marketing, 1),
             "roi": round(result.roi, 2),
-            "weekly_gross": self._weekly_gross(result, strategy),
+            "weekly_gross": self._weekly_gross(result, actual_strategy),
             "franchise_installment": franchise_installment,
             "box_office_bonus_millions": round(bonus, 2),
         }

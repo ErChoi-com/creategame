@@ -22,7 +22,7 @@ from callback.engine.actor.offers import (
     utility,
 )
 from callback.engine.actor.palette import CANONICAL_ARCHETYPES, Palette, palette_reception_effect
-from callback.engine.actor.performance import resolve_performance
+from callback.engine.actor.performance import PerformanceResult, resolve_performance
 from callback.engine.actor.persona import Persona
 from callback.engine.actor.positions import (
     DIALS,
@@ -32,12 +32,19 @@ from callback.engine.actor.positions import (
     overspend_penalty,
     resolve_scene_positions,
 )
-from callback.engine.actor.prep import resolve_prep
-from callback.engine.actor.reception import RIGHTS_SHARE, resolve_reception
+from callback.engine.actor.prep import PrepResult, resolve_prep
+from callback.engine.actor.reception import RIGHTS_SHARE, ReceptionResult, resolve_reception
 from callback.engine.actor.release import STREAMING, STREAMING_BUYOUT_MULTIPLIER, WIDE, apply_release_strategy
 from callback.engine.actor.script_notes import ScriptNoteEffect
 from callback.engine.actor.shape import resolve_shape
-from callback.engine.actor.studios import OPENING_MARKETING_COEF, STUDIOS, StreamingBid, marketing_share_for, quality_adjusted_bids
+from callback.engine.actor.studios import (
+    OPENING_MARKETING_COEF,
+    STUDIOS,
+    Studio,
+    StreamingBid,
+    marketing_share_for,
+    quality_adjusted_bids,
+)
 from callback.engine.actor.standing import (
     RecognitionMeter,
     HEAT_KEEP,
@@ -54,6 +61,8 @@ from callback.engine.core.meters import StandingModel
 from callback.engine.core.util import clamp
 
 SceneChoice = dict[str, str]  # one of DIALS -> one of POSITIONS, per scene
+
+BILLING_WEIGHT = {"lead": 1.0, "supporting": 0.55, "bit": 0.2, "extra": 0.0}
 
 
 @dataclass(frozen=True)
@@ -126,6 +135,216 @@ def generate_palette(genre: str, rng: random.Random) -> Palette:
     return Palette(**{d: clamp(archetype[d] + rng.gauss(0, 8), -50, 50) for d in archetype}).clamped()
 
 
+# --- a project's resolution, as separate stages ------------------------------------------------
+# One project used to be a single ~150-line function. It's split here into the same named stages
+# design/ itself already treats as distinct (the shoot, the film's own quality, how it reaches an
+# audience, what it leaves on the actor) so each is independently callable and testable — but
+# simulate_project still calls them as plain, inlined function calls in one straight line, not
+# through core.pipeline's Stage indirection or extra object churn, so the split costs nothing at
+# runtime beyond ordinary Python call overhead. The relative order below is load-bearing: it's the
+# exact sequence the old monolithic function drew from `rng` in, preserved stage-by-stage so every
+# existing seed still reproduces byte-for-byte identical runs.
+
+
+@dataclass(frozen=True)
+class DirectorTerms:
+    skill: float
+    command: float
+    prestige: float
+
+
+def resolve_director(director_override: tuple[float, float, float] | None, rng: random.Random) -> DirectorTerms:
+    if director_override is not None:
+        skill, command, prestige = director_override
+        return DirectorTerms(skill, command, prestige)
+    # NPC director — the director career (Part 7) isn't modeled in this pass; sampled per §7.3's
+    # own verification convention (attributes ~ N(58, 16)) rather than invented fresh.
+    return DirectorTerms(
+        skill=clamp(rng.gauss(58, 16), 5, 100),
+        command=clamp(rng.gauss(58, 16), 5, 100),
+        prestige=clamp(rng.gauss(50, 20), 0, 100),
+    )
+
+
+@dataclass(frozen=True)
+class ShootResult:
+    """The physical work of making the film — prep, fit, chemistry, the Performance roll, and the
+    three-scene shape it produces. Nothing here is the finished film's quality or box office —
+    those are resolve_quality's job, next."""
+    prep_result: PrepResult
+    perf_result: PerformanceResult
+    spotlight: float
+    craft_contribution: float
+    npc_affinity_delta: float
+
+
+def resolve_shoot(
+    state: ActorState,
+    role: Role,
+    prep_choice: str,
+    scene_choices: tuple[SceneChoice, SceneChoice, SceneChoice],
+    director: DirectorTerms,
+    rng: random.Random,
+    script_note: ScriptNoteEffect | None = None,
+    orientation_effect: ModifierResult | None = None,
+) -> ShootResult:
+    prep_result = resolve_prep(prep_choice, state.attrs.resilience, is_biographical_or_period=(role.genre == "period"))
+    fit = fit_score(state.attrs, state.persona, role, state.age)
+    if script_note is not None:
+        fit = clamp(fit + script_note.fit_delta, 0.0, 100.0)
+    chemistry = clamp(rng.gauss(60, 18), 0, 100)
+
+    perf_result = resolve_performance(
+        state.attrs, fit, prep_result.prep, chemistry, director.command, director.skill, rng,
+    )
+
+    budget = contrast_budget(state.attrs.craft, director.command)
+    scene_reads = tuple(resolve_scene_positions(choice, role.genre, budget) for choice in scene_choices)
+    shape_result = resolve_shape(scene_reads, perf_result.performance)  # type: ignore[arg-type]
+
+    spotlight_pen, craft_contribution_pen = overspend_penalty(shape_result.total_overspend)
+    spotlight = max(shape_result.spotlight + spotlight_pen, state.attrs.spotlight_floor())
+    craft_contribution = shape_result.craft_contribution + craft_contribution_pen
+
+    npc_affinity_delta = 0.0
+    if orientation_effect is not None:
+        spotlight = spotlight + orientation_effect.you_spotlight
+        craft_contribution = craft_contribution + orientation_effect.film_craft_contribution
+        npc_affinity_delta = orientation_effect.affinity_delta
+
+    return ShootResult(prep_result, perf_result, spotlight, craft_contribution, npc_affinity_delta)
+
+
+def resolve_quality(
+    state: ActorState,
+    role: Role,
+    shoot: ShootResult,
+    director: DirectorTerms,
+    palette: Palette,
+    rng: random.Random,
+    genre_demand_override: float | None = None,
+    franchise_audience_bonus: float = 0.0,
+    script_note: ScriptNoteEffect | None = None,
+) -> tuple[ReceptionResult, Studio, float, float]:
+    """The film's critic/audience quality and its baseline box office — resolved once, before any
+    release strategy is chosen or applied, and never touched again afterward (release.py's own
+    contract). Returns (reception, studio, marketing_share, cast_star_power) — the studio/
+    marketing_share/cast_star_power are needed again, unchanged, by resolve_release_schedule."""
+    # genre_demand_override lets a caller with real §9.3 GenreHeat (simulation/full_career.py,
+    # which tracks it) feed the actual background-industry cycle in instead of this fallback
+    # sample — kept here, not removed, so simulate_project stays usable standalone (verify.py's
+    # checks, unit tests) without requiring a world/ import.
+    genre_demand = genre_demand_override if genre_demand_override is not None else clamp(rng.gauss(55, 15), 0, 100)
+    cast_star_power = clamp(rng.gauss(50, 20), 0, 100)
+    script_quality = clamp(rng.gauss(60, 14), 0, 100)
+    palette_aud_effect, palette_crit_effect = palette_reception_effect(palette, role.genre)
+    palette_aud_effect += franchise_audience_bonus
+    staleness = state.persona.staleness_penalty()
+
+    if script_note is not None:
+        script_quality = clamp(script_quality + script_note.script_quality_delta, 0.0, 100.0)
+        palette_aud_effect += script_note.audience_delta
+        palette_crit_effect += script_note.critic_delta
+
+    studio = STUDIOS[role.studio]
+    marketing_share = marketing_share_for(studio, role.budget_for_role)
+
+    reception = resolve_reception(
+        script_quality=script_quality,
+        director_skill=director.skill,
+        craft_contribution=shoot.craft_contribution,
+        genre=role.genre,
+        role_budget_millions=role.budget_for_role,
+        director_prestige=director.prestige,
+        staleness_penalty=staleness,
+        cast_star_power=cast_star_power,
+        genre_demand=genre_demand,
+        rng=rng,
+        palette_audience_effect=palette_aud_effect,
+        palette_critic_effect=palette_crit_effect,
+        marketing_share=marketing_share,
+        rights_share=RIGHTS_SHARE + studio.rights_share_delta,
+        opening_marketing_coef=OPENING_MARKETING_COEF,
+    )
+    return reception, studio, marketing_share, cast_star_power
+
+
+def resolve_release_schedule(
+    reception: ReceptionResult,
+    role: Role,
+    studio: Studio,
+    marketing_share: float,
+    cast_star_power: float,
+    release_strategy: str,
+    rng: random.Random,
+    streaming_multiplier_override: float | None = None,
+    streaming_bid_selector=None,
+) -> ReceptionResult:
+    """How the finished film actually reaches an audience. Only ever called after resolve_quality
+    — film_critic_score/audience_score/project_quality are already fixed by then and this stage
+    never touches them; only the box-office numbers (gross/roi/marketing/opening/legs) move."""
+    if release_strategy == STREAMING and streaming_multiplier_override is None:
+        # Quality is already resolved — the sale happens after the movie has been made, and it
+        # shows: a bad film draws a thinner, worse pool than a good one.
+        bids = quality_adjusted_bids(
+            role.budget_for_role, role.studio, reception.film_critic_score, reception.audience_score, rng,
+        )
+        chosen = streaming_bid_selector(bids) if streaming_bid_selector is not None else max(
+            bids, key=lambda b: b.payout_millions,
+        )
+        streaming_multiplier = chosen.multiplier
+    else:
+        streaming_multiplier = (
+            streaming_multiplier_override if streaming_multiplier_override is not None
+            else STREAMING_BUYOUT_MULTIPLIER + studio.streaming_multiplier_delta
+        )
+    return apply_release_strategy(
+        reception, release_strategy, rng, cast_star_power=cast_star_power,
+        festival_tier_bonus=studio.festival_tier_bonus,
+        marketing_share=marketing_share, rights_share=RIGHTS_SHARE + studio.rights_share_delta,
+        streaming_multiplier=streaming_multiplier,
+    )
+
+
+@dataclass(frozen=True)
+class StandingUpdate:
+    state: ActorState
+    heat_delta: float
+    prestige_delta: float
+    affection_delta: float
+
+
+def resolve_standing_update(state: ActorState, role: Role, reception: ReceptionResult, shoot: ShootResult) -> StandingUpdate:
+    """Everything a resolved project leaves behind on the actor themselves — Standing, Persona,
+    Attributes, Recognition, credits/ROI history. No rng of its own; purely a function of what
+    resolve_quality/resolve_release_schedule already produced."""
+    bw = BILLING_WEIGHT[role.billing]
+    heat_delta = delta_heat(bw, state.credits, role.budget_for_role, reception.roi, reception.audience_score)
+    prestige_delta = delta_prestige(bw, state.credits, reception.film_critic_score, shoot.spotlight)
+    affection_delta = delta_affection(bw, state.credits, role.budget_for_role, reception.audience_score)
+
+    new_standing = state.standing.copy()
+    new_standing.add("heat", heat_delta)
+    new_standing.add("prestige", prestige_delta)
+    new_standing.add("affection", affection_delta)
+
+    new_persona = state.persona.update(role.genre, role.archetype, role.billing, reception.audience_score)
+    new_attrs = state.attrs.with_deltas(craft=shoot.prep_result.craft_delta, resilience=shoot.prep_result.resilience_delta)
+    new_recognition = state.recognition.add(shoot.spotlight) if role.billing in ("supporting", "bit") else state.recognition
+
+    new_state = replace(
+        state,
+        attrs=new_attrs,
+        persona=new_persona,
+        standing=new_standing,
+        recognition=new_recognition,
+        credits=state.credits + 1,
+        union_credits=state.union_credits + (1 if role.union else 0),
+        roi_history=(*state.roi_history, reception.roi)[-10:],
+    )
+    return StandingUpdate(new_state, heat_delta, prestige_delta, affection_delta)
+
+
 def simulate_project(
     state: ActorState,
     role: Role,
@@ -159,131 +378,25 @@ def simulate_project(
     rest of simulate_career's loop) don't need to supply one.
     """
     palette = palette or generate_palette(role.genre, rng)
-
-    if director_override is not None:
-        director_skill, director_command, director_prestige = director_override
-    else:
-        # NPC director — the director career (Part 7) isn't modeled in this pass; sampled per
-        # §7.3's own verification convention (attributes ~ N(58, 16)) rather than invented fresh.
-        director_skill = clamp(rng.gauss(58, 16), 5, 100)
-        director_command = clamp(rng.gauss(58, 16), 5, 100)
-        director_prestige = clamp(rng.gauss(50, 20), 0, 100)
-
-    prep_result = resolve_prep(prep_choice, state.attrs.resilience, is_biographical_or_period=(role.genre == "period"))
-    fit = fit_score(state.attrs, state.persona, role, state.age)
-    if script_note is not None:
-        fit = clamp(fit + script_note.fit_delta, 0.0, 100.0)
-    chemistry = clamp(rng.gauss(60, 18), 0, 100)
-
-    perf_result = resolve_performance(
-        state.attrs, fit, prep_result.prep, chemistry, director_command, director_skill, rng,
-    )
-
-    budget = contrast_budget(state.attrs.craft, director_command)
-    scene_reads = tuple(resolve_scene_positions(choice, role.genre, budget) for choice in scene_choices)
-    shape_result = resolve_shape(scene_reads, perf_result.performance)  # type: ignore[arg-type]
-
-    spotlight_pen, craft_contribution_pen = overspend_penalty(shape_result.total_overspend)
-    spotlight = max(shape_result.spotlight + spotlight_pen, state.attrs.spotlight_floor())
-    craft_contribution = shape_result.craft_contribution + craft_contribution_pen
-
-    npc_affinity_delta = 0.0
-    if orientation_effect is not None:
-        spotlight = spotlight + orientation_effect.you_spotlight
-        craft_contribution = craft_contribution + orientation_effect.film_craft_contribution
-        npc_affinity_delta = orientation_effect.affinity_delta
-
-    # genre_demand_override lets a caller with real §9.3 GenreHeat (simulation/full_career.py,
-    # which tracks it) feed the actual background-industry cycle in instead of this fallback
-    # sample — kept here, not removed, so simulate_project stays usable standalone (verify.py's
-    # checks, unit tests) without requiring a world/ import.
-    genre_demand = genre_demand_override if genre_demand_override is not None else clamp(rng.gauss(55, 15), 0, 100)
-    cast_star_power = clamp(rng.gauss(50, 20), 0, 100)
-    script_quality = clamp(rng.gauss(60, 14), 0, 100)
-    palette_aud_effect, palette_crit_effect = palette_reception_effect(palette, role.genre)
-    palette_aud_effect += franchise_audience_bonus
-    staleness = state.persona.staleness_penalty()
-
-    if script_note is not None:
-        script_quality = clamp(script_quality + script_note.script_quality_delta, 0.0, 100.0)
-        palette_aud_effect += script_note.audience_delta
-        palette_crit_effect += script_note.critic_delta
-
-    studio = STUDIOS[role.studio]
-    marketing_share = marketing_share_for(studio, role.budget_for_role)
-
-    reception = resolve_reception(
-        script_quality=script_quality,
-        director_skill=director_skill,
-        craft_contribution=craft_contribution,
-        genre=role.genre,
-        role_budget_millions=role.budget_for_role,
-        director_prestige=director_prestige,
-        staleness_penalty=staleness,
-        cast_star_power=cast_star_power,
-        genre_demand=genre_demand,
-        rng=rng,
-        palette_audience_effect=palette_aud_effect,
-        palette_critic_effect=palette_crit_effect,
-        marketing_share=marketing_share,
-        rights_share=RIGHTS_SHARE + studio.rights_share_delta,
-        opening_marketing_coef=OPENING_MARKETING_COEF,
+    director = resolve_director(director_override, rng)
+    shoot = resolve_shoot(state, role, prep_choice, scene_choices, director, rng, script_note, orientation_effect)
+    reception, studio, marketing_share, cast_star_power = resolve_quality(
+        state, role, shoot, director, palette, rng, genre_demand_override, franchise_audience_bonus, script_note,
     )
     if release_strategy is not None:
-        if release_strategy == STREAMING and streaming_multiplier_override is None:
-            # Quality (film_critic_score/audience_score, on `reception` above) is already resolved
-            # — the sale happens after the movie has been made, and it shows: a bad film draws a
-            # thinner, worse pool than a good one.
-            bids = quality_adjusted_bids(
-                role.budget_for_role, role.studio, reception.film_critic_score, reception.audience_score, rng,
-            )
-            chosen = streaming_bid_selector(bids) if streaming_bid_selector is not None else max(
-                bids, key=lambda b: b.payout_millions,
-            )
-            streaming_multiplier = chosen.multiplier
-        else:
-            streaming_multiplier = (
-                streaming_multiplier_override if streaming_multiplier_override is not None
-                else STREAMING_BUYOUT_MULTIPLIER + studio.streaming_multiplier_delta
-            )
-        reception = apply_release_strategy(
-            reception, release_strategy, rng, cast_star_power=cast_star_power,
-            festival_tier_bonus=studio.festival_tier_bonus,
-            marketing_share=marketing_share, rights_share=RIGHTS_SHARE + studio.rights_share_delta,
-            streaming_multiplier=streaming_multiplier,
+        reception = resolve_release_schedule(
+            reception, role, studio, marketing_share, cast_star_power, release_strategy, rng,
+            streaming_multiplier_override=streaming_multiplier_override,
+            streaming_bid_selector=streaming_bid_selector,
         )
-
-    bw = {"lead": 1.0, "supporting": 0.55, "bit": 0.2, "extra": 0.0}[role.billing]
-    heat_delta = delta_heat(bw, state.credits, role.budget_for_role, reception.roi, reception.audience_score)
-    prestige_delta = delta_prestige(bw, state.credits, reception.film_critic_score, spotlight)
-    affection_delta = delta_affection(bw, state.credits, role.budget_for_role, reception.audience_score)
-
-    new_standing = state.standing.copy()
-    new_standing.add("heat", heat_delta)
-    new_standing.add("prestige", prestige_delta)
-    new_standing.add("affection", affection_delta)
-
-    new_persona = state.persona.update(role.genre, role.archetype, role.billing, reception.audience_score)
-    new_attrs = state.attrs.with_deltas(craft=prep_result.craft_delta, resilience=prep_result.resilience_delta)
-    new_recognition = state.recognition.add(spotlight) if role.billing in ("supporting", "bit") else state.recognition
-
-    new_state = replace(
-        state,
-        attrs=new_attrs,
-        persona=new_persona,
-        standing=new_standing,
-        recognition=new_recognition,
-        credits=state.credits + 1,
-        union_credits=state.union_credits + (1 if role.union else 0),
-        roi_history=(*state.roi_history, reception.roi)[-10:],
-    )
+    update = resolve_standing_update(state, role, reception, shoot)
 
     result = ProjectResult(
         role=role,
         cast_via="project",
-        spotlight=spotlight,
-        craft_contribution=craft_contribution,
-        performance=perf_result.performance,
+        spotlight=shoot.spotlight,
+        craft_contribution=shoot.craft_contribution,
+        performance=shoot.perf_result.performance,
         project_quality=reception.project_quality,
         film_critic_score=reception.film_critic_score,
         audience_score=reception.audience_score,
@@ -294,14 +407,14 @@ def simulate_project(
         opening=reception.opening,
         legs=reception.legs,
         release_strategy=release_strategy or WIDE,
-        heat_delta=heat_delta,
-        prestige_delta=prestige_delta,
-        affection_delta=affection_delta,
-        npc_affinity_delta=npc_affinity_delta,
+        heat_delta=update.heat_delta,
+        prestige_delta=update.prestige_delta,
+        affection_delta=update.affection_delta,
+        npc_affinity_delta=shoot.npc_affinity_delta,
         favour_gain=orientation_effect.you_favour if orientation_effect is not None else 0.0,
         studio_id=role.studio,
     )
-    return new_state, result
+    return update.state, result
 
 
 def simulate_year(

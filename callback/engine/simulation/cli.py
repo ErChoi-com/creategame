@@ -201,13 +201,13 @@ def shoot_screen(session: Session, auto: bool) -> None:
 
 
 def release_screen(session: Session, auto: bool) -> dict:
-    print("  RELEASE STRATEGY:")
-    key = choose(session.release_options(), "  Choose:", 0, auto)
-    if key != "streaming":
-        return session.choose_release(key)
+    # It's a request, not a choice — the studio has the final say (see choose_release's docstring).
+    print("  RELEASE STRATEGY — your request to the studio:")
+    key = choose(session.release_options(), "  Ask for:", 0, auto)
 
     def pick_bid(bids):
-        # Resolved after the film is actually made — quality decided who showed up to bid.
+        # Only invoked once the studio's actual decision turns out to be "streaming" — resolved
+        # after the film is actually made, so quality already decided who showed up to bid.
         print("  STREAMING RIGHTS — the finished film draws its own offers:")
         options = [
             (str(i), (f"{b.studio_name} — puts it up for nothing, you just get your budget back"
@@ -221,7 +221,11 @@ def release_screen(session: Session, auto: bool) -> dict:
         pick = choose(options, "  Sell to:", best_index, auto)
         return bids[int(pick)]
 
-    return session.choose_release(key, streaming_bid_selector=pick_bid)
+    summary = session.choose_release(key, streaming_bid_selector=pick_bid)
+    if summary["studio_overruled"]:
+        print(f"    (You asked for {summary['requested_release']} — the studio went with "
+              f"{summary['release_label']} instead.)")
+    return summary
 
 
 def post_release_screen(summary: dict) -> None:
