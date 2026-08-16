@@ -104,8 +104,12 @@ def utility(
     your_age: int,
     quote_value: float,
     rolodex_edges: list[tuple[float, float]] | None = None,
+    bypass_standing: bool = False,
 ) -> float:
-    standing_score = standing_model.weighted_score(GATEKEEPER_WEIGHTS[role.gatekeeper])
+    """bypass_standing: design/part-06 §6.6's "Screen-test for free" — "bypasses the Standing
+    term in §4.4 entirely." Zeroes StandingScore's contribution rather than skipping the term
+    structurally, so the rest of Utility's shape (Fit, attributes, relationships) is unchanged."""
+    standing_score = 0.0 if bypass_standing else standing_model.weighted_score(GATEKEEPER_WEIGHTS[role.gatekeeper])
     fit = fit_score(attrs, persona, role, your_age)
     attr_term = UTILITY_ATTR_CRAFT_SHARE * attrs.craft + UTILITY_ATTR_INSTINCT_SHARE * attrs.instinct
     overage = min(quote_value / role.budget_for_role - 1.0, 1.0)

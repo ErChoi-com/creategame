@@ -1,60 +1,93 @@
 # CALLBACK engine
 
-The primary system and mechanics — the actor career's core loop — implemented from
-`../docs/design/`. See that document for what each formula means; this package is where they run.
+Every system in `../docs/design/` and `../docs/ux/`, implemented and wired into one playable
+terminal prototype. See the design doc for what each formula means; this package is where they run.
 
 ## Layout
 
 ```
-core/        generic, career-agnostic abstractions (Meter, StandingModel, the Stage protocol)
-actor/       the actor career's formulas (design/part-04-the-actor.md, part-05-the-work.md)
-simulation/  orchestration (career.py) and verification (verify.py) against design/part-14
-tests/       unit tests, including regression tests for the two v9-fixed constants
+core/         generic, career-agnostic abstractions (Meter, StandingModel, the Stage protocol)
+actor/        the actor career's formulas (part-04-the-actor.md, part-05-the-work.md)
+rolodex/      the Rolodex + relationship layer (§4.12, §10.0, ux/04-pull-systems.md)
+leverage/     favours, approvals, indispensability + the holdout, a verb-catalogue subset (Part 6)
+life/         health, addiction, family, money, the obituary (Part 11)
+awards/       BuzzScore, narrative bonuses, category strategy, vote splitting (§4.11)
+director/     a second playable career, built on core/ and reusing actor/'s Utility (Part 7)
+world/        guilds, strikes, genre cycles, the background industry + trades digest (§10.0, Part 9)
+genre/        the franchise sequel-value curve (§9.5)
+studio/       slate-tier economics and the Marketing curve (§8.2)
+simulation/   orchestration (career.py, full_career.py), verification (verify.py), and the
+              playable CLI (cli.py)
+tests/        unit tests for every package above, including regression tests for the two
+              v9-fixed constants
 ```
 
 Dependency direction is one-way: `core` imports nothing from this package; `actor` imports only
-`core`; `simulation` imports only `actor`'s public functions. A future director or studio engine
-reuses `core` the same way `actor` does, rather than reimplementing Standing/decay/weighted-score
-reduction a second time — that reuse is what `design/part-03-design-overview.md` §3.3's "one
-spine" rule requires.
+`core`; every other package builds on `core`/`actor` (and `rolodex` where relationships matter)
+without reaching into another module's internals; `simulation` composes public functions only.
+`director/` reusing `core.meters.StandingModel` and `actor.offers.utility` instead of
+reimplementing Standing or casting math is `design/part-03` §3.3's "one spine" rule, held as
+architecture rather than a promise in prose.
 
 ## Running it
 
 From the repository root:
 
 ```bash
-python3 -m unittest discover callback/engine/tests
-python3 -m callback.engine.simulation.verify reception   # design/part-14 §14.1 checks
-python3 -m callback.engine.simulation.verify creative     # design/part-14 §14.6 checks
+python3 -m unittest discover callback/engine/tests      # 94 tests
+python3 -m callback.engine.simulation.verify reception    # design/part-14 §14.1 checks
+python3 -m callback.engine.simulation.verify creative       # design/part-14 §14.6 checks
 python3 -m callback.engine.simulation.verify all
+
+python3 -m callback.engine.simulation.cli                    # play it — interactive
+python3 -m callback.engine.simulation.cli --auto --seed=7      # self-playing demo run
 ```
 
 ```python
 import random
-from callback.engine.simulation.career import simulate_career
+from callback.engine.simulation.full_career import (
+    new_full_state, offer_this_year, utility_for, accept_and_play,
+    decline_and_resolve, advance_between_years, obituary,
+)
+from callback.engine.actor.offers import resolve_casting_path, offer_probability
+from callback.engine.simulation.career import default_scene_policy
 
-state, results = simulate_career(start_age=22, years=40, rng=random.Random(42))
+rng = random.Random(42)
+state = new_full_state(rng, start_age=22)
+role = offer_this_year(state, rng)
+# ... accept_and_play / decline_and_resolve / advance_between_years each year;
+# see simulation/cli.py for the full loop, or engine/tests/test_full_career.py.
 ```
 
-## Scope of this pass
+## What's here now
 
-Implements design/part-13-build-plan.md's Phase 0b + 1 + 1b: attributes, Persona, Standing, the
-offer board, prep, the Performance roll, the six-dial palette, the four positions and contrast
-budget, the three-scene shape resolution, and reception (critic/audience/box office).
+Every system named in `design/`'s Parts 0/3–11 (the actor spine, the Rolodex, Leverage, the life
+layer, awards, the director career, and a working subset of the world/genre/studio layers) has a
+real, tested implementation — not a stub. `simulation/full_career.py` composes all of it into one
+playable state, and `simulation/cli.py` is a real terminal game following `../ux/`'s exact screen
+flow (character creation, the Offer Board, the Deal, Prep, the three-scene Shoot, Post & Release,
+the Reckoning, the trades digest, the closing obituary) with every hidden score rendered through
+`simulation/bands.py`'s words-not-numbers pass, never a raw number.
 
-**Not in this pass** — deferred in the build plan's own order: awards campaigns (§4.11), the
-Rolodex and Leverage (§4.12, Part 6), the full calendar/deal-negotiation UI, director/studio/
-world/life layers, and any UI (`../ux/` is the target once this engine is further along).
+## Known gaps and simplifications (documented inline at each site too)
 
-**Known simplifications, documented inline where they occur:**
-- `actor/offers.sample_role()` is a placeholder role generator — it doesn't scale a role's
-  difficulty to the actor's own Standing the way the real offer board's Rolodex/agent-reach
-  filtering would, so a headless multi-year `simulate_career()` run currently lands very few
-  credits per career. The individual formulas are the point of this pass; realistic career-length
-  tuning is a follow-up once the Rolodex (§4.12) and a real offer-board content model exist.
-- `actor/palette.GENRE_DIAL_WEIGHTS` and `CANONICAL_ARCHETYPES` are this pass's own documented
-  readings, not a transcription of undisclosed exact design/ constants (§5.3 publishes the
-  *target* correlations, not the underlying weight table). `verify.py creative`'s per-genre
-  correlation check reports honestly against that gap — see its output and palette.py's docstring.
-- Director, Condition (§11.1), and Rolodex (§4.12) inputs are sampled placeholders (documented at
-  each call site) until those layers exist.
+- **`actor/offers.sample_role()`** is still a placeholder role generator — it doesn't scale a
+  role's difficulty to the actor's own Standing the way the real offer board's Rolodex/agent-reach
+  filtering would. This is the reason a headless career currently lands few credits: most rolls
+  are simply too hard for a fresh actor. The fix is a real Standing-aware listing generator, not a
+  new formula — everything downstream of "you got the part" is already correct.
+- **`actor/palette.GENRE_DIAL_WEIGHTS`** and **`CANONICAL_ARCHETYPES`** are this pass's own
+  documented readings, not undisclosed exact `design/` constants (§5.3 publishes target
+  correlations, not the weight table itself). `verify.py creative` reports honestly against that
+  gap rather than faking a pass.
+- **The full multi-offer calendar/deal-negotiation UI** isn't built — `simulate_year`/`cli.py`
+  handle "0 or 1 project this year," not overlapping offers, scheduling conflicts, or the full
+  fee/billing/options/pay-or-play deal space (only the approvals-for-fee trade is wired up).
+- **Studio mode** is numeric primitives only (slate tiers, the Marketing curve) — no financing
+  stack, release-date warfare, or board/executive layer, matching `design/`'s own "build it last"
+  framing for that layer.
+- **`world.guild.is_eligible()`** isn't literally wired into `actor.offers`' own (consistent, but
+  separately-implemented) union-credit check — noted at the import site in `full_career.py`.
+- **Politics (§11.5), festivals (§10.3), international industries (§10.5), tech eras (§10.6),
+  censorship (§10.7), and merchandise/tie-ins (§9.7–9.9)** are not implemented — genuinely out of
+  scope for this pass rather than simplified.
