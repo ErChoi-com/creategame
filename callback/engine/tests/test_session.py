@@ -154,6 +154,74 @@ class TestFullProjectFlow(unittest.TestCase):
             self.assertIsInstance(label, str)
 
 
+class TestMarketingPush(unittest.TestCase):
+    def test_no_request_means_not_requested_or_honored(self):
+        session = Session(seed=60)
+        session.start("conservatory", "work")
+        if not _get_to_prep(session):
+            self.skipTest("no offer came through — RNG variance, not a bug")
+        session.choose_deal(False)
+        session.choose_prep("table_work")
+        for _ in range(3):
+            session.play_scene({d: "with" for d, _ in session.dial_options()})
+        summary = session.choose_release("wide")
+        self.assertFalse(summary["marketing_push_requested"])
+        self.assertFalse(summary["marketing_push_honored"])
+
+    def test_requesting_sets_the_flag_and_reports_the_outcome(self):
+        session = Session(seed=61)
+        session.start("conservatory", "work")
+        if not _get_to_prep(session):
+            self.skipTest("no offer came through — RNG variance, not a bug")
+        session.choose_deal(False)
+        session.request_marketing_push()
+        session.choose_prep("table_work")
+        for _ in range(3):
+            session.play_scene({d: "with" for d, _ in session.dial_options()})
+        summary = session.choose_release("wide")
+        self.assertTrue(summary["marketing_push_requested"])
+        self.assertIsInstance(summary["marketing_push_honored"], bool)
+
+    def test_request_flag_resets_on_the_next_accept(self):
+        session = Session(seed=63)
+        session.start("conservatory", "work")
+        self.assertFalse(session._requested_marketing_push)
+        for _ in range(30):
+            if session.is_over():
+                self.skipTest("no offer came through — RNG variance, not a bug")
+            board = session.offer_board()
+            avail = [o for o in board if o["available"]]
+            if not avail:
+                session.decline_board()
+                continue
+            session.accept(avail[0]["index"])
+            break
+        else:
+            self.skipTest("no offer came through — RNG variance, not a bug")
+        session.request_marketing_push()
+        self.assertTrue(session._requested_marketing_push)
+        # a fresh accept() on a later project should clear the stale request
+        session.choose_deal(False)
+        session.choose_prep("table_work")
+        for _ in range(3):
+            session.play_scene({d: "with" for d, _ in session.dial_options()})
+        session.choose_release("wide")
+        session.end_year()
+        for _ in range(30):
+            if session.is_over():
+                self.skipTest("career ended before a second offer came through — RNG variance")
+            board = session.offer_board()
+            avail = [o for o in board if o["available"]]
+            if not avail:
+                session.decline_board(); session.end_year()
+                continue
+            session.accept(avail[0]["index"])
+            break
+        else:
+            self.skipTest("no second offer came through — RNG variance, not a bug")
+        self.assertFalse(session._requested_marketing_push)
+
+
 def _get_to_prep(session: Session, max_attempts: int = 60) -> bool:
     """Advances until an offer comes through and is accepted, stopping right after the Deal.
     Returns False if the run ended before anything came through (RNG variance)."""

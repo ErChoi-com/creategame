@@ -153,6 +153,12 @@ def deal_screen(session: Session, auto: bool) -> None:
         print("    (Box office bonus negotiated — 3% of gross, if it clears break-even.)")
 
 
+def marketing_push_screen(session: Session, auto: bool) -> None:
+    choice = prompt("  Lobby the studio for a bigger marketing campaign on this one? [Y]/[N]", "N", auto)
+    if choice.upper() == "Y":
+        session.request_marketing_push()
+
+
 def multi_picture_deal_screen(session: Session, auto: bool) -> None:
     """Future terms, not just this project's — offered right after accepting a role, once
     standing clears the bar. Once signed, this studio owes a guaranteed listing every year until
@@ -272,6 +278,9 @@ def post_release_screen(summary: dict) -> None:
         print("    Franchise: the first installment — a new one, starting here")
     print(f"    Production budget: ${summary['budget_millions']:.1f}M  ·  "
           f"Marketing: ${summary['marketing_millions']:.1f}M")
+    if summary["marketing_push_requested"]:
+        print(f"    (Your lobbying for a bigger campaign was "
+              f"{'honored' if summary['marketing_push_honored'] else 'ignored'}.)")
     if summary["gross_millions"] <= 0:
         print(f"    Box office: {summary['roi_band']} — never really had one.")
         return
@@ -373,6 +382,7 @@ def acting_block(session: Session, auto: bool) -> None:
         if proceeds:
             deal_screen(session, auto)
             multi_picture_deal_screen(session, auto)
+            marketing_push_screen(session, auto)
             script_notes_screen(session, auto)
             director_screen(session, auto)
             costar_screen(session, auto)

@@ -231,6 +231,23 @@ call. `simulate_project()` still just calls them in a straight line — no dynam
 object churn, the exact same sequence of `rng` draws as the old monolithic version — so the split
 costs nothing at runtime and every existing seed still reproduces byte-for-byte identical results.
 
+**Marketing spend is a real, reactive studio decision now, not a fixed studio/budget lookup**
+(`studios.decide_marketing_spend()`). The old `marketing_share_for(studio, budget)` — a flat number
+off two static facts — is still the anchor, but the actual spend now also moves on: how much this
+studio trusts you (`studio_relations`), your own current star power (Standing's `star_power`), how
+hot the genre is right now (`world/genre_cycle`), a real efficiency discount for a franchise/
+adaptation's built-in awareness, and — a new player action — lobbying the studio for a bigger
+campaign (`Session.request_marketing_push()`), honored by the same steeply fame-gated influence
+curve as a release-strategy request (the two now share one function,
+`actor_influence_on_studio_decision()`). Deliberately **not** a function of the film's own resolved
+quality: no studio executive gets to peek at the finished film's real critic/audience score before
+setting the campaign budget, so a confident push can still land on a flop and a real sleeper can
+still go out under-marketed — nobody in this model, including the studio, can reliably predict
+which. `MARKETING_NOISE_SD` is deliberately the largest single term in the formula, verified by a
+regression test asserting identical inputs can still swing marketing_share by 0.4+ across a run —
+real, irreducible uncertainty, not just flavor text about it. The Post & Release summary reports
+whether a push was requested and whether it was honored.
+
 **Fixed a real conflation bug: a role's own fee and the film's whole production budget were the
 same number.** `offers.sample_role()` always sampled a real film budget (median $12M, up to a
 $300M tentpole) to pick which studio could plausibly finance it — then discarded that number,

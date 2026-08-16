@@ -41,9 +41,10 @@ from callback.engine.genre.adaptation import adaptation_audience_bonus, adaptati
 from callback.engine.actor.studios import (
     OPENING_MARKETING_COEF,
     STUDIOS,
+    MarketingDecision,
     Studio,
     StreamingBid,
-    marketing_share_for,
+    decide_marketing_spend,
     quality_adjusted_bids,
 )
 from callback.engine.actor.standing import (
@@ -57,6 +58,7 @@ from callback.engine.actor.standing import (
     delta_prestige,
     new_standing_model,
     quote,
+    star_power,
 )
 from callback.engine.core.meters import StandingModel
 from callback.engine.core.util import clamp
@@ -116,6 +118,8 @@ class ProjectResult:
     npc_affinity_delta: float = 0.0
     favour_gain: float = 0.0
     studio_id: str = "mid_major"
+    marketing_push_requested: bool = False
+    marketing_push_honored: bool = False
 
 
 def default_scene_policy(rng: random.Random) -> tuple[SceneChoice, SceneChoice, SceneChoice]:
@@ -226,11 +230,18 @@ def resolve_quality(
     genre_demand_override: float | None = None,
     franchise_audience_bonus: float = 0.0,
     script_note: ScriptNoteEffect | None = None,
-) -> tuple[ReceptionResult, Studio, float, float]:
+    studio_trust: float = 50.0,
+    requested_marketing_push: bool = False,
+) -> tuple[ReceptionResult, Studio, MarketingDecision, float]:
     """The film's critic/audience quality and its baseline box office — resolved once, before any
     release strategy is chosen or applied, and never touched again afterward (release.py's own
-    contract). Returns (reception, studio, marketing_share, cast_star_power) — the studio/
-    marketing_share/cast_star_power are needed again, unchanged, by resolve_release_schedule."""
+    contract). Returns (reception, studio, marketing_decision, cast_star_power) — the studio/
+    marketing_decision/cast_star_power are needed again, unchanged, by resolve_release_schedule.
+
+    studio_trust/requested_marketing_push feed studios.decide_marketing_spend(): the studio's own
+    real-money campaign decision, deliberately NOT a function of this project's own resolved
+    quality (nobody, including the studio, has a reliable read on that yet at this point) — see
+    that function's own docstring for why."""
     # genre_demand_override lets a caller with real §9.3 GenreHeat (simulation/full_career.py,
     # which tracks it) feed the actual background-industry cycle in instead of this fallback
     # sample — kept here, not removed, so simulate_project stays usable standalone (verify.py's
@@ -250,7 +261,12 @@ def resolve_quality(
         palette_crit_effect += script_note.critic_delta
 
     studio = STUDIOS[role.studio]
-    marketing_share = marketing_share_for(studio, role.film_budget_millions)
+    marketing_decision = decide_marketing_spend(
+        studio, role.film_budget_millions, studio_trust, star_power(state.standing), genre_demand,
+        is_franchise_or_adaptation=bool(role.franchise_id or role.source_material),
+        requested_push=requested_marketing_push, rng=rng,
+    )
+    marketing_share = marketing_decision.marketing_share
 
     reception = resolve_reception(
         script_quality=script_quality,
@@ -269,7 +285,7 @@ def resolve_quality(
         rights_share=RIGHTS_SHARE + studio.rights_share_delta,
         opening_marketing_coef=OPENING_MARKETING_COEF,
     )
-    return reception, studio, marketing_share, cast_star_power
+    return reception, studio, marketing_decision, cast_star_power
 
 
 def resolve_release_schedule(
@@ -363,6 +379,8 @@ def simulate_project(
     franchise_audience_bonus: float = 0.0,
     streaming_multiplier_override: float | None = None,
     streaming_bid_selector=None,
+    studio_trust: float = 50.0,
+    requested_marketing_push: bool = False,
 ) -> tuple[ActorState, ProjectResult]:
     """script_note: design/part-05 §5.15's script-notes push (actor/script_notes.py), only
     meaningful if the player holds script approval — the caller enforces that gate.
@@ -379,16 +397,20 @@ def simulate_project(
     read on it) and must return the chosen StreamingBid. Defaults to auto-accepting the best offer
     when no selector is given, so callers that don't care about the sale (verify.py, tests, the
     rest of simulate_career's loop) don't need to supply one.
+    studio_trust/requested_marketing_push: fed straight to studios.decide_marketing_spend() inside
+    resolve_quality — how much this studio actually spends marketing the film, deliberately not a
+    function of the film's own resolved quality (see that function's docstring).
     """
     palette = palette or generate_palette(role.genre, rng)
     director = resolve_director(director_override, rng)
     shoot = resolve_shoot(state, role, prep_choice, scene_choices, director, rng, script_note, orientation_effect)
-    reception, studio, marketing_share, cast_star_power = resolve_quality(
+    reception, studio, marketing_decision, cast_star_power = resolve_quality(
         state, role, shoot, director, palette, rng, genre_demand_override, franchise_audience_bonus, script_note,
+        studio_trust=studio_trust, requested_marketing_push=requested_marketing_push,
     )
     if release_strategy is not None:
         reception = resolve_release_schedule(
-            reception, role, studio, marketing_share, cast_star_power, release_strategy, rng,
+            reception, role, studio, marketing_decision.marketing_share, cast_star_power, release_strategy, rng,
             streaming_multiplier_override=streaming_multiplier_override,
             streaming_bid_selector=streaming_bid_selector,
         )
@@ -416,6 +438,8 @@ def simulate_project(
         npc_affinity_delta=shoot.npc_affinity_delta,
         favour_gain=orientation_effect.you_favour if orientation_effect is not None else 0.0,
         studio_id=role.studio,
+        marketing_push_requested=marketing_decision.push_requested,
+        marketing_push_honored=marketing_decision.push_honored,
     )
     return update.state, result
 

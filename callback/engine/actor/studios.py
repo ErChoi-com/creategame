@@ -109,18 +109,23 @@ STUDIO_INFLUENCE_FLOOR = 0.02  # even a burned, nobody actor sometimes gets thei
 STUDIO_INFLUENCE_CEILING = 0.92  # even the biggest, most trusted star doesn't get an automatic yes
 
 
-def actor_influence_on_release(trust: float, actor_importance: float) -> float:
-    """Probability the studio actually goes with the actor's requested release strategy instead
-    of its own preferred_release. actor_importance is the dominant, steeply-scaling term (a real
-    A-lister at any trust level always outweighs a real nobody at any trust level — a total-
-    nobody's importance term is 0, so trust can't move them off the floor at all); trust only
-    modulates an already-famous actor's own leverage up or down by a bounded +/-20%. The power-4
-    curve means real influence takes real, top-tier fame — an actor who's merely above average
-    still gets mostly overruled."""
+def actor_influence_on_studio_decision(trust: float, actor_importance: float) -> float:
+    """The shared "how much does the studio actually listen to you" curve — used for both the
+    release-strategy request and the marketing-push request below, since it's the same underlying
+    social dynamic (how much say a working relationship buys you) either time. actor_importance is
+    the dominant, steeply-scaling term (a real A-lister at any trust level always outweighs a real
+    nobody at any trust level — a total-nobody's importance term is 0, so trust can't move them off
+    the floor at all); trust only modulates an already-famous actor's own leverage up or down by a
+    bounded +/-20%. The power-4 curve means real influence takes real, top-tier fame — an actor
+    who's merely above average still gets mostly overruled."""
     importance_term = STUDIO_INFLUENCE_IMPORTANCE_COEF * (max(actor_importance, 0.0) / 100.0) ** STUDIO_INFLUENCE_IMPORTANCE_POWER
     trust_multiplier = 1.0 + STUDIO_INFLUENCE_TRUST_SWING * (trust - 50.0) / 50.0
     influence = STUDIO_INFLUENCE_BASE + importance_term * trust_multiplier
     return clamp(influence, STUDIO_INFLUENCE_FLOOR, STUDIO_INFLUENCE_CEILING)
+
+
+# Backward-compatible name — release-strategy call sites keep importing this exact function.
+actor_influence_on_release = actor_influence_on_studio_decision
 
 
 def decide_release_strategy(
@@ -136,6 +141,66 @@ def marketing_share_for(studio: Studio, budget_millions: float) -> float:
     if studio.tiered_marketing:
         return _tentpole_marketing_share(budget_millions)
     return studio.marketing_share
+
+
+# The marketing decision is deliberately NOT a function of the film's actual resolved quality —
+# no studio executive gets to peek at the finished film's real critic/audience score before
+# setting the campaign budget; that decision gets made off what's actually knowable beforehand
+# (the studio's own instincts, the relationship, the star, the genre's mood) plus real, irreducible
+# uncertainty. That's the point: a big campaign can still get thrown at a film that flops, and a
+# real sleeper can still go out under-marketed — nobody in this model can reliably predict which.
+MARKETING_TRUST_COEF = 0.06          # (trust-50)/100 -> +/-0.06 around baseline
+MARKETING_STARPOWER_COEF = 0.08      # (star_power-50)/100 -> +/-0.08 — a known lead is easier to sell
+MARKETING_GENRE_DEMAND_COEF = 0.05   # (genre_demand-50)/100 -> +/-0.05 — ride the wave or don't fight it
+MARKETING_FRANCHISE_DISCOUNT = -0.04  # built-in awareness needs less spend to reach the same audience
+MARKETING_PUSH_BONUS = 0.12          # extra share if a requested campaign push is actually honored
+MARKETING_NOISE_SD = 0.16            # the dominant term on purpose — real, irreducible unpredictability
+MARKETING_SHARE_FLOOR = 0.05
+MARKETING_SHARE_CEILING = 0.95
+
+
+@dataclass(frozen=True)
+class MarketingDecision:
+    marketing_share: float
+    push_requested: bool
+    push_honored: bool
+
+
+def decide_marketing_spend(
+    studio: Studio,
+    film_budget_millions: float,
+    trust: float,
+    actor_star_power: float,
+    genre_demand: float,
+    is_franchise_or_adaptation: bool,
+    requested_push: bool,
+    rng: random.Random,
+) -> MarketingDecision:
+    """How much of this film's real budget the studio actually spends marketing it — reactive to
+    everything actually knowable at that point (trust, the actor's own pull, the genre's mood,
+    whether the built-in-awareness discount applies, and whether a lobbied-for push landed), but
+    dominated by real noise (MARKETING_NOISE_SD) rather than the film's own quality, which nobody
+    — including the studio — has a reliable read on yet."""
+    baseline = marketing_share_for(studio, film_budget_millions)
+    trust_component = MARKETING_TRUST_COEF * (trust - 50.0) / 100.0
+    star_component = MARKETING_STARPOWER_COEF * (actor_star_power - 50.0) / 100.0
+    genre_component = MARKETING_GENRE_DEMAND_COEF * (genre_demand - 50.0) / 100.0
+    franchise_component = MARKETING_FRANCHISE_DISCOUNT if is_franchise_or_adaptation else 0.0
+    noise = rng.gauss(0.0, MARKETING_NOISE_SD)
+
+    push_honored = False
+    push_component = 0.0
+    if requested_push:
+        influence = actor_influence_on_studio_decision(trust, actor_star_power)
+        push_honored = rng.random() < influence
+        push_component = MARKETING_PUSH_BONUS if push_honored else 0.0
+
+    share = baseline + trust_component + star_component + genre_component + franchise_component + noise + push_component
+    return MarketingDecision(
+        marketing_share=clamp(share, MARKETING_SHARE_FLOOR, MARKETING_SHARE_CEILING),
+        push_requested=requested_push,
+        push_honored=push_honored,
+    )
 
 
 def pick_studio(budget_millions: float, rng: random.Random) -> Studio:

@@ -9,9 +9,12 @@ import unittest
 from callback.engine.actor.reception import BREAK_EVEN_MARKETING_SHARE, RIGHTS_SHARE, resolve_reception
 from callback.engine.actor.release import STREAMING_BUYOUT_MULTIPLIER, STREAMING, apply_release_strategy
 from callback.engine.actor.studios import (
+    MARKETING_SHARE_CEILING,
+    MARKETING_SHARE_FLOOR,
     SELF_DISTRIBUTE_MULTIPLIER,
     STUDIOS,
     actor_influence_on_release,
+    decide_marketing_spend,
     decide_release_strategy,
     marketing_share_for,
     pick_studio,
@@ -210,6 +213,78 @@ class TestReleaseDecision(unittest.TestCase):
 
     def test_real_command_requires_near_top_of_scale_fame(self):
         self.assertGreater(actor_influence_on_release(trust=50.0, actor_importance=97.0), 0.60)
+
+
+class TestMarketingDecision(unittest.TestCase):
+    def test_not_a_function_of_film_quality_at_all(self):
+        # decide_marketing_spend takes no quality argument whatsoever — this test exists to lock
+        # in the design intent: nobody, including the studio, gets to peek at the real score.
+        import inspect
+        params = inspect.signature(decide_marketing_spend).parameters
+        self.assertNotIn("quality", params)
+        self.assertNotIn("film_critic_score", params)
+        self.assertNotIn("audience_score", params)
+
+    def test_higher_trust_pushes_spend_up_on_average(self):
+        studio = STUDIOS["mid_major"]
+        low = [decide_marketing_spend(studio, 30.0, 5.0, 50.0, 50.0, False, False, random.Random(i)).marketing_share for i in range(300)]
+        high = [decide_marketing_spend(studio, 30.0, 95.0, 50.0, 50.0, False, False, random.Random(i)).marketing_share for i in range(300)]
+        self.assertGreater(sum(high) / len(high), sum(low) / len(low))
+
+    def test_higher_star_power_pushes_spend_up_on_average(self):
+        studio = STUDIOS["mid_major"]
+        low = [decide_marketing_spend(studio, 30.0, 50.0, 5.0, 50.0, False, False, random.Random(i)).marketing_share for i in range(300)]
+        high = [decide_marketing_spend(studio, 30.0, 50.0, 95.0, 50.0, False, False, random.Random(i)).marketing_share for i in range(300)]
+        self.assertGreater(sum(high) / len(high), sum(low) / len(low))
+
+    def test_hotter_genre_demand_pushes_spend_up_on_average(self):
+        studio = STUDIOS["mid_major"]
+        cold = [decide_marketing_spend(studio, 30.0, 50.0, 50.0, 5.0, False, False, random.Random(i)).marketing_share for i in range(300)]
+        hot = [decide_marketing_spend(studio, 30.0, 50.0, 50.0, 95.0, False, False, random.Random(i)).marketing_share for i in range(300)]
+        self.assertGreater(sum(hot) / len(hot), sum(cold) / len(cold))
+
+    def test_franchise_or_adaptation_gets_a_real_efficiency_discount_on_average(self):
+        studio = STUDIOS["mid_major"]
+        original = [decide_marketing_spend(studio, 30.0, 50.0, 50.0, 50.0, False, False, random.Random(i)).marketing_share for i in range(400)]
+        franchise = [decide_marketing_spend(studio, 30.0, 50.0, 50.0, 50.0, True, False, random.Random(i)).marketing_share for i in range(400)]
+        self.assertLess(sum(franchise) / len(franchise), sum(original) / len(original))
+
+    def test_a_nobodys_push_is_rarely_honored_a_top_stars_usually_is(self):
+        studio = STUDIOS["mid_major"]
+        nobody_honors = sum(
+            decide_marketing_spend(studio, 30.0, 50.0, 5.0, 50.0, False, True, random.Random(i)).push_honored
+            for i in range(300)
+        )
+        alister_honors = sum(
+            decide_marketing_spend(studio, 30.0, 50.0, 97.0, 50.0, False, True, random.Random(i)).push_honored
+            for i in range(300)
+        )
+        self.assertLess(nobody_honors, 40)
+        self.assertGreater(alister_honors, 200)
+
+    def test_no_push_requested_means_never_honored(self):
+        studio = STUDIOS["mid_major"]
+        for i in range(50):
+            decision = decide_marketing_spend(studio, 30.0, 50.0, 95.0, 50.0, False, False, random.Random(i))
+            self.assertFalse(decision.push_requested)
+            self.assertFalse(decision.push_honored)
+
+    def test_identical_inputs_can_still_produce_meaningfully_different_spend(self):
+        # the headline point: nobody can reliably predict the outcome, even holding every known
+        # signal fixed — real, substantial noise dominates the decision.
+        studio = STUDIOS["mid_major"]
+        shares = [
+            decide_marketing_spend(studio, 30.0, 50.0, 50.0, 50.0, False, False, random.Random(i)).marketing_share
+            for i in range(500)
+        ]
+        self.assertGreater(max(shares) - min(shares), 0.4)
+
+    def test_share_always_stays_within_the_sane_floor_and_ceiling(self):
+        studio = STUDIOS["blockbuster"]
+        for i in range(500):
+            decision = decide_marketing_spend(studio, 250.0, 0.0, 0.0, 0.0, True, False, random.Random(i))
+            self.assertGreaterEqual(decision.marketing_share, MARKETING_SHARE_FLOOR)
+            self.assertLessEqual(decision.marketing_share, MARKETING_SHARE_CEILING)
 
 
 if __name__ == "__main__":

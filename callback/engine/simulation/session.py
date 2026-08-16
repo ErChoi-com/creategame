@@ -120,6 +120,7 @@ class Session:
         self._orientation_npc_id: str | None = None
         self._orientation_effect = None
         self._requested_director_npc_id: str | None = None
+        self._requested_marketing_push: bool = False
         # This year's calendar-advance inputs, accumulated by whatever you did this year (acting
         # and/or directing — see end_year()) and applied exactly once when the year actually ends.
         self._acting_worked_this_year: bool = False
@@ -300,7 +301,14 @@ class Session:
         self._orientation_npc_id = None
         self._orientation_effect = None
         self._requested_director_npc_id = None
+        self._requested_marketing_push = False
         self._box_office_bonus_negotiated = False
+
+    def request_marketing_push(self) -> None:
+        """Lobby the studio for a bigger campaign — real input, not a guarantee: the studio honors
+        it with the same steeply fame-gated influence curve as a release-strategy request (studios.
+        actor_influence_on_studio_decision). Callable any time between accept() and choose_release()."""
+        self._requested_marketing_push = True
 
     def decline_board(self) -> list[dict]:
         """Passes on every listing on the board, resolves each through the background industry,
@@ -677,6 +685,7 @@ class Session:
             requested_director_npc_id=self._requested_director_npc_id,
             streaming_multiplier_override=streaming_multiplier if actual_strategy == "streaming" else None,
             streaming_bid_selector=_capture if actual_strategy == "streaming" and streaming_multiplier is None else None,
+            studio_trust=trust, requested_marketing_push=self._requested_marketing_push,
         )
         bonus = box_office_bonus_earned(result.gross, result.roi) if self._box_office_bonus_negotiated else 0.0
         self._acting_worked_this_year = True
@@ -690,6 +699,8 @@ class Session:
             "studio_overruled": overruled,
             "streaming_buyer": chosen_bid.get("studio_name"),
             "streaming_self_distributed": chosen_bid.get("self_distribute", False),
+            "marketing_push_requested": result.marketing_push_requested,
+            "marketing_push_honored": result.marketing_push_honored,
             "performance_band": performance_band(result.performance),
             "critic_band": critic_band(result.film_critic_score),
             "critic_score": round(result.film_critic_score),
