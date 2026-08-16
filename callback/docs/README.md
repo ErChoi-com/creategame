@@ -7,10 +7,32 @@ BitLife's Actor Pack, plus the simulation harnesses used to tune and then stress
 
 | File | What it is |
 |---|---|
-| **callback-design-doc-v8.md** | The design document — still named for its original v8 draft, now carrying a v9 revision inline. 2,775 lines, 15 parts. Start at Part 0 (design rules and cut list), then Part 5 (the work itself — this is the core loop). Every v9 change is marked `*(v9 — ...)*` in place, next to the v8 text it corrects, so the document reads as one continuous account of what was tried and what was wrong with it, not a separate changelog. |
+| **design/** | The design document, split one file per Part — was a single 2,775-line file, now 16 part files plus an index. Start at `design/00-index.md`: front matter, the v9 changelog, and a table of contents. Then Part 0 (design rules and cut list), then Part 5 (the work itself — this is the core loop). Every v9 change is marked `*(v9 — ...)*` in place, next to the v8 text it corrects, so each part reads as one continuous account of what was tried and what was wrong with it, not a separate changelog. |
 | **callback-design-review.md** | **Read this second.** An adversarial review plus the first end-to-end career simulation, run against the *original* v8 text. It finds that the game, as specified, does not produce a career. Fix list is in section 10 — v9 folds that list back into the sections it applies to. |
 | **callback-sim.py** | Tuning harness. Seven subsystem verifications, against the *original* v8 constants — not yet updated for v9's fixes (see below). |
 | **callback-career-sim.py** | End-to-end career simulation against the *original* v8 constants — wires the subsystems together and runs 4,000 careers against the doc's own targets. Fails all of them, which is what v9's §4.3 fixes. |
+
+### `design/` layout
+
+| File | Part |
+|---|---|
+| `00-index.md` | Front matter, the v9 changelog, table of contents |
+| `part-00-design-rules-and-cut-list.md` | 0 — the rules every system has to pass, the decision budget, Ambitions, what got cut and why |
+| `part-01-bitlife-teardown.md` | 1 — how BitLife's Actor Pack actually works |
+| `part-02-whats-missing.md` | 2 — six structural gaps in it |
+| `part-03-design-overview.md` | 3 — the pitch, the five pillars, the shared spine |
+| `part-04-the-actor.md` | 4 — attributes, Persona, Standing *(v9-fixed)*, the offer board *(v9-fixed)*, the deal, prep, the shoot, the calendar, aging, reception *(v9-fixed)*, awards, the Rolodex, scandal |
+| `part-05-the-work.md` | 5 — the six-dial palette *(v9 relabelled)*, coherence, landmarks, the four-position performance *(v9 relabelled)*, shape as three real scenes *(v9-rewritten)* |
+| `part-06-leverage.md` | 6 — favours, approvals *(v9-fixed)*, indispensability *(v9-fixed)*, franchise leverage, the ~40-verb action catalogue |
+| `part-07-the-director.md` | 7 — the director as a full parallel career (unbuilt) |
+| `part-08-the-studio.md` | 8 — the studio-executive layer (unbuilt) |
+| `part-09-genres-franchises-and-tie-ins.md` | 9 — genres as economies, merchandise, shared universes (unbuilt) |
+| `part-10-the-world.md` | 10 — guilds, strikes, festivals, territories, tech eras (unbuilt) |
+| `part-11-the-life.md` | 11 — health, addiction, family, politics, money, the obituary (unbuilt) |
+| `part-12-data-schemas.md` | 12 — data schemas |
+| `part-13-build-plan.md` | 13 — the phased build plan |
+| `part-14-tuning-targets.md` | 14 — what's verified against what; §14.9 now shows real measured numbers |
+| `part-15-risks.md` | 15 — risks and mitigations, plus the closing one-line summary |
 
 ## Running the sims
 
