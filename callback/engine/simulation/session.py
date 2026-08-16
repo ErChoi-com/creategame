@@ -30,6 +30,7 @@ from callback.engine.actor.positions import DIAL_LABELS, DIALS, PLAYER_LABELS, P
 from callback.engine.actor.prep import PREP_OPTIONS, WING_IT
 from callback.engine.actor.release import RELEASE_STRATEGIES, WIDE, LIMITED, weekly_gross_curve
 from callback.engine.actor.script_notes import SCRIPT_NOTE_OPTIONS, apply_script_note
+from callback.engine.actor.studios import STUDIOS
 from callback.engine.awards.awards import NarrativeContext, buzz_score, narrative_bonus
 from callback.engine.leverage.approvals import can_negotiate_approvals, fee_after_approvals
 from callback.engine.leverage.catalogue import accumulate_scarcity, advance_agent_tier, can_advance_agent_tier, next_agent_tier
@@ -121,12 +122,15 @@ class Session:
 
         self._role = role
         self._would_be_offered = would_offer
+        studio = STUDIOS[role.studio]
         return {
             "genre": role.genre,
             "billing": role.billing,
             "budget_millions": round(role.budget_for_role, 2),
             "available": would_offer,
             "union": role.union,
+            "studio_name": studio.name,
+            "studio_tagline": studio.tagline,
         }
 
     def accept(self) -> None:
@@ -279,6 +283,7 @@ class Session:
             "critic_score": round(result.film_critic_score),
             "audience_band": audience_band(result.audience_score),
             "release_label": RELEASE_LABELS[strategy],
+            "studio_name": STUDIOS[result.studio_id].name,
             "roi_band": roi_band(result.roi),
             "gross_millions": round(result.gross, 1),
             "budget_millions": round(result.budget, 1),

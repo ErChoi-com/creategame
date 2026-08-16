@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from callback.engine.actor.attributes import Attributes
 from callback.engine.actor.persona import ARCHETYPES, GENRES, Persona
 from callback.engine.actor.standing import GATEKEEPER_WEIGHTS
+from callback.engine.actor.studios import pick_studio
 from callback.engine.core.meters import StandingModel
 from callback.engine.core.util import clamp, positive_part, sigmoid
 
@@ -61,6 +62,7 @@ class Role:
     gatekeeper: str  # key into standing.GATEKEEPER_WEIGHTS
     requirements: dict[str, float] = field(default_factory=dict)  # subset of voice/physicality/look
     union: bool = True
+    studio: str = "mid_major"  # key into studios.STUDIOS — who's actually financing this film
 
 
 def age_mismatch_penalty(char_age: int, your_age: int) -> float:
@@ -154,6 +156,7 @@ def sample_role(rng: random.Random, budget_millions: float | None = None) -> Rol
     billing = rng.choices(BILLINGS[:3], weights=[0.15, 0.45, 0.40])[0]  # leads are rarer to land
     budget = budget_millions if budget_millions is not None else rng.choice([4, 12, 30, 60, 170])
     gatekeeper = rng.choice(list(GATEKEEPER_WEIGHTS.keys()))
+    studio = pick_studio(budget, rng).id  # who's financing scales with the film's own budget, not the role's fee
     return Role(
         project_id=f"p_{rng.randrange(10**6):06d}",
         genre=genre,
@@ -164,4 +167,5 @@ def sample_role(rng: random.Random, budget_millions: float | None = None) -> Rol
         difficulty=clamp(rng.gauss(50, 15), 5, 95),
         budget_for_role=budget * rng.uniform(0.05, 0.35),  # this role's fee ceiling vs. total budget
         gatekeeper=gatekeeper,
+        studio=studio,
     )

@@ -81,7 +81,14 @@ def resolve_reception(
     cliche_penalty: float = 0.0,
     palette_audience_effect: float = 0.0,
     palette_critic_effect: float = 0.0,
+    marketing_share: float | None = None,
+    rights_share: float | None = None,
+    opening_marketing_coef: float = 0.0,
 ) -> ReceptionResult:
+    """marketing_share/rights_share: a producing studio's own money terms (actor/studios.py),
+    overriding this module's flat BREAK_EVEN_MARKETING_SHARE/RIGHTS_SHARE defaults when given.
+    opening_marketing_coef: how much a marketing_share above baseline buys extra opening-weekend
+    visibility (actor/studios.OPENING_MARKETING_COEF) — 0.0 leaves Opening exactly as before."""
     post_luck = rng.gauss(POST_LUCK_MEAN, POST_LUCK_SD)
     project_quality = clamp(
         PQ_SCRIPT * script_quality
@@ -114,10 +121,16 @@ def resolve_reception(
         0.0, 100.0,
     )
 
+    m_share = marketing_share if marketing_share is not None else BREAK_EVEN_MARKETING_SHARE
+    r_share = rights_share if rights_share is not None else RIGHTS_SHARE
+
     budget = role_budget_millions / era_multiplier
-    marketing = BREAK_EVEN_MARKETING_SHARE * budget
-    break_even = budget * (1.0 + BREAK_EVEN_MARKETING_SHARE) / RIGHTS_SHARE
-    opening = budget * (OPENING_BASE + OPENING_STAR_POWER_COEF * cast_star_power + OPENING_DEMAND_COEF * genre_demand) * (max(budget, 0.01) / 30.0) ** OPENING_BUDGET_EXPONENT
+    marketing = m_share * budget
+    break_even = budget * (1.0 + m_share) / r_share
+    opening = budget * (
+        OPENING_BASE + OPENING_STAR_POWER_COEF * cast_star_power + OPENING_DEMAND_COEF * genre_demand
+        + opening_marketing_coef * (m_share - BREAK_EVEN_MARKETING_SHARE)
+    ) * (max(budget, 0.01) / 30.0) ** OPENING_BUDGET_EXPONENT
     zeitgeist = audience_score + ZEITGEIST_DEMAND_COEF * (genre_demand - 50.0) + rng.gauss(0.0, ZEITGEIST_NOISE_SD)
     legs = clamp(
         LEGS_BASE
@@ -126,7 +139,7 @@ def resolve_reception(
         LEGS_LO, LEGS_HI,
     )
     gross = opening * legs
-    roi = (RIGHTS_SHARE * gross) / (budget + marketing) if (budget + marketing) > 0 else 0.0
+    roi = (r_share * gross) / (budget + marketing) if (budget + marketing) > 0 else 0.0
 
     return ReceptionResult(
         project_quality=project_quality,

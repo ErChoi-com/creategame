@@ -54,6 +54,7 @@ def offer_board_screen(session: Session, auto: bool) -> tuple[dict, bool]:
     offer = session.roll_offer()
     print("\n--- THIS YEAR'S OFFER ---")
     print(f"  {offer['genre'].title()} · {offer['billing']} · {offer['budget_millions']:.2f}M budget")
+    print(f"  {offer['studio_name']} — {offer['studio_tagline']}")
     if not offer["available"]:
         print("  (An audition — but it doesn't come through this year.)")
         return offer, False
@@ -135,6 +136,7 @@ def release_screen(session: Session, auto: bool) -> dict:
 
 def post_release_screen(summary: dict) -> None:
     print("  --- POST & RELEASE ---")
+    print(f"    {summary['studio_name']}")
     print(f"    Your work: {summary['performance_band']}")
     print(f"    Critics: {summary['critic_band']} ({summary['critic_score']}/100)")
     print(f"    Audience: {summary['audience_band']}")

@@ -53,12 +53,12 @@ def festival_acquisition_probability(
     )
 
 
-def _marketing(reception: ReceptionResult) -> float:
-    return BREAK_EVEN_MARKETING_SHARE * reception.budget
+def _marketing(reception: ReceptionResult, marketing_share: float) -> float:
+    return marketing_share * reception.budget
 
 
-def _roi(gross: float, budget: float, marketing: float) -> float:
-    return (RIGHTS_SHARE * gross) / (budget + marketing) if (budget + marketing) > 0 else 0.0
+def _roi(gross: float, budget: float, marketing: float, rights_share: float) -> float:
+    return (rights_share * gross) / (budget + marketing) if (budget + marketing) > 0 else 0.0
 
 
 def apply_release_strategy(
@@ -68,18 +68,29 @@ def apply_release_strategy(
     cast_star_power: float = 50.0,
     festival_tier_bonus: float = 0.0,
     audience_award_bonus: float = 0.0,
+    marketing_share: float | None = None,
+    rights_share: float | None = None,
+    streaming_multiplier: float = STREAMING_BUYOUT_MULTIPLIER,
 ) -> ReceptionResult:
     """Takes an already-resolved (wide-release-shaped) ReceptionResult — quality scores untouched
     — and adjusts only Gross/ROI for the chosen release strategy. Additive: doesn't change
-    resolve_reception()'s signature or any of its other callers."""
+    resolve_reception()'s signature or any of its other callers.
+
+    marketing_share/rights_share: the producing studio's own money terms (actor/studios.py),
+    defaulting to this module's flat constants when a caller doesn't have a studio to hand.
+    streaming_multiplier: a studio's own streamer-buyout multiplier, defaulting to the flat
+    §8.3 preset (STREAMING_BUYOUT_MULTIPLIER) when not given."""
+    m_share = marketing_share if marketing_share is not None else BREAK_EVEN_MARKETING_SHARE
+    r_share = rights_share if rights_share is not None else RIGHTS_SHARE
+
     if strategy == WIDE:
         return reception
 
-    marketing = _marketing(reception)
+    marketing = _marketing(reception, m_share)
 
     if strategy == LIMITED:
         gross = reception.opening * LIMITED_OPENING_SHARE * (reception.legs * LIMITED_LEGS_BONUS)
-        return replace(reception, gross=gross, roi=_roi(gross, reception.budget, marketing))
+        return replace(reception, gross=gross, roi=_roi(gross, reception.budget, marketing, r_share))
 
     if strategy == FESTIVAL:
         p_acquired = festival_acquisition_probability(
@@ -87,10 +98,12 @@ def apply_release_strategy(
         )
         if rng.random() >= p_acquired:
             return replace(reception, gross=0.0, roi=0.0)  # §10.3 — unsold, ROI = 0
-        return apply_release_strategy(reception, LIMITED, rng, cast_star_power)  # acquired -> a platform release
+        return apply_release_strategy(
+            reception, LIMITED, rng, cast_star_power, marketing_share=m_share, rights_share=r_share,
+        )  # acquired -> a platform release
 
     if strategy == STREAMING:
-        payout = reception.budget * STREAMING_BUYOUT_MULTIPLIER
+        payout = reception.budget * streaming_multiplier
         roi = (payout - reception.budget) / reception.budget if reception.budget > 0 else 0.0
         return replace(reception, gross=payout, roi=roi)
 

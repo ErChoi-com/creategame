@@ -129,6 +129,34 @@ actually making rather than life/politics side systems:
   the same "one spine" reuse the Standing model already establishes elsewhere.
   `Session.available_directors()` / `request_director()`.
 
+**Different studios finance and market your film differently** (`actor/studios.py`, reading
+design §8.2's Marketing(b) curve down onto a single project). Every offer is now attached to a
+producing studio — indie house, mid-major, prestige awards house, blockbuster machine, or
+streamer-backed — each with its own marketing share of budget, backend split, festival pull, and
+streaming buyout terms:
+
+- **Indie house** — thin marketing (20% of budget), but the best backend split and a real
+  festival-acquisition edge.
+- **Mid-major** — the old flat baseline (45% marketing, standard backend), unchanged for anyone
+  not passing a studio through.
+- **Prestige awards house** — spends more on campaigns than trailers (50% marketing skewed toward
+  festival pull), a slightly better backend, worse streaming terms.
+- **Blockbuster machine** — marketing scales with budget on §8.2's own tiered curve (35% under
+  $10M up to 80% over $100M), the worst backend split, weak festival pull.
+- **Streamer-backed** — almost no theatrical marketing (8%), but the biggest streaming-buyout
+  bonus if you pick that release strategy.
+
+This changes real numbers, not just flavor text: `reception.py`'s `resolve_reception()` takes
+optional `marketing_share`/`rights_share`/`opening_marketing_coef` params (a studio spending more
+than baseline buys a bigger opening weekend — visibility, never quality; the film's actual
+Project Quality/Critic/Audience scores are untouched), and `release.py`'s
+`apply_release_strategy()` takes the matching `marketing_share`/`rights_share`/
+`streaming_multiplier` so a chosen release strategy (Wide/Limited/Festival/Streaming/Shelved)
+plays out through *that* studio's money, not a flat constant. `offers.sample_role()` now assigns
+a studio weighted by the film's own budget (`studios.pick_studio()` — a $4M film never lands at
+the blockbuster machine, a $200M one never lands at the indie house), and the CLI/`Session`
+surface the studio's name and pitch on the Offer Board and again at Post & Release.
+
 ## Known gaps and simplifications (documented inline at each site too)
 
 - **`actor/offers.sample_role()`** is still a placeholder role generator — it doesn't scale a

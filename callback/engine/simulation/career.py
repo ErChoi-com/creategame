@@ -33,10 +33,11 @@ from callback.engine.actor.positions import (
     resolve_scene_positions,
 )
 from callback.engine.actor.prep import resolve_prep
-from callback.engine.actor.reception import resolve_reception
-from callback.engine.actor.release import WIDE, apply_release_strategy
+from callback.engine.actor.reception import RIGHTS_SHARE, resolve_reception
+from callback.engine.actor.release import STREAMING_BUYOUT_MULTIPLIER, WIDE, apply_release_strategy
 from callback.engine.actor.script_notes import ScriptNoteEffect
 from callback.engine.actor.shape import resolve_shape
+from callback.engine.actor.studios import OPENING_MARKETING_COEF, STUDIOS, marketing_share_for
 from callback.engine.actor.standing import (
     RecognitionMeter,
     HEAT_KEEP,
@@ -103,6 +104,7 @@ class ProjectResult:
     affection_delta: float
     npc_affinity_delta: float = 0.0
     favour_gain: float = 0.0
+    studio_id: str = "mid_major"
 
 
 def default_scene_policy(rng: random.Random) -> tuple[SceneChoice, SceneChoice, SceneChoice]:
@@ -193,6 +195,9 @@ def simulate_project(
         palette_aud_effect += script_note.audience_delta
         palette_crit_effect += script_note.critic_delta
 
+    studio = STUDIOS[role.studio]
+    marketing_share = marketing_share_for(studio, role.budget_for_role)
+
     reception = resolve_reception(
         script_quality=script_quality,
         director_skill=director_skill,
@@ -206,9 +211,17 @@ def simulate_project(
         rng=rng,
         palette_audience_effect=palette_aud_effect,
         palette_critic_effect=palette_crit_effect,
+        marketing_share=marketing_share,
+        rights_share=RIGHTS_SHARE + studio.rights_share_delta,
+        opening_marketing_coef=OPENING_MARKETING_COEF,
     )
     if release_strategy is not None:
-        reception = apply_release_strategy(reception, release_strategy, rng, cast_star_power=cast_star_power)
+        reception = apply_release_strategy(
+            reception, release_strategy, rng, cast_star_power=cast_star_power,
+            festival_tier_bonus=studio.festival_tier_bonus,
+            marketing_share=marketing_share, rights_share=RIGHTS_SHARE + studio.rights_share_delta,
+            streaming_multiplier=STREAMING_BUYOUT_MULTIPLIER + studio.streaming_multiplier_delta,
+        )
 
     bw = {"lead": 1.0, "supporting": 0.55, "bit": 0.2, "extra": 0.0}[role.billing]
     heat_delta = delta_heat(bw, state.credits, role.budget_for_role, reception.roi, reception.audience_score)
@@ -255,6 +268,7 @@ def simulate_project(
         affection_delta=affection_delta,
         npc_affinity_delta=npc_affinity_delta,
         favour_gain=orientation_effect.you_favour if orientation_effect is not None else 0.0,
+        studio_id=role.studio,
     )
     return new_state, result
 
