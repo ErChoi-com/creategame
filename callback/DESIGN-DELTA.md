@@ -295,3 +295,30 @@ the four HUD meters net of scandal, sat next to them as a bare number with no co
 the fifth stat in a four-stat display. `APPROVAL_LABELS`/`CAREER_POSITION_LABELS` (`engine/
 data.js`) replace the key dumps, and `Standing`/`Legibility` now carry the same "number — what
 that number means" pattern the ledger already used successfully in one place and nowhere else.
+
+## The moments, interleaved with the scenes instead of stacked after them
+
+Two faults, one fix. First, a UI-only correctness bug that predates the three-scene rework:
+`web/app.js` called `game.momentsFor(role)` once to build the on-set cards it showed the player,
+then `shoot()` called `this.momentsFor(role)` *again* internally when `choices.momentSet` was
+never passed — a second, later draw from the same RNG stream. Nothing crashed, because every
+answer is keyed by moment id and any mismatch just falls back to `defaultMomentChoice()` for that
+id — but a player's specific answer could silently stop mattering if the two draws did not agree,
+and there was no check that would ever have noticed. `screenFilm()` now calls `momentsFor()`
+exactly once, keeps the result in `choice.momentSet`, and `finishShoot()` passes that same array
+back into `shoot()` — which already accepted `choices.momentSet` for exactly this purpose and had
+simply never been given one.
+
+Second, with a real set now in hand, `web/app.js` distributes it across scene boundaries instead
+of showing every card in one block after the third scene — `nextScene()` shows the next moment,
+if one is still owed, before advancing, and `resolveShoot()` clears anything left over the same
+way it always has. The pool a shoot draws from, and how many of it a given actor gets asked about,
+are completely unchanged (§0.3 rule 3 still holds — nothing new is prompted, nothing prompted more
+often); only where in the shoot each one lands changed, which is what makes three scenes read as
+a schedule with things happening between setups rather than a form followed by a debrief.
+
+The dailies line shown between scenes is purely a client-side preview (no RNG, nothing journaled)
+and now carries a small, real consequence to match: a scene played past its room nudges the
+director's affinity down a point, the same bounded scale a moment's own effect already uses —
+`sim/production.mjs`'s legacy-equivalence check confirms this only ever fires on the new
+scene-by-scene path, never retroactively changing a number the calibrated harnesses check.

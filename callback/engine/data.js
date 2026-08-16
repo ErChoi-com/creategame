@@ -90,10 +90,10 @@ export const PERF_DIAL_LABELS = {
   energy: 'Energy', volume: 'Size', warmth: 'Warmth', speed: 'Tempo',
 };
 export const PERF_DIAL_HINTS = {
-  energy: 'How much force you bring to the scene',
-  volume: 'How much room you take up',
-  warmth: 'How open or guarded the character reads',
-  speed: 'How fast you play it',
+  energy: 'What you bring into the room before you say anything',
+  volume: 'How much of the frame you take up',
+  warmth: 'Whether the character lets anyone in',
+  speed: 'The clock you are playing the scene on',
 };
 
 export const POSITIONS = ['with', 'beneath', 'beyond', 'against'];

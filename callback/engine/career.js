@@ -845,6 +845,16 @@ export class Game {
           directorCommand: command,
           partnerPositions,
         });
+        // §0.3 rule 2b: every read the player is given has to be true
+        // somewhere. The dailies line the interface shows between scenes
+        // says the director is quietly forming an opinion — this is that
+        // opinion, small and bounded exactly like a moment's effect, and it
+        // is why a director you overspent in front of is harder to work
+        // with on the next picture.
+        director.affinity = clamp(
+          director.affinity + (res.overspend > 0.4 ? -1 : res.forFilm > res.forYou ? 0.5 : 0),
+          -100, 100,
+        );
         return { label: SCENE_LABELS[i], positions: pos, resolved: res };
       });
       resolved = averageResolved(sceneLog.map((s) => s.resolved));

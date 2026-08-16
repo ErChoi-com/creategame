@@ -225,15 +225,34 @@ function readsAs(dial, pos, genre) {
 
 // A dailies line for the scene just shot — pure and client-side, so it costs
 // nothing to compute a preview between two scenes that have not happened yet
-// as far as the engine (and the save file) are concerned.
+// as far as the engine (and the save file) are concerned. Called once per
+// scene and cached (see nextScene), never on every render, so the room does
+// not change its mind about you every time you touch a dial.
+const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 function dailiesLine(pos, role) {
   const resolved = M.resolvePositions(pos, {
     genre: role.genre, craft: game.actor.attrs.craft, directorCommand: role.director.command,
   });
-  if (resolved.overspend > 0.4) return `${role.director.name} watched the playback twice. That is a lot of scene.`;
-  if (resolved.forFilm > resolved.forYou + 1) return 'That one served the picture. Nobody will mention your name for it.';
-  if (resolved.forYou > 3) return 'That take is going in the reel.';
-  return 'A clean take. On to the next one.';
+  if (resolved.overspend > 0.4) return pick([
+    `${role.director.name} watched the playback twice. That is a lot of scene.`,
+    `Someone on the crew laughed at the monitor. Not unkindly. Not entirely kindly either.`,
+    `${role.director.name} said "interesting" in the tone that means they are not sure yet.`,
+  ]);
+  if (resolved.forFilm > resolved.forYou + 1) return pick([
+    'That one served the picture. Nobody will mention your name for it.',
+    'Good day for the film. Quiet day for you.',
+    `${role.director.name} moved on fast. That is what it looks like when something just works.`,
+  ]);
+  if (resolved.forYou > 3) return pick([
+    'That take is going in the reel.',
+    `${role.director.name} watched it back twice, then said "keep that."`,
+    'Somebody on set clapped. That almost never happens.',
+  ]);
+  return pick([
+    'A clean take. On to the next one.',
+    'Nothing remarkable. The schedule holds.',
+    'Professional, unremarkable, over by lunch.',
+  ]);
 }
 
 function currencyBars(resolved) {
@@ -486,6 +505,7 @@ function attempt(role) {
   choice = {
     role, prep: game.standingOrders.prep, positions: null,
     scenePositions: null, sceneIndex: 0, moments: {},
+    momentSet: null, momentIndex: 0, dailyNotes: [],
   };
   screenPrep();
 }
@@ -532,6 +552,11 @@ function screenFilm(note) {
   const r = choice.role;
   if (!choice.palette) choice.palette = act('filmFor', [r.id]).palette;
   const coh = M.coherence(choice.palette);
+  // Decided once, here, and carried through to the final act('shoot', ...)
+  // call below — so whatever the crew's day turns out to involve is fixed
+  // the moment you start the shoot, not re-rolled behind your back the
+  // moment you finish it.
+  if (!choice.momentSet) choice.momentSet = game.momentsFor(r);
   if (!game.shouldAskStance(r, { coherence: coh.value })) {
     choice.positions = game.autoPositions(r);
     return resolveShoot(note);
@@ -561,7 +586,7 @@ function screenScene(note) {
 
   put(
     i === 0 && note ? el('p', { class: 'flash' }, note) : null,
-    i > 0 ? el('p', { class: 'flash' }, dailiesLine(choice.scenePositions[i - 1], r)) : null,
+    i > 0 && choice.dailyNotes[i - 1] ? el('p', { class: 'flash' }, choice.dailyNotes[i - 1]) : null,
     el('h2', {}, SCENE_LABELS[i]),
     el('div', { class: 'scene-progress' }, [0, 1, 2].map((n) => el('span', {
       class: n === i ? 'on' : n < i ? 'done' : '',
@@ -584,10 +609,11 @@ function screenScene(note) {
   put(
     el('h3', { class: 'section' }, 'How you play it'),
     el('p', {},
-      'Four choices, and each one is its own scale: match what the scene already wants, hold '
-      + 'back and underplay it, go bigger than it asks, or play deliberately against it. The '
-      + 'bolder the choice, the more it costs — you only have so much room before it reads as '
-      + 'too much.'),
+      'Four small decisions, and none of them are free. Match the scene, and it disappears into '
+      + 'the film. Hold back, and it becomes the stillness people remember. Go big, and it is '
+      + 'yours on the day but may not survive the cut. Play against it, and you are betting the '
+      + 'room agrees with you before they do. Spend past what the day can carry and it stops '
+      + 'reading as choices — it reads as trying too hard.'),
   );
 
   const table = el('table', { class: 'dials' });
@@ -612,8 +638,9 @@ function screenScene(note) {
   put(table,
     currencyBars(resolved),
     el('div', { class: `budgetline${spent > budget ? ' over' : ''}` },
-      `Room to push it this scene: ${spent} of ${points} point${points === 1 ? '' : 's'} used`
-      + (spent > budget ? ' — more than the scene can hold. Critics will call it mannered.' : '')),
+      spent > budget
+        ? `You are carrying more than this scene can hold (${spent} of about ${points}) — it will read as mannered, not bold.`
+        : `About ${points} point${points === 1 ? '' : 's'} of room this scene, ${spent} spent.`),
     el('div', { class: 'row' },
       el('button', { class: 'primary', onclick: () => nextScene() }, i < 2 ? 'Shoot the scene' : 'Wrap the shoot'),
       el('button', { onclick: () => screenMoves({ current: r }, `Before you shoot ${r.title}`) },
@@ -621,21 +648,40 @@ function screenScene(note) {
     ));
 }
 
+// A scene wraps, the crew reacts (cached, not re-rolled — see dailiesLine),
+// and whatever the shoot still owes you in the way of moments — a stunt, a
+// late costar, a rewrite pushed under the trailer door — happens in the gap
+// before the next one, the way it actually would on a real set, rather than
+// all landing in a pile after the last take.
 function nextScene() {
-  if (choice.sceneIndex < 2) { choice.sceneIndex += 1; screenScene(); return; }
-  resolveShoot();
+  const r = choice.role;
+  choice.dailyNotes[choice.sceneIndex] = dailiesLine(choice.scenePositions[choice.sceneIndex], r);
+  const advance = () => {
+    if (choice.sceneIndex < 2) { choice.sceneIndex += 1; screenScene(); }
+    else resolveShoot();
+  };
+  showNextMoment(advance);
 }
 
 // ---------------------------------------------------------------------------
-// 5. the moments that still fire
+// 5. the moments that still fire — interleaved with the scenes above when
+// there is more than one to interleave with, otherwise shown back to back.
 // ---------------------------------------------------------------------------
 function resolveShoot(note) {
-  const prompted = game.momentsFor(choice.role);
-  return runMoments(prompted, 0, note);
+  if (!choice.momentSet) choice.momentSet = game.momentsFor(choice.role);
+  showNextMoment(() => finishShoot(note), note);
 }
 
-function runMoments(list, i, note) {
-  if (i >= list.length) return finishShoot(note);
+// Shows exactly one moment from choice.momentSet, starting from
+// choice.momentIndex, then calls onDone — or calls onDone immediately if
+// none are left. The veteran path (auto positions, no scenes shown) walks
+// the whole set this way in one pass; the interactive path calls it once
+// per scene boundary, so the same pool of moments reads as things that
+// happened *during* the shoot instead of a debrief after it.
+function showNextMoment(onDone, note) {
+  const list = choice.momentSet || [];
+  const i = choice.momentIndex;
+  if (i >= list.length) return onDone();
   clear();
   drawHud();
   game.countPush('moment');
@@ -648,7 +694,7 @@ function runMoments(list, i, note) {
   for (const opt of m.options) {
     put(el('div', {
       class: 'card pick',
-      onclick: () => { choice.moments[m.id] = opt.id; runMoments(list, i + 1); },
+      onclick: () => { choice.moments[m.id] = opt.id; choice.momentIndex += 1; onDone(); },
     }, el('h4', {}, opt.label)));
   }
 }
@@ -658,6 +704,7 @@ function finishShoot(note) {
     prep: choice.prep,
     positions: choice.positions,
     scenePositions: choice.scenePositions || undefined,
+    momentSet: choice.momentSet || undefined,
     moments: choice.moments,
   }]);
   drawHud();
@@ -667,6 +714,8 @@ function finishShoot(note) {
     note ? el('p', { class: 'flash' }, note) : null,
     el('h2', {}, `${choice.role.title} wrapped`),
     el('p', { class: 'lede' }, game.log.filter((l) => l.kind === 'work').slice(-1)[0]?.text || ''),
+    choice.dailyNotes.length ? el('div', { class: 'attrib' },
+      ...choice.dailyNotes.map((n, i) => el('div', {}, `${SCENE_LABELS[i]}: ${n}`))) : null,
     el('div', { class: 'attrib' },
       el('div', {}, project.readConfidence),
       el('div', {}, `You were paid ${money(project.fee)}.`),
