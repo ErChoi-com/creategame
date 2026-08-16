@@ -65,6 +65,92 @@ None of this is worth building if the player has to go looking through a product
 
 Full-detail simulation — a real Performance roll, a real reception, a tracked career — is worth running for the Rolodex's tracked members, rivals, franchise principals, and anyone the player has ever shared a set with. Nobody will ever ask what happened to the other four hundred background productions filled entirely by generated names in a given year, and running full formulas for all of them buys nothing: those resolve as an aggregate contribution to `GenreHeat`/`GenreDemand` only, per §9.3's existing math, exactly the way §9.3 already implies a population feeds it without ever specifying one. Same principle as §10.5's "four industries built well beats eight sketched" — detail goes where a player can actually walk into it.
 
+### The people you actually know *(v9, new)*
+
+Everything above is the industry the player *isn't* in. This is the layer underneath it: the eight-to-forty people (§4.12) the player actually knows, and what a relationship with one of them is for, beyond the next casting decision.
+
+§4.12 already stores four numbers per edge — `affinity`, `grudge`, `sharedProjects`, `lastContact` — but on their own those only ever fed one thing: the `Utility` term at casting time. That fails §0.1's Decision Test: a relationship that only ever expresses itself as a hidden multiplier on offers you were probably getting anyway isn't a decision, it's flavour text on one. What follows is what a relationship contains, how it moves, what the player can do to change it on purpose, and what it's worth once it's real — reusing §4.12's own fields throughout. No new NPC-side stat block; this is the second half of the system the Rolodex already started.
+
+#### Agendas — they want something specific, not just "more affinity"
+
+Every Rolodex-tracked NPC (the eight held in full detail, §4.12) carries one hidden Agenda, set when they're first tracked and stable for years at a time:
+
+| Agenda | Common in | Wants from you | Undervalues |
+|---|---|---|---|
+| **Ascent** | Agents, rising co-stars | Visible proximity to your rising Heat | A loyal gesture nobody sees |
+| **Legacy** | Veteran directors and actors | One more film worth being remembered for — Prestige over fee | Money, volume, safe choices |
+| **Loyalty** | Long-tenured crew, your Unit (§7.9) | Consistent contact and repeat work over any single grand gesture | A single big favour after years of silence |
+| **Redemption** | Anyone recovering from scandal or blacklist (§4.13, §10.7) | Quiet vouching, real work — not exposure | Public gestures that reopen the story |
+| **Vindication** | Rivals (this section, above) | Beating you, specifically, at the thing you both wanted | Being helped by you |
+| **Mentorship** | A-listers approaching the age cliff (§4.9) | Developing a successor — "Champion a newcomer" (§6.6) lands roughly double | Being asked for favours themselves |
+
+Agendas are never shown as a stat — the game states outcomes, not internals, same as §15's "too many meters" rule. They surface as a pattern: what an NPC keeps asking for, what kind of projects they keep chasing. A player who reads a Legacy director correctly and offers them the strange, unprofitable project instead of the safe one gets a relationship money can't buy; a player who keeps offering that same director volume gets a working relationship that never becomes a loyalty roster.
+
+Agendas cut both ways. They bias the NPC's own §10.0 career simulation — a Legacy-agenda director's `devSlate` actions weight `ScriptQuality` over `Difficulty`; an Ascent-agenda co-star's own casting preference (their side of §4.4's `Utility`) favours whoever currently has the highest Heat in the room, including you, including a rival. And they scale the effect of anything the player does:
+
+```
+InteractionEffect = baseEffect × 1.6   if the action serves their Agenda
+                   = baseEffect × 1.0   if neutral
+                   = baseEffect × 0.6   if it visibly ignores it
+```
+
+#### The relationship arc
+
+`affinity` and `grudge` are continuous, but a relationship doesn't feel continuous — it feels like it's *in* something. Named states, thresholds read straight off numbers §4.12 already tracks:
+
+```
+STRANGER → FAMILIAR → (ALLY | RIVAL) → (LOYAL | ESTRANGED) → (LEGACY | SEVERED)
+```
+
+| Transition | Trigger |
+|---|---|
+| Stranger → Familiar | `sharedProjects ≥ 1`, or one direct pull interaction below |
+| Familiar → Ally | `affinity ≥ 50`, sustained across 2+ interactions |
+| Familiar → Rival | Falls out of the Rolodex ranking as a rival on its own terms — this section's own definition, above |
+| Ally → Loyal | `affinity ≥ 70` and `onLoyaltyRoster` — for a director, this **is** §4.12's loyalty roster, named |
+| Any → Estranged | `grudge` crosses threshold — a specific betrayal, crossing their picket line (§10.2), being blacklisted by or blacklisting them (§6.6) |
+| Estranged → Severed | `grudge = permanent`, set directly by §10.2's cross-the-line mechanic or an unforgivable act |
+| Estranged → (back to Familiar/Ally) | A successful "Broker a reconciliation" (§6.6), or enough silent years plus an opening in *their* career (§10.0) — the producer who fired them, gone; the scandal, forgotten |
+| Loyal/Ally + their career ends (§10.0) | → **Legacy** — see below |
+
+#### Reaching out
+
+Pull, never pushed (§0.3 Rule 2b) — these sit alongside Part 6's transactional catalogue without duplicating it; the difference is that Part 6's verbs spend a relationship, and these build one:
+
+| Action | Cost | Effect |
+|---|---|---|
+| **Check in** | Nothing, once per NPC per year | Resets the `lastContact` decay clock (§6.2); small affinity gain. Free, and capped — spamming it does nothing the second time in a year |
+| **Show up for them** | A block | Wedding, funeral, premiere, opening night. Large affinity swing if you go; a silent, uncommented affinity *decay* if you keep not showing up — the game never tells you this cost, the way it wouldn't tell a real person |
+| **Read their Agenda and act on it** | Varies (money, a favour, a block) | The real decision: guess right and the `×1.6` above applies; guess wrong and it's `×0.6` — you can't ask the game which one it is |
+| **Vouch for them** | Your credibility | Same substrate as §6.6's "Recommend someone," aimed specifically at rebuilding a Redemption-agenda NPC's standing rather than getting them a single job |
+
+#### When they reach out to you
+
+Rare, and pushed — which means it counts against the ~15/year budget (§0.2), so it stays rare on purpose: across the *entire* Rolodex, at most one or two of these fire in a given year. Triggers are state transitions and career events, not a timer:
+
+| Trigger | What happens |
+|---|---|
+| A **Loyal** NPC hits a career crisis of their own (§10.0's simulation, or §11.2's addiction arc) | They ask you for something real — a favour, a public defence, a role for their kid. Refusing costs the relationship visibly; this is the moment Loyalty-agenda NPCs were banking on |
+| An **Estranged** NPC's own arc resolves (the producer who blacklisted you gets fired, §4.12) | They reach out first. Taking the opening is cheap; refusing is a real, defensible choice too — some doors you close on purpose |
+| A **Rival** flames out (§10.0) | You're offered the chance to gloat (Notoriety, small) or help (banks an enormous favour) — a Vindication-agenda rival never forgets which one you picked |
+
+#### What a relationship is actually worth
+
+| State + type | Concrete effect |
+|---|---|
+| Loyal director | Recurring direct offers (already §4.12's loyalty roster) *plus* their `Command` bonus (§7.3) is measurably larger for you specifically than for the rest of their cast |
+| Loyal producer | Financing access outside the normal stack (§8.3) — they attach without the presale grind |
+| Ally/Loyal press | Softens the noise term in a scandal's resolution (§4.13) — the same posture costs you less |
+| Ally/Loyal anyone | Early read on the trades (§10.0) — a private version of the yearly digest, months ahead, for this one relationship only |
+| Legacy (deceased/retired) | See below |
+| Estranged/Severed | The inverse of all of the above, and it's specific: a severed casting director's shows never reach your board again, not a vague penalty |
+
+#### Losing them
+
+§6.2 already says favours die with people. This is the fuller version. When a Loyal or Ally NPC's own simulated career (§10.0) ends — retirement, death, a blacklist that never lifts — the edge converts to **Legacy**: no more interactions, but a permanent entry, read back by the obituary (§11.8). If their Agenda was fulfilled before they went — the Legacy director got the strange film, the Mentorship A-lister got their successor — a one-time, bounded bonus lands once (a Prestige nudge on your next dedicated performance; nothing that stacks). If it wasn't, there's no bonus, only the entry — which is the point: the game doesn't soften an unfinished relationship into a reward.
+
+> Your director for three films dies at 71, mid-development on a fourth. You were her Mentorship pick — she said so once, at an awards afterparty, and never again. You finish the film with her editor at the helm, dedicate your performance to her, and take a small, one-time Prestige bump the game never explains. Twenty years later the obituary lists her first, before anyone with a bigger name, and says why.
+
 ## 10.1 Guilds and unions
 
 Union status is one of the most mechanically fertile and least-simulated facts about acting as a job.

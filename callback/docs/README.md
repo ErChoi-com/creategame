@@ -107,6 +107,15 @@ pointer field so the obituary can read a declined role's real resolved outcome i
 hardcoded example string; and the build plan, tuning targets, and risk list each got the one-line
 acknowledgment they were missing. See `design/00-index.md`'s changelog for the file-by-file list.
 
+**The Rolodex now has a relationship layer, not just a casting weight.** Built into §10.0, kept
+in the world doc on purpose rather than spread across files: NPCs carry a hidden Agenda (six
+types) that shapes both their own background career and how much a player's actions actually land;
+relationships move through named states (`Stranger → Familiar → Ally/Rival → Loyal/Estranged →
+Legacy/Severed`) instead of a raw affinity number; new pull actions build a relationship instead of
+spending one; a small, budget-capped set of NPC-initiated moments make the relationship feel like
+it runs on its own; and losing someone — their own simulated career ending — has real, bounded,
+one-time weight instead of just going quiet.
+
 **Not yet folded back in:** `callback-sim.py` and `callback-career-sim.py` still test the *original*
 v8 constants, so running them now reproduces the review's failing numbers on purpose — they haven't
 been updated to check v9's formulas. Re-tuning them against the corrected §4.3/§4.4/§4.10 is the

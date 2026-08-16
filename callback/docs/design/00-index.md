@@ -91,6 +91,23 @@ itself introduces — an off-screen NPC career feeling arbitrary the day it resu
 is a new formula or a new stat; every addition names which existing mechanism a verb, a promise, or
 a schema field was always supposed to be reading from.
 
+**Then the Rolodex's relationship layer got built out**, inside §10.0, at the user's specific
+request to keep it in the world doc rather than scatter it. §4.12 already stored `affinity`,
+`grudge`, `sharedProjects`, and `lastContact` per NPC, but those four numbers only ever fed one
+thing — the casting `Utility` term — which fails §0.1's own Decision Test: a relationship that's
+only ever a hidden multiplier on offers isn't a decision. §10.0 now has the rest of it: hidden
+**Agendas** (six types — Ascent, Legacy, Loyalty, Redemption, Vindication, Mentorship) that bias
+both an NPC's own §10.0 career choices and how much a player's actions land, never shown as a
+number; a named **relationship arc** (`STRANGER → FAMILIAR → (ALLY|RIVAL) → (LOYAL|ESTRANGED) →
+(LEGACY|SEVERED)`) with transition thresholds read off fields §4.12 already tracks; pull actions
+that build a relationship instead of spending one (Check in, Show up for them, Read their Agenda,
+Vouch for them); a small, explicitly budget-capped set of NPC-initiated pushes (a Loyal NPC's own
+crisis, an Estranged NPC's arc resolving, a Rival's flameout) so the new depth doesn't blow §0.2's
+decision cap; a payoff table connecting relationship state to concrete effects (financing access,
+softened scandal noise, an early private read on the trades); and a Legacy/loss mechanic extending
+§6.2's "favours die with people" into something with real, bounded weight when a Loyal or Ally
+NPC's own simulated career ends. Cross-referenced back from §4.12.
+
 **Part 0 is the editing pass.** It states the rules every system has to pass and lists what came
 out: the decision load per in-game year drops from ~55 to ~15 without removing a mechanic. Read it first.
 
