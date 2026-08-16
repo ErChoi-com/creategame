@@ -31,6 +31,8 @@ That principle is what lets this Part be as large as it is, and it should govern
 
 These are deliberately *different resources* rather than one power stat, because they're won differently and spent differently. An actor with enormous Indispensability and no Favours is powerful on exactly one project. An actor with forty years of Favours and no Heat can still get almost anything made.
 
+*(v9 — Favours, Approvals, and Indispensability each get their own gain/spend mechanic below; Public standing and Information don't, because they're not free-standing systems — they're this table naming resources that already exist elsewhere. Public standing is §4.13's scandal posture/payoff table, read as leverage instead of damage control: the same Affection/Notoriety a scandal costs you is what a well-chosen public fight spends. Information is §4.12's Rolodex edges — `grudge`, `affinity`, `lastContact` — read as something to trade rather than just relationship state. Nothing new to build for either.)*
+
 ## 6.2 Favours — the currency
 
 Favours are tokens attached to named people, not a pool.
@@ -130,6 +132,8 @@ P(they pay)   = 0.85 · sigmoid(0.085 · (Indispensability − 58))
                 // capped at 0.85 — studios call bluffs, because caving to you
                 // sets a precedent across their entire slate
 Otherwise:  65% they recast or write you out, 35% they delay and you go again
+            // who recasts you resolves via §10.0's CastingResolution — the same
+            // pipeline as any other role you lose, not an unspecified outcome
 
 Raise on success = ×(1.35 + 0.013·(Indispensability − 50)), capped at ×2.40
 Cost of failure  = the franchise income, Notoriety +15,
@@ -238,6 +242,8 @@ Two years away costs you roughly 18 Heat and buys you materially better material
 | Poach a crew member | Money | Their old director never forgets |
 | Blacklist someone | Requires real power | It works. It also tells everyone what you are. |
 | Leak something | Information | Effective, deniable, and information spends only once |
+
+*(v9 — "Recommend someone" and "Blacklist someone" both act on §10.0's `CastingResolution`: a named NPC's `Utility` weight in `weightedPick`, for a role that isn't yours, shifted up by a recommendation or driven to exclusion by a blacklist. Same formula, no new one — just naming which term these two verbs move.)*
 
 ### Change the market
 

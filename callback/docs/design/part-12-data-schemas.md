@@ -48,8 +48,14 @@
   "calendar": [ { "year": 2041, "q": ["p_2201","p_2201","campaign","caretaking"] } ],
   "rolodex": [ { "npcId": "d_04", "affinity": 78, "grudge": 0,
                  "sharedProjects": 2, "onLoyaltyRoster": true,
-                 "flags": ["held_the_line_together"] } ],
-  "declined": [ { "roleId": "r_7734", "year": 2039, "outcome": "won Best Actor" } ],
+                 "flags": ["held_the_line_together"],
+                 "simulatedInFull": true, "rivalOf": null } ],  // §10.0's scoping rule:
+                                                                  // true only for tracked/rival/
+                                                                  // franchise members; everyone
+                                                                  // else resolves in aggregate
+  "declined": [ { "roleId": "r_7734", "year": 2039, "resolvedProjectId": "p_5561" } ],
+    // resolves against the PROJECT schema above — §10.0 cast, made, and reviewed
+    // this the same way it would have resolved one of yours
 
   "actor": {
     "core":  { "craft": 74, "instinct": 61, "presence": 80, "resilience": 49 },

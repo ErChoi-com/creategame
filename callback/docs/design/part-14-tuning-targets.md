@@ -45,6 +45,8 @@ A-list pace of one film per two years matches the real working rhythm of a top d
 | Demand standard deviation | 8–12 | **10.0** ✅ |
 | Genres booming simultaneously (of 11) | <1 | **0.5** ✅ |
 
+*(v9 — measured against an assumed film population, the same way §9.3's formula always assumed one without specifying a source. §10.0 is now that source; re-run this sweep once the background-industry population is the actual input to `GenreHeat` rather than a stand-in for it — same caveat as §14.1's "change a constant, re-run the sweep.")*
+
 ## 14.5 Franchise curve — fitted to real data
 
 The v1 sequel curve declined monotonically from the first sequel. Box-office data shows the **first two installments usually out-earn the third**, with reception bottoming around the fifth or sixth. The v3 curve (§9.5) is fitted to that shape rather than assumed.
@@ -112,7 +114,7 @@ Phase 0 was scoped to the actor career alone (§0.6, §3.3's spine, minus the di
 
 Three further claims, verified alongside the table above, that don't come from the design doc's own §14.9 list but that the review's method — *simulate the whole career, not the subsystem* — turned out to demand once leverage (Part 6) and the reworked shoot (§5.6) existed: a career that never opens the moves menu at all still meets every target above (Part 6 is genuinely optional, not secretly load-bearing); no single playstyle dominates the six Ambitions (§0.4); and a career played entirely through three real, varying scenes per shoot (§5.6) meets the same seven targets a single-choice shoot always did, confirming the rework changed the interface, not the odds.
 
-**The remaining four targets are still unverified** — they read off systems phase 0 didn't build: the health-plan threshold and addiction/uninsurability beyond a basic health curve (Part 11, mostly unbuilt), the director career to switch into (Part 7, doesn't exist as a playable mode), and the obituary's declined-offer regret count (the obituary exists; this specific figure was never instrumented). They stay targets, not results, until those parts are built.
+**The remaining four targets are still unverified** — they read off systems phase 0 didn't build: the health-plan threshold and addiction/uninsurability beyond a basic health curve (Part 11, mostly unbuilt), the director career to switch into (Part 7, doesn't exist as a playable mode), and the obituary's declined-offer regret count (the obituary exists; this specific figure was never instrumented — and *(v9)* until §10.0 existed, there was nothing behind a declined role to instrument: it resolved to nothing, not to a real film with a real outcome). They stay targets, not results, until those parts are built.
 
 ---
 

@@ -98,6 +98,15 @@ against simulated history instead of a scripted line, and it's scoped on purpose
 only for the people and franchises the player actually tracks, aggregate outcomes for everyone
 else, the same principle §10.5 already applies to its four built industries.
 
+A short follow-up carried that mechanism into the rest of the document: the leverage catalogue's
+"Blacklist"/"Recommend" verbs and the franchise holdout now name it as what they actually move; the
+director career gets a rival mechanism (§7.3) and an explanation of what development-hell
+`Difficulty` was always implicitly pricing in (§7.4); franchise recasts and shared universes (§9.5,
+§9.6) resolve through it instead of an unspecified process; the data schema (Part 12) gained a
+pointer field so the obituary can read a declined role's real resolved outcome instead of a
+hardcoded example string; and the build plan, tuning targets, and risk list each got the one-line
+acknowledgment they were missing. See `design/00-index.md`'s changelog for the file-by-file list.
+
 **Not yet folded back in:** `callback-sim.py` and `callback-career-sim.py` still test the *original*
 v8 constants, so running them now reproduces the review's failing numbers on purpose — they haven't
 been updated to check v9's formulas. Re-tuning them against the corrected §4.3/§4.4/§4.10 is the

@@ -10,7 +10,7 @@
 |---|---|---|
 | **1. The Performance / Project split** | fused success roll | Your work and the film's fate are separate rolls that only partially correlate. |
 | **2. The Persona** | acting skill % | You are not "good at acting," you are *a particular kind of presence* the market prices. |
-| **3. The Rolodex** | anonymous NPCs | A persistent graph of ~40 industry figures with memory, careers, and agendas. |
+| **3. The Rolodex** | anonymous NPCs | A persistent graph of ~40 industry figures with memory, careers, and agendas. *(v9 — "careers" used to be this pillar's own promise with nothing behind it; §10.0 is the mechanism, running NPCs through the same casting/performance/reception formulas the player uses.)* |
 | **4. The Calendar** | one role per year | Time is the scarce resource. Every yes is a no. |
 | **5. The Era** | static world | The industry mutates on a 10–15 year cycle and can obsolete you. |
 
@@ -35,7 +35,10 @@ you can get a first feature financed as a director. That is the single design de
 that makes a multi-career game cohere instead of fragment.
 
 **If a newly added career needs its own version of any of those systems, the design is wrong.**
-That rule is the whole scope defence.
+That rule is the whole scope defence. *(v9 — §10.0 is the rule's strongest instance: NPCs across
+all three careers run the literal Standing/Utility/Performance/reception formulas above, not a
+simplified NPC-only copy of them. The rule was written as if it only bound player-controlled
+careers; it was always meant to bind the background ones too.)*
 
 And because the spine is shared, **there is no career ladder.** You can start as any of them, add
 any of them at any age, hold all of them at once, or drop one for a decade and come back. The only

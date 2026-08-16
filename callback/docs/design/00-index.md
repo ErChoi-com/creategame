@@ -72,6 +72,25 @@ principals; the rest resolved in aggregate, the same "simulate well what will be
 §10.5 already uses for its four built industries. Cross-referenced forward from §9.3, §4.4, §4.12,
 §8.8, and §11.8.
 
+**A short follow-up pass then carried §10.0 the rest of the way out**, into the parts a first sweep
+naturally doesn't reach on its first pass through a new section: §3.2 and §3.3 now cite it as the
+mechanism behind promises those sections already made (NPC "careers," and the one-spine rule
+holding for background characters, not just player-controlled ones); §6.1 stops implying Public
+standing and Information are free-standing leverage systems and points them at the substrate they
+already have (§4.13's scandal table, §4.12's Rolodex edges); §6.5's holdout and §6.6's
+"Recommend"/"Blacklist" verbs now name §10.0's `CastingResolution` as what they actually move,
+instead of an unspecified outcome; §7.3 generalises Rivals to directors, and §7.4 explains what
+`Difficulty` was always implicitly pricing in; §9.5's recast and §9.6's shared-universe rules now
+resolve through the same mechanism as any declined role; Part 12's schema gained a
+`resolvedProjectId` pointer on `declined` entries and a scoping flag on `rolodex` entries, so the
+obituary and the full-sim-only rule both have somewhere real to read from; Part 13 lists §10.0 as
+Phase 9 scope and notes the trades digest could ship as early as Phase 4; Part 14 adds the
+"re-verify once the population is real" caveat §14.1 already models elsewhere; and Part 15 cites
+§10.0 as the mitigation an existing risk row already described, plus one new row for a risk §10.0
+itself introduces — an off-screen NPC career feeling arbitrary the day it resurfaces. Nothing here
+is a new formula or a new stat; every addition names which existing mechanism a verb, a promise, or
+a schema field was always supposed to be reading from.
+
 **Part 0 is the editing pass.** It states the rules every system has to pass and lists what came
 out: the decision load per in-game year drops from ~55 to ~15 without removing a mechanic. Read it first.
 

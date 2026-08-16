@@ -130,6 +130,8 @@ So the first sequel is usually the most profitable film in a franchise, the well
 | **Crossover** | Two franchises meet. Demand adds, then both decay faster afterward |
 | **Anthology** | Same world, new cast each time. No actor leverage — which is precisely why studios love it |
 
+*(v9 — "recast" in the Prequel row, and the recast that follows when Legacy sequel talent prices itself out, both resolve through §10.0's `CastingResolution` — the same `Utility`-weighted pipeline that fills any role you decline, not a separate unspecified process for franchise roles.)*
+
 ### The spin-off is the supporting actor's lottery ticket
 
 If your supporting character tests well with audiences, the studio may spin them off. For a supporting player this is the single best thing that can happen: your billing jumps to lead, your Quote roughly triples, and you skip the entire climb.
@@ -150,6 +152,8 @@ Several franchises sharing continuity. Distinct enough from a normal franchise t
 - **Scheduling.** Universe films lock calendar blocks *years* ahead. Your best years get pre-spent.
 - **Fatigue.** Each additional entry raises the universe's demand decay rate by 4%.
 - **Collapse.** Two consecutive entries below ROI 0.7 halves universe demand. Recovery takes a decade or a reboot.
+
+*(v9 — a shared universe you're not part of still runs on these rules. §10.0 resolves its off-screen entries the same way it resolves any background film, so interlock, fatigue, and collapse are things that can happen to a universe entirely outside your own casting history — and you find out from the trades.)*
 
 ## 9.7 Merchandise — where the money actually is
 

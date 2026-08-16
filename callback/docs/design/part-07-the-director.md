@@ -66,6 +66,8 @@ DirectionMult = 0.86 + 0.0028·DirectorSkill
 
 A Command-90 director adds ~+2.4 to Base *and* lifts the multiplier — worth **+4.3 Performance to every actor on the call sheet** (simulation-verified: 62.7 → 67.1 for an identical cast member). Actors notice. This is how you earn a loyalty roster from the other side: be the director who makes people better, and the best actors take pay cuts to work with you.
 
+*(v9 — a rival director is nothing director-specific either: §10.0's Rivals concept falls out of the Rolodex ranking the same way for a director as it does for an actor — the person you keep losing festival slots to, or whose slate the same financiers keep choosing over yours.)*
+
 ## 7.4 Development hell
 
 You maintain a **development slate** of up to 3 (5 with a production company). Each project has `momentum`, and momentum is the resource the whole phase is about.
@@ -108,6 +110,8 @@ Each costs a quarter, money, or a favour:
 | **A-list (75)** | 15 | 1.5 yr | 1 |
 
 A-list pace of one film per two years matches the real working rhythm of a top director. A newcomer making two films in thirty years is bleak and correct — and it's why the game must make the *climb out of that* the early-career arc rather than a grind.
+
+*(v9 — `Difficulty` and financier attention already implicitly price in competition; §10.0 is what that competition actually is. Every quarter, dozens of background productions are chasing the same financiers you are, and §9.3's `GenreHeat` is the visible symptom: a hot genre means more of those background directors are drawing on the same money, tightening the deals you can get even though nothing in the formula above changed. This doesn't move the verified constants — it's why they were tuned where they are.)*
 
 ## 7.5 Casting — now you're the gatekeeper
 
