@@ -53,8 +53,9 @@ from callback.engine.simulation.full_career import (
 MAX_AGE = 90
 AWARDS_NOTICES_THRESHOLD = 68.0  # a project has to be genuinely well-received to be buzz-worthy
 FAVOUR_GAIN_ON_SERVED_AGENDA = 1
-OFFER_BOARD_MIN_LISTINGS = 3
-OFFER_BOARD_MAX_LISTINGS = 6
+OFFER_BOARD_MIN_LISTINGS = 20
+OFFER_BOARD_MAX_LISTINGS = 30
+OFFER_BOARD_GENERATE_MORE_BATCH = 10
 STANDING_WEIGHTS = {"heat": 0.4, "prestige": 0.3, "affection": 0.3}  # a general-purpose read, not a gatekeeper profile
 
 
@@ -120,22 +121,34 @@ class Session:
     def offer_board(self, size: int | None = None) -> list[dict]:
         """A real multi-listing board (§4.4's own vision) rather than a single yearly roll — the
         engine's role generator (actor/offers.sample_role) isn't Standing-aware yet, so procedurally
-        generating more listings per year is this pass's mitigation: more looks at the dice, not a
-        smarter die. size=None picks a procedurally varying board (3-6 listings) each year."""
+        generating a lot of listings per year is this pass's mitigation: more looks at the dice, not
+        a smarter die. size=None picks a procedurally varying board (at least
+        OFFER_BOARD_MIN_LISTINGS) each year. Resets the board — call this once per year, then
+        generate_more_listings() if that isn't enough."""
         n = size if size is not None else self.rng.randint(OFFER_BOARD_MIN_LISTINGS, OFFER_BOARD_MAX_LISTINGS)
         self._board = []
         self._board_would_offer = []
+        return self._generate_listings(n)
+
+    def generate_more_listings(self, count: int = OFFER_BOARD_GENERATE_MORE_BATCH) -> list[dict]:
+        """Appends more listings to the current board rather than replacing it — the offer board
+        isn't capped; there's always another audition to generate if the player wants to keep
+        looking. Returns only the newly generated listings (their index continues the board's)."""
+        return self._generate_listings(count)
+
+    def _generate_listings(self, count: int) -> list[dict]:
         listings = []
-        for i in range(n):
+        for _ in range(count):
             role = offer_this_year(self.state, self.rng)
             utility = utility_for(self.state, role)
             path = resolve_casting_path(utility, role)
             would_offer = path == "direct_offer" or self.rng.random() < offer_probability(utility, role.difficulty)
+            index = len(self._board)
             self._board.append(role)
             self._board_would_offer.append(would_offer)
             studio = STUDIOS[role.studio]
             listings.append({
-                "index": i,
+                "index": index,
                 "genre": role.genre,
                 "billing": role.billing,
                 "budget_millions": round(role.budget_for_role, 2),

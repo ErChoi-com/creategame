@@ -50,25 +50,45 @@ def character_creation(session: Session, auto: bool) -> None:
     print(f"\n{session.start(bg_key, amb_key)}\n")
 
 
-def offer_board_screen(session: Session, auto: bool) -> int | None:
-    listings = session.offer_board()
-    print(f"\n--- THIS YEAR'S OFFER BOARD ({len(listings)} listings) ---")
+def _print_listings(listings: list[dict]) -> None:
     for o in listings:
         state = "" if o["available"] else "  (an audition — but it doesn't come through this year)"
         print(f"  [{o['index'] + 1}] {o['genre'].title()} · {o['billing']} · {o['budget_millions']:.2f}M — "
               f"{o['studio_name']}{state}")
         print(f"       {o['studio_tagline']}")
 
-    available = [o for o in listings if o["available"]]
-    if not available:
-        print("  Nothing on the board came through this year.")
-        return None
 
-    options = [(str(o["index"]), f"{o['genre'].title()} ({o['billing']}, {o['budget_millions']:.2f}M) — {o['studio_name']}")
-               for o in available]
-    options.append(("__skip__", "Pass on everything this year"))
-    pick = choose(options, "  [A]udition/accept which one, or skip?", 0, auto)
-    return None if pick == "__skip__" else int(pick)
+OFFER_BOARD_HARD_CAP = 200  # a safety valve, not a design cap — see generate_more_listings()
+
+
+def offer_board_screen(session: Session, auto: bool) -> int | None:
+    listings = session.offer_board()
+    print(f"\n--- THIS YEAR'S OFFER BOARD ({len(listings)} listings) ---")
+    _print_listings(listings)
+
+    while True:
+        available = [o for o in listings if o["available"]]
+        can_keep_looking = len(listings) < OFFER_BOARD_HARD_CAP
+        options = [(str(o["index"]), f"{o['genre'].title()} ({o['billing']}, {o['budget_millions']:.2f}M) — {o['studio_name']}")
+                   for o in available]
+        if can_keep_looking:
+            options.append(("__more__", "Keep looking — generate more listings"))
+        options.append(("__skip__", "Pass on everything this year"))
+        # default to "keep looking" if nothing's on yet and there's still room to look
+        default_index = 0 if (available or not can_keep_looking) else len(options) - 2
+        pick = choose(options, "  [A]udition/accept which one, keep looking, or skip?", default_index, auto)
+
+        if pick == "__more__":
+            more = session.generate_more_listings()
+            print(f"\n  ({len(more)} more listings)")
+            _print_listings(more)
+            listings = listings + more
+            continue
+        if pick == "__skip__":
+            if not available:
+                print("  Nothing on the board came through this year.")
+            return None
+        return int(pick)
 
 
 def deal_screen(session: Session, auto: bool) -> None:

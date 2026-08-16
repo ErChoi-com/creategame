@@ -171,13 +171,20 @@ surface the studio's name and pitch on the Offer Board and again at Post & Relea
   reachable, not just five discrete stops, but which budget you personally get offered still
   isn't scaled to your own career yet.
 - **`Session.offer_board()`** mitigates the same gap from the other direction: instead of one
-  role rolled per year, it procedurally generates 3-6 listings (`OFFER_BOARD_MIN/MAX_LISTINGS`),
-  each independently run through `utility()`/`offer_probability()` against your real Standing —
-  more looks at the dice each year, not a smarter die. Accepting one listing quietly resolves
-  every other listing on that board through the background industry (§10.0), the same as a single
-  declined offer always has; declining the whole board (`decline_board()`) does the same for all
-  of them and advances the year once. Still 0-1 projects per year — more choice about *which*
-  film, not more films at once.
+  role rolled per year, it procedurally generates at least 20 listings (`OFFER_BOARD_MIN_LISTINGS`,
+  up to `OFFER_BOARD_MAX_LISTINGS`), each independently run through `utility()`/
+  `offer_probability()` against your real Standing — more looks at the dice each year, not a
+  smarter die. If that still isn't enough, `generate_more_listings()` appends another batch on
+  demand (the CLI's "keep looking" option, capped at `OFFER_BOARD_HARD_CAP` as a safety valve, not
+  a design limit) rather than resetting the board — nothing about the board size is hard-stopped.
+  Accepting one listing quietly resolves every other listing on that board through the background
+  industry (§10.0), the same as a single declined offer always has; declining the whole board
+  (`decline_board()`) does the same for all of them and advances the year once. Still 0-1 projects
+  per year — more choice about *which* film, not more films at once. This is the only offer-board
+  implementation in the playable game — `simulation/cli.py` reaches it exclusively through
+  `Session`, never a second, parallel code path; `simulation/career.py`'s single-role-per-year
+  `simulate_year()` is a separate, intentionally minimal harness used only by `verify.py`'s
+  statistical checks, not part of the player-facing game.
 - **`actor/palette.GENRE_DIAL_WEIGHTS`** and **`CANONICAL_ARCHETYPES`** are this pass's own
   documented readings, not undisclosed exact `design/` constants (§5.3 publishes target
   correlations, not the weight table itself). `verify.py creative` reports honestly against that

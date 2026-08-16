@@ -59,7 +59,7 @@ class TestOfferBoardTypes(unittest.TestCase):
         session = Session(seed=4)
         session.start("conservatory", "work")
         board = session.offer_board()
-        self.assertGreaterEqual(len(board), 3)  # OFFER_BOARD_MIN_LISTINGS
+        self.assertGreaterEqual(len(board), 20)  # OFFER_BOARD_MIN_LISTINGS
         for offer in board:
             self.assertIsInstance(offer["index"], int)
             self.assertIsInstance(offer["genre"], str)
@@ -93,6 +93,20 @@ class TestOfferBoardTypes(unittest.TestCase):
         session.offer_board()
         with self.assertRaises(ValueError):
             session.accept(999)
+
+    def test_generate_more_listings_appends_without_resetting_the_board(self):
+        session = Session(seed=42)
+        session.start("conservatory", "work")
+        board = session.offer_board()
+        more = session.generate_more_listings(5)
+        self.assertEqual(len(more), 5)
+        # new listings continue the board's index sequence rather than restarting at 0
+        self.assertEqual([o["index"] for o in more], list(range(len(board), len(board) + 5)))
+        # accepting a listing from the original board still works after generating more
+        combined = board + more
+        available = [o for o in combined if o["available"]]
+        if available:
+            session.accept(available[0]["index"])  # should not raise
 
     def test_decline_board_returns_a_list_and_advances_age(self):
         session = Session(seed=6)
