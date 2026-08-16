@@ -72,6 +72,41 @@ def deal_screen(session: Session, auto: bool) -> None:
         print(f"    (Fee cut to {fee:.2f}M — script and co-star approval, yours now.)")
 
 
+def script_notes_screen(session: Session, auto: bool) -> None:
+    if not session.script_notes_available():
+        return
+    key = choose(session.script_note_options(), "  SCRIPT NOTES — you earned a say. Choose:", 0, auto)
+    session.choose_script_note(key)
+
+
+def director_screen(session: Session, auto: bool) -> None:
+    directors = session.available_directors()
+    if not directors:
+        return
+    options = [("__none__", "Let them assign whoever")] + [
+        (d["id"], f"{d['id']} ({d['relationship']}) — owes you {d['favour_balance']}, costs {session.DIRECTOR_REQUEST_FAVOUR_COST}")
+        for d in directors
+    ]
+    key = choose(options, "  WHO'S DIRECTING — call in a favour to request someone specific:", 0, auto)
+    if key != "__none__":
+        print(f"    {session.request_director(key)}")
+
+
+def costar_screen(session: Session, auto: bool) -> None:
+    costars = session.costar_options()
+    if not costars:
+        return
+    options = [("__none__", "No one worth centring on this time")] + [
+        (c["id"], f"{c['id']} ({c['relationship']})") for c in costars
+    ]
+    costar_key = choose(options, "  SCENE PARTNER — who are you playing off of?", 0, auto)
+    if costar_key == "__none__":
+        session.choose_orientation(None, "neutral")
+        return
+    orientation_key = choose(session.orientation_options(), "  How do you play it toward them?", 0, auto)
+    session.choose_orientation(costar_key, orientation_key)
+
+
 def prep_screen(session: Session, auto: bool) -> None:
     print("  PREP:")
     key = choose(session.prep_options(), "  Choose:", 0, auto)
@@ -167,6 +202,9 @@ def run(auto: bool, seed: int, max_years: int) -> None:
         if take_it:
             session.accept()
             deal_screen(session, auto)
+            script_notes_screen(session, auto)
+            director_screen(session, auto)
+            costar_screen(session, auto)
             prep_screen(session, auto)
             shoot_screen(session, auto)
             summary = release_screen(session, auto)

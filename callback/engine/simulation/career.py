@@ -27,6 +27,7 @@ from callback.engine.actor.persona import Persona
 from callback.engine.actor.positions import (
     DIALS,
     POSITIONS,
+    ModifierResult,
     contrast_budget,
     overspend_penalty,
     resolve_scene_positions,
@@ -34,6 +35,7 @@ from callback.engine.actor.positions import (
 from callback.engine.actor.prep import resolve_prep
 from callback.engine.actor.reception import resolve_reception
 from callback.engine.actor.release import WIDE, apply_release_strategy
+from callback.engine.actor.script_notes import ScriptNoteEffect
 from callback.engine.actor.shape import resolve_shape
 from callback.engine.actor.standing import (
     RecognitionMeter,
@@ -99,6 +101,8 @@ class ProjectResult:
     heat_delta: float
     prestige_delta: float
     affection_delta: float
+    npc_affinity_delta: float = 0.0
+    favour_gain: float = 0.0
 
 
 def default_scene_policy(rng: random.Random) -> tuple[SceneChoice, SceneChoice, SceneChoice]:
@@ -128,17 +132,32 @@ def simulate_project(
     palette: Palette | None = None,
     genre_demand_override: float | None = None,
     release_strategy: str | None = None,
+    script_note: ScriptNoteEffect | None = None,
+    orientation_effect: ModifierResult | None = None,
+    director_override: tuple[float, float, float] | None = None,
 ) -> tuple[ActorState, ProjectResult]:
+    """script_note: design/part-05 §5.15's script-notes push (actor/script_notes.py), only
+    meaningful if the player holds script approval — the caller enforces that gate.
+    orientation_effect: positions.generosity()/upstaging(), the player's declared stance toward
+    their scene partner this project.
+    director_override: (director_skill, director_command, director_prestige) — a specific,
+    requested director (e.g. a tracked Rolodex NPC) standing in for the usual random NPC sample.
+    """
     palette = palette or generate_palette(role.genre, rng)
 
-    # NPC director — the director career (Part 7) isn't modeled in this pass; sampled per
-    # §7.3's own verification convention (attributes ~ N(58, 16)) rather than invented fresh.
-    director_skill = clamp(rng.gauss(58, 16), 5, 100)
-    director_command = clamp(rng.gauss(58, 16), 5, 100)
-    director_prestige = clamp(rng.gauss(50, 20), 0, 100)
+    if director_override is not None:
+        director_skill, director_command, director_prestige = director_override
+    else:
+        # NPC director — the director career (Part 7) isn't modeled in this pass; sampled per
+        # §7.3's own verification convention (attributes ~ N(58, 16)) rather than invented fresh.
+        director_skill = clamp(rng.gauss(58, 16), 5, 100)
+        director_command = clamp(rng.gauss(58, 16), 5, 100)
+        director_prestige = clamp(rng.gauss(50, 20), 0, 100)
 
     prep_result = resolve_prep(prep_choice, state.attrs.resilience, is_biographical_or_period=(role.genre == "period"))
     fit = fit_score(state.attrs, state.persona, role, state.age)
+    if script_note is not None:
+        fit = clamp(fit + script_note.fit_delta, 0.0, 100.0)
     chemistry = clamp(rng.gauss(60, 18), 0, 100)
 
     perf_result = resolve_performance(
@@ -153,6 +172,12 @@ def simulate_project(
     notices = max(shape_result.notices + notices_pen, state.attrs.notices_floor())
     ensemble = shape_result.ensemble + ensemble_pen
 
+    npc_affinity_delta = 0.0
+    if orientation_effect is not None:
+        notices = notices + orientation_effect.you_notices
+        ensemble = ensemble + orientation_effect.film_ensemble
+        npc_affinity_delta = orientation_effect.affinity_delta
+
     # genre_demand_override lets a caller with real §9.3 GenreHeat (simulation/full_career.py,
     # which tracks it) feed the actual background-industry cycle in instead of this fallback
     # sample — kept here, not removed, so simulate_project stays usable standalone (verify.py's
@@ -162,6 +187,11 @@ def simulate_project(
     script_quality = clamp(rng.gauss(60, 14), 0, 100)
     palette_aud_effect, palette_crit_effect = palette_reception_effect(palette, role.genre)
     staleness = state.persona.staleness_penalty()
+
+    if script_note is not None:
+        script_quality = clamp(script_quality + script_note.script_quality_delta, 0.0, 100.0)
+        palette_aud_effect += script_note.audience_delta
+        palette_crit_effect += script_note.critic_delta
 
     reception = resolve_reception(
         script_quality=script_quality,
@@ -223,6 +253,8 @@ def simulate_project(
         heat_delta=heat_delta,
         prestige_delta=prestige_delta,
         affection_delta=affection_delta,
+        npc_affinity_delta=npc_affinity_delta,
+        favour_gain=orientation_effect.you_favour if orientation_effect is not None else 0.0,
     )
     return new_state, result
 

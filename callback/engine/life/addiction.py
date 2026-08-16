@@ -16,8 +16,12 @@ CLEAN, USE, DEPENDENCE, TOLERANCE, CRISIS, RECOVERY, DECLINE = (
 
 # Per-year stage-advance probabilities. design/ doesn't publish exact odds (a design decision the
 # doc leaves to tuning); these are this pass's documented, deliberately slow-moving defaults —
-# addiction is meant to be a years-long arc, not a coin flip most careers hit.
-ADVANCE_PROBABILITY = {USE: 0.08, DEPENDENCE: 0.15, TOLERANCE: 0.20}
+# addiction is meant to be a years-long arc, not a coin flip most careers hit. CLEAN's own entry
+# probability (industry exposure — the doc's own "Use... social lubricant, genuinely works at
+# first" framing) was missing from an earlier pass: with no CLEAN->USE edge, no career could ever
+# begin the arc at all, which silently made the entire addiction system dead code.
+ADVANCE_PROBABILITY = {CLEAN: 0.03, USE: 0.08, DEPENDENCE: 0.15, TOLERANCE: 0.20}
+STAGE_ORDER = [CLEAN, USE, DEPENDENCE, TOLERANCE, CRISIS]
 
 USE_CONDITION_SHORT_TERM = 8.0
 USE_CONDITION_ACCUMULATING = -2.0
@@ -51,15 +55,15 @@ class AddictionState:
 
 def advance(state: AddictionState, rng: random.Random) -> tuple[AddictionState, dict[str, float]]:
     """One year's progression. Returns (new_state, deltas) where deltas may include any of
-    resilience/notoriety/affection, applied by the caller to the actor's own state."""
+    resilience/notoriety/affection, applied by the caller to the actor's own state. CRISIS is a
+    ceiling here — the only way out is the player's own choice, enter_recovery()."""
     deltas: dict[str, float] = {}
 
-    if state.stage == CLEAN:
-        return state, deltas
+    if state.stage not in ADVANCE_PROBABILITY:
+        return state, deltas  # CRISIS/RECOVERY/DECLINE progress through their own functions
 
-    if state.stage in ADVANCE_PROBABILITY and rng.random() < ADVANCE_PROBABILITY[state.stage]:
-        order = [USE, DEPENDENCE, TOLERANCE, CRISIS]
-        new_stage = order[order.index(state.stage) + 1]
+    if rng.random() < ADVANCE_PROBABILITY[state.stage]:
+        new_stage = STAGE_ORDER[STAGE_ORDER.index(state.stage) + 1]
     else:
         new_stage = state.stage
 

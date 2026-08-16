@@ -26,9 +26,10 @@ from dataclasses import replace
 
 from callback.engine.actor.offers import Role, offer_probability, resolve_casting_path
 from callback.engine.actor.persona import GENRES
-from callback.engine.actor.positions import DIAL_LABELS, DIALS, PLAYER_LABELS, POSITIONS
+from callback.engine.actor.positions import DIAL_LABELS, DIALS, PLAYER_LABELS, POSITIONS, generosity, upstaging
 from callback.engine.actor.prep import PREP_OPTIONS, WING_IT
 from callback.engine.actor.release import RELEASE_STRATEGIES, WIDE, LIMITED, weekly_gross_curve
+from callback.engine.actor.script_notes import SCRIPT_NOTE_OPTIONS, apply_script_note
 from callback.engine.awards.awards import NarrativeContext, buzz_score, narrative_bonus
 from callback.engine.leverage.approvals import can_negotiate_approvals, fee_after_approvals
 from callback.engine.leverage.catalogue import accumulate_scarcity, advance_agent_tier, can_advance_agent_tier, next_agent_tier
@@ -67,6 +68,10 @@ class Session:
         self._prep_choice: str | None = None
         self._scenes: list[dict[str, str]] = []
         self._last_result: ProjectResult | None = None
+        self._script_note = None
+        self._orientation_npc_id: str | None = None
+        self._orientation_effect = None
+        self._requested_director_npc_id: str | None = None
 
     # ---- character creation ----------------------------------------------------------------
 
@@ -127,6 +132,10 @@ class Session:
     def accept(self) -> None:
         if not self._would_be_offered:
             raise ValueError("this offer never came through — check roll_offer()['available'] first")
+        self._script_note = None
+        self._orientation_npc_id = None
+        self._orientation_effect = None
+        self._requested_director_npc_id = None
 
     def decline(self) -> dict:
         """Resolves the role through the background industry (§10.0) and advances the year."""
@@ -151,6 +160,69 @@ class Session:
             return round(fee_after_approvals(self._role.budget_for_role, self._approvals), 2)
         self._approvals = frozenset()
         return None
+
+    # ---- script notes (§5.15) — only if the Deal secured script approval --------------------
+
+    def script_notes_available(self) -> bool:
+        return "script" in self._approvals
+
+    @staticmethod
+    def script_note_options() -> list[tuple[str, str]]:
+        return [
+            ("clarity", "Push for clarity — audiences follow it, critics call it obvious"),
+            ("ambiguity", "Push for ambiguity — critics lean in, audiences find it cold"),
+            ("your_part", "Push for your part — you read better, the script reads worse"),
+            ("whole_film", "Push for the whole film — nothing in it for you, but it gets better"),
+        ]
+
+    def choose_script_note(self, key: str) -> None:
+        self._script_note = apply_script_note(key) if key in SCRIPT_NOTE_OPTIONS else None
+
+    # ---- request your director — pull a tracked Rolodex director onto the project ----------
+
+    DIRECTOR_REQUEST_FAVOUR_COST = 2
+
+    def available_directors(self) -> list[dict]:
+        return [
+            {"id": n.npc_id, "relationship": relationship_band(n.relationship_state),
+             "favour_balance": self.state.leverage.favours.balance(n.npc_id)}
+            for n in self.state.rolodex.tracked() if n.npc_type == "director"
+        ]
+
+    def request_director(self, npc_id: str) -> str:
+        favours = self.state.leverage.favours
+        if not favours.can_spend(npc_id, self.DIRECTOR_REQUEST_FAVOUR_COST):
+            return "They don't owe you enough for that yet."
+        self.state = replace(self.state, leverage=replace(
+            self.state.leverage, favours=favours.spend(npc_id, self.DIRECTOR_REQUEST_FAVOUR_COST),
+        ))
+        self._requested_director_npc_id = npc_id
+        return "They're directing this one."
+
+    # ---- your scene partner — how you play toward them this project ------------------------
+
+    def costar_options(self) -> list[dict]:
+        return [
+            {"id": n.npc_id, "relationship": relationship_band(n.relationship_state)}
+            for n in self.state.rolodex.tracked() if n.npc_type == "costar"
+        ]
+
+    @staticmethod
+    def orientation_options() -> list[tuple[str, str]]:
+        return [
+            ("neutral", "Play it straight"),
+            ("generous", "Be generous — let them have the moment"),
+            ("upstage", "Take the moment — upstage them"),
+        ]
+
+    def choose_orientation(self, npc_id: str | None, choice: str) -> None:
+        self._orientation_npc_id = npc_id
+        if choice == "generous":
+            self._orientation_effect = generosity()
+        elif choice == "upstage":
+            self._orientation_effect = upstaging()
+        else:
+            self._orientation_effect = None
 
     # ---- prep -----------------------------------------------------------------------------
 
@@ -192,6 +264,10 @@ class Session:
         self.state, result = accept_and_play(
             self.state, self._role, self._prep_choice or "table_work", scenes, self.rng,
             release_strategy=strategy,
+            script_note=self._script_note,
+            orientation_npc_id=self._orientation_npc_id,
+            orientation_effect=self._orientation_effect,
+            requested_director_npc_id=self._requested_director_npc_id,
         )
         self.state = advance_between_years(self.state, self.rng, worked_this_year=True, billing=self._role.billing)
         self._last_result = result

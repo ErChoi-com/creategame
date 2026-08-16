@@ -109,6 +109,26 @@ turns the single "Gross" number into a real week-by-week trajectory, and §9.3's
 accumulated from every resolved film, including the background industry's — now feeds real
 `GenreDemand` into box-office math instead of each site sampling its own random value.
 
+**Movie-making has real, in-project choices now, not just prep/shoot/release.** Three more
+dormant-or-missing systems got wired into `Session` and the CLI, all scoped to the film you're
+actually making rather than life/politics side systems:
+
+- **Script notes** (`actor/script_notes.py`, design §5.15) — if the Deal secured script approval,
+  you get a real say before the shoot: push for clarity (audience up, critics down), ambiguity
+  (critics up, audience down, a shot at a cult-classic bonus), your part (you read better, the
+  script reads worse), or the whole film (no personal upside, but the film itself gets better).
+  `Session.script_notes_available()` / `script_note_options()` / `choose_script_note()`.
+- **Scene-partner orientation** — `actor/positions.py`'s `generosity()`/`upstaging()` formulas
+  existed but were never called from anywhere; picking a tracked Rolodex co-star and choosing to
+  play generous or upstage them now actually shifts notices, ensemble, and the relationship, and
+  generosity credits that NPC a Leverage favour. `Session.costar_options()` /
+  `orientation_options()` / `choose_orientation()`.
+- **Requesting your director** — spend a Leverage favour to pull a specific tracked Rolodex
+  director onto the project instead of the usual random NPC sample. Their own Standing (read via
+  `full_career.director_terms_for()`, not a second stat block) sets the project's director terms —
+  the same "one spine" reuse the Standing model already establishes elsewhere.
+  `Session.available_directors()` / `request_director()`.
+
 ## Known gaps and simplifications (documented inline at each site too)
 
 - **`actor/offers.sample_role()`** is still a placeholder role generator — it doesn't scale a

@@ -117,6 +117,101 @@ class TestFullProjectFlow(unittest.TestCase):
             self.assertIsInstance(label, str)
 
 
+def _get_to_prep(session: Session, max_attempts: int = 60) -> bool:
+    """Advances until an offer comes through and is accepted, stopping right after the Deal.
+    Returns False if the run ended before anything came through (RNG variance)."""
+    for _ in range(max_attempts):
+        if session.is_over():
+            return False
+        offer = session.roll_offer()
+        if not offer["available"]:
+            session.decline()
+            continue
+        session.accept()
+        return True
+    return False
+
+
+class TestScriptNotes(unittest.TestCase):
+    def test_unavailable_without_script_approval(self):
+        session = Session(seed=20)
+        session.start("conservatory", "work")
+        if not _get_to_prep(session):
+            self.skipTest("no offer came through — RNG variance, not a bug")
+        session.choose_deal(want_approvals=False)
+        self.assertFalse(session.script_notes_available())
+
+    def test_options_are_plain_tuples(self):
+        for key, label in Session.script_note_options():
+            self.assertIsInstance(key, str)
+            self.assertIsInstance(label, str)
+
+    def test_choosing_a_note_does_not_crash_the_project(self):
+        session = Session(seed=21)
+        session.start("conservatory", "work")
+        if not _get_to_prep(session):
+            self.skipTest("no offer came through — RNG variance, not a bug")
+        session.choose_deal(want_approvals=True)  # may or may not grant approvals depending on Standing
+        if session.script_notes_available():
+            session.choose_script_note("whole_film")
+        session.choose_prep("table_work")
+        for _ in range(3):
+            session.play_scene({d: "with" for d, _ in session.dial_options()})
+        summary = session.choose_release("wide")
+        self.assertIsInstance(summary["performance_band"], str)
+
+
+class TestSceneOrientation(unittest.TestCase):
+    def test_orientation_options_are_plain_tuples(self):
+        for key, label in Session.orientation_options():
+            self.assertIsInstance(key, str)
+            self.assertIsInstance(label, str)
+
+    def test_generous_orientation_credits_the_costar_a_favour(self):
+        session = Session(seed=22)
+        session.start("conservatory", "work")
+        if not _get_to_prep(session):
+            self.skipTest("no offer came through — RNG variance, not a bug")
+        session.choose_deal(want_approvals=False)
+        costars = session.costar_options()
+        self.assertTrue(costars)
+        costar_id = costars[0]["id"]
+        session.choose_orientation(costar_id, "generous")
+        session.choose_prep("table_work")
+        for _ in range(3):
+            session.play_scene({d: "with" for d, _ in session.dial_options()})
+        session.choose_release("wide")
+        self.assertGreater(session.state.leverage.favours.balance(costar_id), 0)
+
+
+class TestDirectorRequest(unittest.TestCase):
+    def test_available_directors_returns_plain_dicts(self):
+        session = Session(seed=23)
+        session.start("conservatory", "work")
+        for d in session.available_directors():
+            self.assertIsInstance(d["id"], str)
+            self.assertIsInstance(d["favour_balance"], int)
+
+    def test_request_fails_without_enough_favours(self):
+        session = Session(seed=24)
+        session.start("conservatory", "work")
+        directors = session.available_directors()
+        self.assertTrue(directors)
+        result = session.request_director(directors[0]["id"])
+        self.assertIn("don't owe you enough", result)
+
+    def test_request_succeeds_once_favours_are_credited(self):
+        from dataclasses import replace
+        session = Session(seed=25)
+        session.start("conservatory", "work")
+        director_id = session.available_directors()[0]["id"]
+        favours = session.state.leverage.favours.credit(director_id, 5)
+        session.state = replace(session.state, leverage=replace(session.state.leverage, favours=favours))
+        result = session.request_director(director_id)
+        self.assertIn("directing this one", result)
+        self.assertEqual(session.state.leverage.favours.balance(director_id), 3)  # 5 - cost of 2
+
+
 class TestRolodexAndLeverageReachable(unittest.TestCase):
     def test_rolodex_summary_and_interact_are_reachable(self):
         session = Session(seed=8)

@@ -7,7 +7,7 @@ import random
 from dataclasses import dataclass, field, replace
 
 from callback.engine.life.addiction import AddictionState, advance as advance_addiction, advance_recovery
-from callback.engine.life.family import FamilyState
+from callback.engine.life.family import FamilyState, maybe_generate_caretaking
 from callback.engine.life.health import HealthState, after_idle_year, condition
 from callback.engine.life.money import MoneyState, apply_year as apply_money_year
 
@@ -26,7 +26,7 @@ class LifeState:
         return self.addiction.insurable
 
 
-def advance_year(state: LifeState, rng: random.Random, gross_income_millions: float, worked_this_year: bool) -> tuple[LifeState, dict[str, float]]:
+def advance_year(state: LifeState, rng: random.Random, gross_income_millions: float, worked_this_year: bool, age: int = 30) -> tuple[LifeState, dict[str, float]]:
     """One year of the life layer. Returns (new_state, standing_deltas) — deltas from addiction
     progression (resilience/notoriety/affection) that the caller applies to the actor's own
     Standing/attributes, since LifeState doesn't hold those itself."""
@@ -39,5 +39,6 @@ def advance_year(state: LifeState, rng: random.Random, gross_income_millions: fl
         addiction, deltas = advance_addiction(state.addiction, rng)
 
     money = apply_money_year(state.money, gross_income_millions, rng)
+    family = maybe_generate_caretaking(state.family, age, rng)
 
-    return replace(state, health=health, addiction=addiction, money=money), deltas
+    return replace(state, health=health, addiction=addiction, money=money, family=family), deltas

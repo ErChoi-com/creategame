@@ -29,11 +29,19 @@ class TestAddiction(unittest.TestCase):
         state = AddictionState(stage=CRISIS, insurable=False)
         self.assertFalse(state.insurable)
 
-    def test_advancing_from_clean_does_nothing(self):
+    def test_clean_usually_holds_but_can_begin_the_arc(self):
+        # A real (if rare) CLEAN -> USE edge must exist, or no career could ever begin the
+        # addiction arc at all — the exact bug this test used to lock in by accident.
         state = AddictionState()
-        new_state, deltas = advance(state, random.Random(1))
-        self.assertEqual(new_state.stage, "clean")
-        self.assertEqual(deltas, {})
+        held, transitioned = 0, 0
+        for seed in range(300):
+            new_state, _ = advance(state, random.Random(seed))
+            if new_state.stage == "clean":
+                held += 1
+            elif new_state.stage == "use":
+                transitioned += 1
+        self.assertGreater(held, transitioned)  # holds most of the time...
+        self.assertGreater(transitioned, 0)      # ...but not always
 
     def test_stage_only_ever_advances_or_holds_in_one_step(self):
         order = ["use", "dependence", "tolerance", "crisis"]

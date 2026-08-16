@@ -32,6 +32,26 @@ THEATRE_CRAFT_DELTA = 3.0
 THEATRE_HEAT_DECAY_EXTRA = 0.85  # multiplies Heat on top of normal decay
 
 
+@dataclass(frozen=True)
+class TheatreSeasonEffect:
+    prestige_delta: float
+    craft_delta: float
+    heat_decay_extra: float
+
+
+def theatre_season() -> TheatreSeasonEffect:
+    return TheatreSeasonEffect(THEATRE_PRESTIGE_DELTA, THEATRE_CRAFT_DELTA, THEATRE_HEAT_DECAY_EXTRA)
+
+
+# --- Change other people: Start a feud / Publicly defend someone (§6.6) ---
+FEUD_NOTORIETY_SELF = 8.0
+FEUD_NOTORIETY_TARGET = 8.0
+
+DEFEND_NOTORIETY_SELF = 6.0
+DEFEND_FAVOUR_GAIN = 3
+DEFEND_AFFINITY_GAIN = 8.0
+
+
 # --- Get work that wasn't offered you: Sign with a bigger agency (§6.6, v9) ---
 AGENT_TIERS = ("unrepresented", "regional", "boutique", "major", "powerhouse")
 AGENT_TIER_STANDING_THRESHOLD = {"regional": 15.0, "boutique": 35.0, "major": 55.0, "powerhouse": 75.0}
