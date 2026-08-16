@@ -1,46 +1,21 @@
 #!/usr/bin/env python3
 """A terminal-playable prototype following design/ux/'s exact screen flow: character creation
 (ux/01), the hub (ux/02), and the season loop (ux/03) — Offer Board -> the Deal -> Prep -> the
-Shoot -> Post & Release -> the Reckoning. Every hidden number renders through
-simulation/bands.py's words-not-numbers pass (ux/05), never as a raw score.
+Shoot -> Post & Release -> the Reckoning -> the pull menu (Rolodex/Leverage/Trades, ux/04).
+
+This file imports exactly one thing from the engine: simulation.session.Session. Every hidden
+number it shows the player is already a plain string or number Session handed it — no formula,
+dataclass, or internal constant from actor/, rolodex/, leverage/, life/, or world/ appears here.
+That boundary is the point: a UI only ever needs to know what Session's methods return, never how.
 
     python3 -m callback.engine.simulation.cli            # interactive
     python3 -m callback.engine.simulation.cli --auto      # self-playing demo, no input needed
 """
 from __future__ import annotations
 
-import random
 import sys
-from dataclasses import replace
 
-from callback.engine.actor.attributes import Attributes
-from callback.engine.actor.offers import resolve_casting_path, offer_probability
-from callback.engine.actor.persona import GENRES
-from callback.engine.actor.positions import DIAL_LABELS, DIALS, PLAYER_LABELS, POSITIONS
-from callback.engine.actor.prep import PREP_OPTIONS, WING_IT
-from callback.engine.actor.release import FESTIVAL, LIMITED, SHELVED, STREAMING, WIDE, weekly_gross_curve
-from callback.engine.leverage.approvals import can_negotiate_approvals, fee_after_approvals
-from callback.engine.life.money import MoneyState
-from callback.engine.simulation.bands import audience_band, critic_band, performance_band, roi_band, standing_band
-from callback.engine.simulation.career import ActorState
-from callback.engine.simulation.full_career import (
-    accept_and_play,
-    advance_between_years,
-    decline_and_resolve,
-    new_full_state,
-    obituary,
-    offer_this_year,
-    utility_for,
-)
-from callback.engine.world.trades import generate_digest
-
-BACKGROUNDS = {
-    "1": ("Conservatory", "Trained. Broke. Unknown.", Attributes(craft=62, instinct=45, presence=35, resilience=50)),
-    "2": ("Discovered", "A manager, momentum, and no technique yet.", Attributes(craft=28, instinct=55, presence=70, resilience=45)),
-    "3": ("Regional stage", "Years of range. No union credits. Not young anymore.", Attributes(craft=70, instinct=50, presence=45, resilience=55)),
-    "4": ("Family money", "The rent's solved. The room can tell.", Attributes(craft=45, instinct=45, presence=35, resilience=35)),
-}
-REGIONAL_STAGE_START_AGE = 33
+from callback.engine.simulation.session import Session
 
 
 def prompt(msg: str, auto_default: str, auto: bool) -> str:
@@ -54,155 +29,158 @@ def prompt(msg: str, auto_default: str, auto: bool) -> str:
     return val or auto_default
 
 
-def character_creation(rng: random.Random, auto: bool) -> tuple[ActorState, str]:
+def choose(options: list[tuple[str, str]], msg: str, auto_default_index: int, auto: bool) -> str:
+    for i, (_, label) in enumerate(options, 1):
+        print(f"    {i}. {label}")
+    default = str(auto_default_index + 1)
+    pick = prompt(msg, default, auto)
+    idx = int(pick) - 1 if pick.isdigit() and 1 <= int(pick) <= len(options) else auto_default_index
+    return options[idx][0]
+
+
+def character_creation(session: Session, auto: bool) -> None:
     print("\nYou do not control whether the film is good.\n")
     print("BACKGROUND")
-    for key, (name, tagline, _) in BACKGROUNDS.items():
-        print(f"  {key}. {name} — {tagline}")
-    choice = prompt("Choose (1-4):", "1", auto)
-    name, _, attrs = BACKGROUNDS.get(choice, BACKGROUNDS["1"])
-    start_age = REGIONAL_STAGE_START_AGE if name == "Regional stage" else 22
+    bg_options = [(k, f"{name} — {tagline}") for k, name, tagline in session.background_options()]
+    bg_key = choose(bg_options, "Choose:", 0, auto)
 
-    print(f"\nYou are, at heart, {name}.\n")
-    state = new_full_state(rng, start_age=start_age)
-    state = replace(state, actor=replace(state.actor, attrs=attrs.clamped()))
+    print("\nAMBITION — this decides what your obituary measures you against; it gates nothing.")
+    amb_key = choose(session.ambition_options(), "Choose:", 0, auto)
 
-    if name == "Family money":
-        state = replace(state, life=replace(state.life, money=MoneyState(net_worth=2.0)))
-
-    print("AMBITION — this decides what your obituary measures you against; it gates nothing.")
-    ambitions = ["The Work", "The Prize", "The Fortune", "The Run", "The Franchise", "The Voice"]
-    for i, a in enumerate(ambitions, 1):
-        print(f"  {i}. {a}")
-    amb_choice = prompt("Choose (1-6):", "1", auto)
-    ambition = ambitions[int(amb_choice) - 1] if amb_choice.isdigit() and 1 <= int(amb_choice) <= 6 else ambitions[0]
-    print(f"You're chasing {ambition}. You can change your mind once, later.\n")
-
-    return state, ambition
+    print(f"\n{session.start(bg_key, amb_key)}\n")
 
 
-def offer_board_screen(state, rng, auto: bool):
-    role = offer_this_year(state, rng)
-    print(f"\n--- THIS YEAR'S OFFER ---")
-    print(f"  {role.genre.title()} · {role.billing} · {role.budget_for_role:.2f}M budget")
-    u = utility_for(state, role)
-    path = resolve_casting_path(u, role)
-    would_offer = path == "direct_offer" or rng.random() < offer_probability(u, role.difficulty)
-    if not would_offer:
+def offer_board_screen(session: Session, auto: bool) -> tuple[dict, bool]:
+    offer = session.roll_offer()
+    print("\n--- THIS YEAR'S OFFER ---")
+    print(f"  {offer['genre'].title()} · {offer['billing']} · {offer['budget_millions']:.2f}M budget")
+    if not offer["available"]:
         print("  (An audition — but it doesn't come through this year.)")
-        return role, False
+        return offer, False
     choice = prompt("  [A]udition/accept or [D]ecline?", "A", auto)
-    return role, choice.upper() != "D"
+    return offer, choice.upper() != "D"
 
 
-def deal_screen(state, auto: bool) -> frozenset[str]:
-    """design/part-06 §6.3: script/co-star approval for a 30%-per-approval fee cut, gated at
-    Standing 65+ — the Deal screen's real fork, not a cosmetic label."""
-    standing_score = state.actor.standing.weighted_score({"heat": 0.4, "prestige": 0.3, "affection": 0.3})
-    if not can_negotiate_approvals(standing_score):
+def deal_screen(session: Session, auto: bool) -> None:
+    if not session.approvals_available():
         print("  THE DEAL: standard terms — you're not there yet for approvals.")
-        return frozenset()
-    choice = prompt("  THE DEAL: [1] Take the money  [2] Take less, get more say (script + co-star approval)", "1", auto)
-    return frozenset({"script", "costar"}) if choice == "2" else frozenset()
-
-
-def prep_screen(auto: bool) -> str:
-    print("  PREP:")
-    options = [o for o in PREP_OPTIONS if o != WING_IT]
-    for i, o in enumerate(options, 1):
-        print(f"    {i}. {o.replace('_', ' ')}")
-    choice = prompt(f"  Choose (1-{len(options)}):", "1", auto)
-    idx = int(choice) - 1 if choice.isdigit() and 1 <= int(choice) <= len(options) else 0
-    return options[idx]
-
-
-def shoot_screen(rng, auto: bool):
-    print("  THE SHOOT — three scenes.")
-    scene_names = ["Scene 1 — the setup", "Scene 2 — the turn", "Scene 3 — the resolution"]
-    scenes = []
-    for scene_name in scene_names:
-        print(f"    {scene_name}:")
-        choice = {}
-        for dial in DIALS:
-            label = DIAL_LABELS[dial]
-            options_str = "/".join(f"[{i+1}]{PLAYER_LABELS[p]}" for i, p in enumerate(POSITIONS))
-            pick = prompt(f"      {label}: {options_str}", "1", auto)
-            idx = int(pick) - 1 if pick.isdigit() and 1 <= int(pick) <= 4 else 0
-            choice[dial] = POSITIONS[idx]
-        scenes.append(choice)
-    return tuple(scenes)
-
-
-RELEASE_LABELS = {
-    WIDE: "Wide — full theatrical push",
-    LIMITED: "Limited — platform release, word of mouth does the work",
-    FESTIVAL: "Festival — you find out if anyone even buys it",
-    STREAMING: "Streaming — a flat guaranteed payout, no upside",
-    SHELVED: "Shelved — it doesn't come out at all",
-}
-RELEASE_ORDER = (WIDE, LIMITED, FESTIVAL, STREAMING, SHELVED)
-
-
-def release_screen(auto: bool) -> str:
-    print("  RELEASE STRATEGY:")
-    for i, strat in enumerate(RELEASE_ORDER, 1):
-        print(f"    {i}. {RELEASE_LABELS[strat]}")
-    choice = prompt(f"  Choose (1-{len(RELEASE_ORDER)}):", "1", auto)
-    idx = int(choice) - 1 if choice.isdigit() and 1 <= int(choice) <= len(RELEASE_ORDER) else 0
-    return RELEASE_ORDER[idx]
-
-
-def post_release_screen(result):
-    print("  --- POST & RELEASE ---")
-    print(f"    Your work: {performance_band(result.performance)}")
-    print(f"    Critics: {critic_band(result.film_critic_score)} ({result.film_critic_score:.0f}/100)")
-    print(f"    Audience: {audience_band(result.audience_score)}")
-    print(f"    Release: {RELEASE_LABELS[result.release_strategy]}")
-    if result.gross <= 0:
-        print(f"    Box office: {roi_band(result.roi)} — never really had one.")
+        session.choose_deal(False)
         return
-    print(f"    Box office: {roi_band(result.roi)} — ${result.gross:.1f}M on a ${result.budget:.1f}M budget (ROI {result.roi:.2f}x)")
-    if result.release_strategy in (WIDE, LIMITED):
-        curve = weekly_gross_curve(result.opening, result.legs, weeks=5)
-        weeks_str = "  ".join(f"Wk{i+1} ${w:.1f}M" for i, w in enumerate(curve))
+    choice = prompt("  THE DEAL: [1] Take the money  [2] Take less, get more say (script + co-star approval)", "1", auto)
+    fee = session.choose_deal(choice == "2")
+    if fee is not None:
+        print(f"    (Fee cut to {fee:.2f}M — script and co-star approval, yours now.)")
+
+
+def prep_screen(session: Session, auto: bool) -> None:
+    print("  PREP:")
+    key = choose(session.prep_options(), "  Choose:", 0, auto)
+    session.choose_prep(key)
+
+
+def shoot_screen(session: Session, auto: bool) -> None:
+    print("  THE SHOOT — three scenes.")
+    positions = session.position_options()
+    for scene_name in session.scene_names():
+        print(f"    Scene — {scene_name}:")
+        choices = {}
+        for dial_key, dial_label in session.dial_options():
+            options_str = "/".join(f"[{i+1}]{label}" for i, (_, label) in enumerate(positions))
+            pick = prompt(f"      {dial_label}: {options_str}", "1", auto)
+            idx = int(pick) - 1 if pick.isdigit() and 1 <= int(pick) <= len(positions) else 0
+            choices[dial_key] = positions[idx][0]
+        session.play_scene(choices)
+
+
+def release_screen(session: Session, auto: bool) -> dict:
+    print("  RELEASE STRATEGY:")
+    key = choose(session.release_options(), "  Choose:", 0, auto)
+    return session.choose_release(key)
+
+
+def post_release_screen(summary: dict) -> None:
+    print("  --- POST & RELEASE ---")
+    print(f"    Your work: {summary['performance_band']}")
+    print(f"    Critics: {summary['critic_band']} ({summary['critic_score']}/100)")
+    print(f"    Audience: {summary['audience_band']}")
+    print(f"    Release: {summary['release_label']}")
+    if summary["gross_millions"] <= 0:
+        print(f"    Box office: {summary['roi_band']} — never really had one.")
+        return
+    print(f"    Box office: {summary['roi_band']} — ${summary['gross_millions']:.1f}M on a "
+          f"${summary['budget_millions']:.1f}M budget (ROI {summary['roi']:.2f}x)")
+    if summary["weekly_gross"]:
+        weeks_str = "  ".join(f"Wk{i+1} ${w:.1f}M" for i, w in enumerate(summary["weekly_gross"]))
         print(f"      {weeks_str}")
 
 
-def reckoning_screen(state):
-    sc = state.actor.standing
-    print(f"  RECKONING — you are {standing_band(sc.weighted_score({'heat': 0.4, 'prestige': 0.3, 'affection': 0.3}))} now.")
+def awards_screen(session: Session, auto: bool) -> None:
+    if not session.awards_campaign_available():
+        return
+    choice = prompt("  That work was noticed. Run an awards campaign? [Y]es/[N]o", "Y", auto)
+    if choice.upper() != "Y":
+        return
+    outcome = session.run_awards_campaign()
+    if outcome["won"]:
+        print("    You won.")
+    elif outcome["nominated"]:
+        print("    Nominated. Didn't win.")
+    else:
+        print("    No nomination this time.")
+
+
+def pull_menu(session: Session, auto: bool) -> None:
+    """The one screen the player never has to open — ux/04's whole point. Auto mode always
+    skips it; an interactive player can check the Rolodex or Leverage between offers for free."""
+    if auto:
+        return
+    choice = prompt("\n[Enter] to see this year's offer, or [p] to check the Rolodex/Leverage:", "", auto)
+    if choice.lower() != "p":
+        return
+
+    print("\n  ROLODEX")
+    for npc in session.rolodex_summary():
+        print(f"    {npc['id']} ({npc['type']}) — {npc['relationship']}")
+    npc_choice = prompt("  Check in with someone? Enter their id, or blank to skip:", "", auto)
+    if npc_choice:
+        print(f"    {session.interact(npc_choice, 'check_in')}")
+
+    status = session.leverage_status()
+    print(f"\n  LEVERAGE — agent tier: {status['agent_tier']}, scarcity: {status['scarcity']}")
+    if status["next_tier"]:
+        lev_choice = prompt(f"  Try to sign with a {status['next_tier']} agency? [Y]/[N]", "N", auto)
+        if lev_choice.upper() == "Y":
+            print(f"    {session.try_advance_agent_tier()}")
 
 
 def run(auto: bool, seed: int, max_years: int) -> None:
-    rng = random.Random(seed)
-    state, ambition = character_creation(rng, auto)
+    session = Session(seed=seed)
+    character_creation(session, auto)
 
     for _ in range(max_years):
-        if state.actor.age >= 90:
+        if session.is_over():
             break
-        print(f"\n=== AGE {state.actor.age} ===")
-        role, take_it = offer_board_screen(state, rng, auto)
+        print(f"\n=== AGE {session.age()} ===")
+        pull_menu(session, auto)
+        offer, take_it = offer_board_screen(session, auto)
 
         if take_it:
-            approvals = deal_screen(state, auto)
-            if approvals:
-                fee = fee_after_approvals(role.budget_for_role, approvals)
-                print(f"    (Fee cut to {fee:.2f}M — script and co-star approval, yours now.)")
-            prep_choice = prep_screen(auto)
-            scenes = shoot_screen(rng, auto)
-            strategy = release_screen(auto)
-            state, result = accept_and_play(state, role, prep_choice, scenes, rng, release_strategy=strategy)
-            post_release_screen(result)
-            state = advance_between_years(state, rng, worked_this_year=True, billing=role.billing)
+            session.accept()
+            deal_screen(session, auto)
+            prep_screen(session, auto)
+            shoot_screen(session, auto)
+            summary = release_screen(session, auto)
+            post_release_screen(summary)
+            awards_screen(session, auto)
         else:
-            state = decline_and_resolve(state, role, rng)
-            state = advance_between_years(state, rng, worked_this_year=False)
+            result = session.decline()
+            print(f"    It went to someone else: {result['roi_band']}, {result['critic_band']} reviews.")
 
-        reckoning_screen(state)
+        print(f"  RECKONING — you are {session.standing_summary()} now.")
 
-        if state.actor.age % 5 == 0:
+        if session.age() % 5 == 0:
             print("  THE TRADES:")
-            for line in generate_digest(state.genre_heat, state.rolodex, GENRES):
+            for line in session.trades():
                 print(f"    - {line}")
 
         if not auto:
@@ -211,17 +189,15 @@ def run(auto: bool, seed: int, max_years: int) -> None:
                 break
 
     print("\n=== THE OBITUARY ===")
-    ob = obituary(state)
-    print(f"  {len(ob.filmography)} credited roles played.")
-    print(f"  {len(ob.declined)} roles turned down — here's what became of them:")
-    for d in ob.declined[:5]:
-        r = d.result.reception
-        print(f"    - A {d.role_genre} film you passed on: {roi_band(r.roi)} (${r.gross:.1f}M, {r.roi:.2f}x), "
-              f"{critic_band(r.film_critic_score)} reviews ({r.film_critic_score:.0f}/100).")
-    print(f"  {len(ob.kept)} relationships you kept. {len(ob.lost)} you lost.")
-    if ob.best_hidden_performance:
-        r = ob.best_hidden_performance
-        print(f"  Your best hidden performance: a {r.role.genre} film — {performance_band(r.performance)} work nobody quite noticed.")
+    ob = session.obituary_summary()
+    print(f"  {ob['credits']} credited roles played.")
+    print(f"  {len(ob['declined'])} roles turned down — here's what became of them:")
+    for d in ob["declined"][:5]:
+        print(f"    - A {d['genre']} film you passed on: {d['roi_band']}, {d['critic_band']} reviews.")
+    print(f"  {ob['kept']} relationships you kept. {ob['lost']} you lost.")
+    if ob["best_hidden_performance"]:
+        b = ob["best_hidden_performance"]
+        print(f"  Your best hidden performance: a {b['genre']} film — {b['band']} work nobody quite noticed.")
 
 
 def main() -> int:

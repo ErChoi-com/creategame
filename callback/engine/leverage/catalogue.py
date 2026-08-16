@@ -8,6 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field, replace
 
 from callback.engine.core.util import clamp
+from callback.engine.leverage.favours import FavourLedger
 
 # --- Change your own standing: Disappear (§6.6) ---
 SCARCITY_GAIN_PER_YEAR_IDLE = 12.0
@@ -60,6 +61,7 @@ class LeverageState:
     scarcity: float = 0.0
     blacklisted: frozenset[str] = field(default_factory=frozenset)
     recommended: dict[str, float] = field(default_factory=dict)
+    favours: FavourLedger = field(default_factory=FavourLedger)
 
 
 def new_leverage_state() -> LeverageState:
