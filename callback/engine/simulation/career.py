@@ -37,6 +37,7 @@ from callback.engine.actor.reception import RIGHTS_SHARE, ReceptionResult, resol
 from callback.engine.actor.release import STREAMING, STREAMING_BUYOUT_MULTIPLIER, WIDE, apply_release_strategy
 from callback.engine.actor.script_notes import ScriptNoteEffect
 from callback.engine.actor.shape import resolve_shape
+from callback.engine.genre.adaptation import adaptation_audience_bonus, adaptation_critic_risk
 from callback.engine.actor.studios import (
     OPENING_MARKETING_COEF,
     STUDIOS,
@@ -239,6 +240,8 @@ def resolve_quality(
     script_quality = clamp(rng.gauss(60, 14), 0, 100)
     palette_aud_effect, palette_crit_effect = palette_reception_effect(palette, role.genre)
     palette_aud_effect += franchise_audience_bonus
+    palette_aud_effect += adaptation_audience_bonus(role.source_material)
+    palette_crit_effect += adaptation_critic_risk(role.source_material)
     staleness = state.persona.staleness_penalty()
 
     if script_note is not None:

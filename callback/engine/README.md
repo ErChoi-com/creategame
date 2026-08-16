@@ -227,6 +227,39 @@ call. `simulate_project()` still just calls them in a straight line — no dynam
 object churn, the exact same sequence of `rng` draws as the old monolithic version — so the split
 costs nothing at runtime and every existing seed still reproduces byte-for-byte identical results.
 
+**Multi-picture deals — future terms, not just this project's** (`leverage/multi_picture_deal.py`).
+Once Standing clears `MULTI_PICTURE_MIN_STANDING`, right after accepting a role, the actor can lock
+in 2-5 future films with that role's own financing studio at a fixed budget floor
+(`DEAL_LOCKED_QUOTE_PREMIUM` over their quote *right now*) — real security traded for the freedom
+to negotiate project-by-project. Each signed film shows up as a guaranteed, always-available
+listing on a future `offer_board()` (`Session._guaranteed_listing()`) until the deal is worked off;
+walking away early (`break_multi_picture_deal()`) costs real notoriety, the same asymmetric-trust
+read `simulation/_relationships.py` already applies to a studio you've burned.
+
+**Franchise spin-offs — indispensability becomes a new property, not just a bigger recast cost**
+(`simulation/_franchises.create_spinoff_entry`/`spinoff_available`). Once a character's
+Indispensability crosses `SPINOFF_INDISPENSABILITY_THRESHOLD`, the actor can pitch a spin-off:
+a brand-new franchise, same studio and genre as the parent, seeded with a real head-start audience
+bonus off the parent's own indispensability rather than starting cold. It guarantees its own
+installment 1 on the next `offer_board()`, reusing the same guaranteed-listing plumbing multi-
+picture deals use.
+
+**Franchise sequels now read spacing, not just prior reception** (`genre/franchise.
+spacing_modifier()`). A sequel rushed out within `FATIGUE_WINDOW_YEARS` of the last installment
+reads as oversaturated (a real audience-score penalty); one given real room to breathe
+(`ANTICIPATION_GAP_YEARS`+) earns a genuine anticipation bonus instead. Composed directly into
+`franchise_audience_bonus()` alongside the existing prior-reception scaling — a well-loved
+franchise released too fast can still underperform a modest one that was paced well.
+
+**Adaptations — a second kind of built-in audience, distinct from being a sequel**
+(`genre/adaptation.py`, `simulation/_adaptations.py`). An original (non-franchise) role can roll as
+an adaptation of a novel/comic/true story/video game/stage work — a real, flat audience bonus
+(people already know the story) paired with a real critic-score risk (the "the book was better"
+fidelity scrutiny an original screenplay never answers for). Kept structurally separate from the
+sequel curve rather than folded in: the source of the audience's familiarity is different, and a
+role is never both a sequel *and* an adaptation at once. Shows up on the Offer Board and in the
+CLI as `[ADAPTED FROM A NOVEL]` etc.
+
 **Franchises and directors are now real, interacting systems, not just data sitting in `genre/`
 and `director/` unreached** (`simulation/_franchises.py`). Two previously-dormant systems —
 §9.5's sequel-value curve (`genre/franchise.py`) and §6.4-6.5's Indispensability holdout

@@ -9,11 +9,15 @@ import unittest
 
 from callback.engine.actor.offers import Role
 from callback.engine.actor.standing import new_standing_model
+from callback.engine.genre.franchise import SEQUEL_BONUS_AUDIENCE_CENTRE
 from callback.engine.simulation._franchises import (
     FranchiseEntry,
+    SPINOFF_INDISPENSABILITY_THRESHOLD,
+    create_spinoff_entry,
     director_continuity_bonus,
     franchise_audience_bonus,
     maybe_attach_franchise,
+    spinoff_available,
     update_franchise_after_project,
 )
 from callback.engine.simulation.session import Session
@@ -65,15 +69,56 @@ class TestMaybeAttachFranchise(unittest.TestCase):
 
 class TestFranchiseAudienceBonus(unittest.TestCase):
     def test_non_franchise_role_gets_no_bonus(self):
-        self.assertEqual(franchise_audience_bonus(_role(), {}), 0.0)
+        self.assertEqual(franchise_audience_bonus(_role(), {}, current_year=10), 0.0)
 
     def test_a_well_received_prior_installment_gives_a_bigger_bonus_than_a_poorly_received_one(self):
         role = _role(franchise_id="fr_003", installment_number=2)
         strong_prior = {"fr_003": FranchiseEntry(franchise_id="fr_003", genre="action", studio_id="mid_major",
-                                                  prior_audience_score=90.0)}
+                                                  prior_audience_score=90.0, last_installment_year=5)}
         weak_prior = {"fr_003": FranchiseEntry(franchise_id="fr_003", genre="action", studio_id="mid_major",
-                                                prior_audience_score=20.0)}
-        self.assertGreater(franchise_audience_bonus(role, strong_prior), franchise_audience_bonus(role, weak_prior))
+                                                prior_audience_score=20.0, last_installment_year=5)}
+        self.assertGreater(
+            franchise_audience_bonus(role, strong_prior, current_year=10),
+            franchise_audience_bonus(role, weak_prior, current_year=10),
+        )
+
+    def test_a_rushed_sequel_reads_worse_than_a_well_spaced_one(self):
+        role = _role(franchise_id="fr_005", installment_number=2)
+        rushed = {"fr_005": FranchiseEntry(franchise_id="fr_005", genre="action", studio_id="mid_major",
+                                            prior_audience_score=65.0, last_installment_year=9)}
+        well_spaced = {"fr_005": FranchiseEntry(franchise_id="fr_005", genre="action", studio_id="mid_major",
+                                                 prior_audience_score=65.0, last_installment_year=5)}
+        self.assertGreater(
+            franchise_audience_bonus(role, well_spaced, current_year=10),
+            franchise_audience_bonus(role, rushed, current_year=10),
+        )
+
+
+class TestSpinoff(unittest.TestCase):
+    def test_not_available_below_the_indispensability_threshold(self):
+        f = FranchiseEntry(franchise_id="fr_006", genre="action", studio_id="mid_major",
+                            indispensability=SPINOFF_INDISPENSABILITY_THRESHOLD - 1.0)
+        self.assertFalse(spinoff_available(f))
+
+    def test_available_at_or_above_the_threshold(self):
+        f = FranchiseEntry(franchise_id="fr_007", genre="action", studio_id="mid_major",
+                            indispensability=SPINOFF_INDISPENSABILITY_THRESHOLD)
+        self.assertTrue(spinoff_available(f))
+
+    def test_spinoff_inherits_studio_and_genre_and_a_real_head_start(self):
+        parent = FranchiseEntry(franchise_id="fr_008", genre="horror", studio_id="indie", indispensability=80.0)
+        entry = create_spinoff_entry(parent, "fr_008_spinoff", current_year=12)
+        self.assertEqual(entry.genre, "horror")
+        self.assertEqual(entry.studio_id, "indie")
+        self.assertGreater(entry.prior_audience_score, SEQUEL_BONUS_AUDIENCE_CENTRE)
+        self.assertEqual(entry.installments_starred, 0)
+
+    def test_spinoff_is_touched_this_year_so_it_survives_immediate_dormant_decay(self):
+        from callback.engine.simulation._franchises import decay_dormant_franchises
+        parent = FranchiseEntry(franchise_id="fr_009", genre="drama", studio_id="prestige", indispensability=60.0)
+        entry = create_spinoff_entry(parent, "fr_009_spinoff", current_year=20)
+        franchises = decay_dormant_franchises({"fr_009_spinoff": entry}, current_year=20)
+        self.assertIn("fr_009_spinoff", franchises)
 
 
 class TestDirectorContinuityBonus(unittest.TestCase):

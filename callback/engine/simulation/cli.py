@@ -59,11 +59,20 @@ def _franchise_tag(o: dict) -> str:
     return ""
 
 
+def _listing_tags(o: dict) -> str:
+    tag = _franchise_tag(o)
+    if o.get("source_material"):
+        tag += f"  [ADAPTED FROM A {o['source_material'].replace('_', ' ').upper()}]"
+    if o.get("guaranteed"):
+        tag += "  [GUARANTEED — your deal/spin-off]"
+    return tag
+
+
 def _print_listings(listings: list[dict]) -> None:
     for o in listings:
         state = "" if o["available"] else "  (an audition — but it doesn't come through this year)"
         print(f"  [{o['index'] + 1}] {o['genre'].title()} · {o['billing']} · {o['budget_millions']:.2f}M — "
-              f"{o['studio_name']}{_franchise_tag(o)}{state}")
+              f"{o['studio_name']}{_listing_tags(o)}{state}")
         print(f"       {o['studio_tagline']}")
 
 
@@ -79,7 +88,7 @@ def offer_board_screen(session: Session, auto: bool) -> int | None:
         available = [o for o in listings if o["available"]]
         can_keep_looking = len(listings) < OFFER_BOARD_HARD_CAP
         options = [(str(o["index"]), f"{o['genre'].title()} ({o['billing']}, {o['budget_millions']:.2f}M) — "
-                                      f"{o['studio_name']}{_franchise_tag(o)}")
+                                      f"{o['studio_name']}{_listing_tags(o)}")
                    for o in available]
         if can_keep_looking:
             options.append(("__more__", "Keep looking — generate more listings"))
@@ -141,6 +150,27 @@ def deal_screen(session: Session, auto: bool) -> None:
         print(f"    (Fee cut to {fee:.2f}M — script and co-star approval, yours now.)")
     if want_bonus:
         print("    (Box office bonus negotiated — 3% of gross, if it clears break-even.)")
+
+
+def multi_picture_deal_screen(session: Session, auto: bool) -> None:
+    """Future terms, not just this project's — offered right after accepting a role, once
+    standing clears the bar. Once signed, this studio owes a guaranteed listing every year until
+    it's worked off (see Session._guaranteed_listing)."""
+    if not session.multi_picture_deal_available():
+        return
+    choice = prompt(
+        "  FUTURE TERMS: this studio would lock in several films with you right now, at a premium "
+        "over your quote — take it? [Y]/[N]", "N", auto,
+    )
+    if choice.upper() != "Y":
+        return
+    terms = session.multi_picture_deal_terms(3)
+    print(f"    Preview: {terms['films']} films with {terms['studio_name']} at "
+          f"${terms['per_film_budget_millions']:.1f}M each (${terms['total_value_millions']:.1f}M total).")
+    confirm = prompt("    Sign it? [Y]/[N]", "Y", auto)
+    if confirm.upper() == "Y":
+        result = session.sign_multi_picture_deal(3)
+        print(f"    Signed — {result['films']} films guaranteed with {result['studio_name']}.")
 
 
 def script_notes_screen(session: Session, auto: bool) -> None:
@@ -298,6 +328,24 @@ def pull_menu(session: Session, auto: bool) -> None:
             print(f"    {f['genre'].title()} ({f['studio_name']}) — {f['installments']} installment(s), "
                   f"indispensability {f['indispensability']}, recast cost ${f['recast_cost_millions']}M")
 
+    spinoffs = session.spinoff_options()
+    if spinoffs:
+        print("\n  SPIN-OFF POTENTIAL")
+        for sp in spinoffs:
+            print(f"    {sp['genre'].title()} ({sp['studio_name']}) — indispensability {sp['indispensability']}")
+        choice = prompt("  Pitch a spin-off? Enter the franchise's genre, or blank to skip:", "", auto)
+        match = next((sp for sp in spinoffs if sp["genre"] == choice), None)
+        if match:
+            print(f"    {session.launch_spinoff(match['franchise_id'])}")
+
+    deal = session.multi_picture_deal_status()
+    if deal:
+        print(f"\n  FUTURE TERMS — {deal['films_remaining']} film(s) left with {deal['studio_name']} "
+              f"at ${deal['guaranteed_budget_millions']:.1f}M each")
+        break_choice = prompt("  Walk away from this deal early? [Y]/[N]", "N", auto)
+        if break_choice.upper() == "Y":
+            print(f"    {session.break_multi_picture_deal()}")
+
     studio_rels = session.studio_relations_status()
     if studio_rels:
         print("\n  STUDIO RELATIONSHIPS")
@@ -323,6 +371,7 @@ def acting_block(session: Session, auto: bool) -> None:
         proceeds = franchise_screen(session, auto)
         if proceeds:
             deal_screen(session, auto)
+            multi_picture_deal_screen(session, auto)
             script_notes_screen(session, auto)
             director_screen(session, auto)
             costar_screen(session, auto)

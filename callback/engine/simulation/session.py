@@ -31,7 +31,7 @@ from __future__ import annotations
 import random
 from dataclasses import replace
 
-from callback.engine.actor.offers import Role, offer_probability, resolve_casting_path
+from callback.engine.actor.offers import Role, offer_probability, resolve_casting_path, sample_role
 from callback.engine.actor.persona import GENRES
 from callback.engine.actor.positions import DIAL_LABELS, DIALS, PLAYER_LABELS, POSITIONS, generosity, upstaging
 from callback.engine.actor.prep import PREP_OPTIONS, WING_IT
@@ -47,9 +47,22 @@ from callback.engine.leverage.approvals import (
     fee_after_approvals,
 )
 from callback.engine.leverage.catalogue import accumulate_scarcity, advance_agent_tier, can_advance_agent_tier, next_agent_tier
+from callback.engine.leverage.multi_picture_deal import (
+    BREAK_NOTORIETY_PENALTY,
+    MULTI_PICTURE_MAX_FILMS,
+    MULTI_PICTURE_MIN_FILMS,
+    MULTI_PICTURE_MIN_STANDING,
+    deal_terms,
+    fulfill_one,
+    sign_deal,
+)
 from callback.engine.rolodex import interactions as rolodex_interactions
 from callback.engine.simulation._backgrounds import BACKGROUND_TABLE, REGIONAL_STAGE_START_AGE
-from callback.engine.simulation._franchises import FRANCHISE_INDISPENSABILITY_HOLDOUT_THRESHOLD
+from callback.engine.simulation._franchises import (
+    FRANCHISE_INDISPENSABILITY_HOLDOUT_THRESHOLD,
+    create_spinoff_entry,
+    spinoff_available as _spinoff_available,
+)
 from callback.engine.leverage.indispensability import recast_cost, resolve_holdout
 from callback.engine.director.development import DEV_ACTIONS
 from callback.engine.studio.slate import TIER_BUDGETS
@@ -111,6 +124,12 @@ class Session:
         self._acting_worked_this_year: bool = False
         self._pending_billing: str | None = None
         self._pending_bonus_income: float = 0.0
+        # A signed multi-picture deal or a launched spin-off guarantees one listing on the next
+        # board — tracked by index so accept() knows to fulfill it rather than treat it as a
+        # normal roll. Only one guaranteed slot per board (see _generate_listings).
+        self._guaranteed_index: int | None = None
+        self._guaranteed_source: str | None = None  # "deal" | "spinoff"
+        self._pending_spinoff_franchise_id: str | None = None
 
     # ---- character creation ----------------------------------------------------------------
 
@@ -162,13 +181,64 @@ class Session:
         n = size if size is not None else self.rng.randint(OFFER_BOARD_MIN_LISTINGS, OFFER_BOARD_MAX_LISTINGS)
         self._board = []
         self._board_would_offer = []
-        return self._generate_listings(n)
+        self._guaranteed_index = None
+        self._guaranteed_source = None
+        listings = []
+        guaranteed = self._guaranteed_listing()
+        if guaranteed is not None:
+            listings.append(guaranteed)
+            n = max(n - 1, 0)
+        listings.extend(self._generate_listings(n))
+        return listings
 
     def generate_more_listings(self, count: int = OFFER_BOARD_GENERATE_MORE_BATCH) -> list[dict]:
         """Appends more listings to the current board rather than replacing it — the offer board
         isn't capped; there's always another audition to generate if the player wants to keep
         looking. Returns only the newly generated listings (their index continues the board's)."""
         return self._generate_listings(count)
+
+    def _guaranteed_listing(self) -> dict | None:
+        """A signed multi-picture deal or a launched spin-off owes you a real, always-available
+        listing this year — not a roll of the dice like everything else on the board. Only one
+        guaranteed slot per board: a deal and a spin-off never compete for it in the same year,
+        the deal takes priority since it's the actor's standing commitment of the two."""
+        deal = self.state.multi_picture_deal
+        if deal is not None and deal.films_remaining > 0:
+            role = replace(
+                sample_role(self.rng, budget_millions=deal.guaranteed_budget_millions),
+                studio=deal.studio_id, budget_for_role=deal.guaranteed_budget_millions,
+            )
+            source = "deal"
+        elif self._pending_spinoff_franchise_id is not None:
+            f = self.state.franchises[self._pending_spinoff_franchise_id]
+            role = replace(
+                sample_role(self.rng), studio=f.studio_id, genre=f.genre,
+                franchise_id=self._pending_spinoff_franchise_id, installment_number=1,
+            )
+            source = "spinoff"
+        else:
+            return None
+
+        index = len(self._board)
+        self._board.append(role)
+        self._board_would_offer.append(True)
+        self._guaranteed_index = index
+        self._guaranteed_source = source
+        studio = STUDIOS[role.studio]
+        return {
+            "index": index,
+            "genre": role.genre,
+            "billing": role.billing,
+            "budget_millions": round(role.budget_for_role, 2),
+            "available": True,
+            "union": role.union,
+            "studio_name": studio.name,
+            "studio_tagline": studio.tagline,
+            "franchise_id": role.franchise_id,
+            "installment_number": role.installment_number,
+            "source_material": role.source_material,
+            "guaranteed": True,
+        }
 
     def _generate_listings(self, count: int) -> list[dict]:
         listings = []
@@ -194,6 +264,8 @@ class Session:
                 "studio_tagline": studio.tagline,
                 "franchise_id": role.franchise_id,
                 "installment_number": role.installment_number,
+                "source_material": role.source_material,
+                "guaranteed": False,
             })
         return listings
 
@@ -203,6 +275,13 @@ class Session:
         if not self._board_would_offer[index]:
             raise ValueError("this offer never came through — check offer_board()[index]['available'] first")
         self._role = self._board[index]
+        if index == self._guaranteed_index:
+            if self._guaranteed_source == "deal":
+                self.state = replace(self.state, multi_picture_deal=fulfill_one(self.state.multi_picture_deal))
+            elif self._guaranteed_source == "spinoff":
+                self._pending_spinoff_franchise_id = None
+            self._guaranteed_index = None
+            self._guaranteed_source = None
         # everything else on the board quietly resolves through the background industry (§10.0),
         # same as a single declined offer always has — you only ever work one project a year.
         for i, role in enumerate(self._board):
@@ -283,6 +362,91 @@ class Session:
             "raise_multiplier": round(outcome.raise_multiplier, 2),
             "proceeds": proceeds,
         }
+
+    # ---- spin-offs — a franchise character indispensable enough earns its own new property ----
+
+    def spinoff_options(self) -> list[dict]:
+        """Franchises real enough to spin off — indispensability alone gates it (see genre.
+        franchise/leverage.indispensability): a character the audience can't imagine the franchise
+        without is exactly the one a studio will bankroll a new property around."""
+        return [
+            {
+                "franchise_id": fid,
+                "genre": f.genre,
+                "studio_name": STUDIOS[f.studio_id].name,
+                "indispensability": round(f.indispensability, 1),
+            }
+            for fid, f in self.state.franchises.items() if _spinoff_available(f)
+        ]
+
+    def launch_spinoff(self, franchise_id: str) -> str:
+        """Creates the new franchise immediately (seeded with a real head-start audience bonus off
+        the parent's own indispensability — see simulation._franchises.create_spinoff_entry) and
+        guarantees its first installment shows up on next year's offer_board()."""
+        parent = self.state.franchises[franchise_id]
+        new_id = f"fr_spinoff_{self.rng.randrange(10**6):06d}"
+        entry = create_spinoff_entry(parent, new_id, current_year=self.age())
+        self.state = replace(self.state, franchises={**self.state.franchises, new_id: entry})
+        self._pending_spinoff_franchise_id = new_id
+        return f"You pitch a spin-off out of {parent.genre} — {STUDIOS[parent.studio_id].name} bites."
+
+    # ---- multi-picture deals — future terms, not just this project's --------------------------
+
+    def multi_picture_deal_available(self) -> bool:
+        """Only offerable right after accepting a role — the deal is with that role's own
+        financing studio — and only once, not stacked on top of an already-signed deal."""
+        if self._role is None or self.state.multi_picture_deal is not None:
+            return False
+        return standing_score(self.state.actor.standing) >= MULTI_PICTURE_MIN_STANDING
+
+    def multi_picture_deal_terms(self, film_count: int) -> dict:
+        """A preview, not a commitment — call sign_multi_picture_deal() to actually take it."""
+        film_count = max(MULTI_PICTURE_MIN_FILMS, min(film_count, MULTI_PICTURE_MAX_FILMS))
+        quote_value = self.state.actor.quote_value()
+        per_film, total = deal_terms(quote_value, film_count)
+        return {
+            "studio_name": STUDIOS[self._role.studio].name,
+            "films": film_count,
+            "per_film_budget_millions": round(per_film, 2),
+            "total_value_millions": round(total, 2),
+        }
+
+    def sign_multi_picture_deal(self, film_count: int) -> dict:
+        """Locks in a guaranteed floor budget across film_count future films with this role's own
+        studio — trading the freedom to negotiate project-by-project for real security. Each film
+        appears as a guaranteed listing on a future offer_board() until the deal is worked off (see
+        _guaranteed_listing()); walking away early costs real notoriety (break_multi_picture_deal
+        ())."""
+        film_count = max(MULTI_PICTURE_MIN_FILMS, min(film_count, MULTI_PICTURE_MAX_FILMS))
+        quote_value = self.state.actor.quote_value()
+        deal = sign_deal(self._role.studio, quote_value, film_count, current_year=self.age())
+        self.state = replace(self.state, multi_picture_deal=deal)
+        return {
+            "studio_name": STUDIOS[deal.studio_id].name,
+            "films": deal.films_remaining,
+            "per_film_budget_millions": round(deal.guaranteed_budget_millions, 2),
+        }
+
+    def multi_picture_deal_status(self) -> dict | None:
+        deal = self.state.multi_picture_deal
+        if deal is None:
+            return None
+        return {
+            "studio_name": STUDIOS[deal.studio_id].name,
+            "films_remaining": deal.films_remaining,
+            "guaranteed_budget_millions": round(deal.guaranteed_budget_millions, 2),
+        }
+
+    def break_multi_picture_deal(self) -> str:
+        """A real exit, not a free one — the studio remembers, the same asymmetric-trust read
+        simulation._relationships.py already applies elsewhere."""
+        deal = self.state.multi_picture_deal
+        if deal is None:
+            return "No deal to break."
+        standing = self.state.actor.standing.copy()
+        standing.add("notoriety", BREAK_NOTORIETY_PENALTY)
+        self.state = replace(self.state, multi_picture_deal=None, actor=replace(self.state.actor, standing=standing))
+        return f"You walk away from {STUDIOS[deal.studio_id].name}'s deal early — word gets around."
 
     # ---- the deal -----------------------------------------------------------------------------
 

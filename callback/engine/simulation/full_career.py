@@ -14,6 +14,7 @@ from callback.engine.actor.aging import apply_look_curve
 from callback.engine.actor.offers import Role, is_offered_non_union, sample_role, utility
 from callback.engine.actor.standing import AFFECTION_DECAY, HEAT_KEEP, NOTORIETY_DECAY, PRESTIGE_DECAY
 from callback.engine.leverage.catalogue import LeverageState, new_leverage_state
+from callback.engine.leverage.multi_picture_deal import MultiPictureDeal
 from callback.engine.life.family import FamilyState
 from callback.engine.life.health import HealthState
 from callback.engine.life.money import MoneyState
@@ -23,6 +24,7 @@ from callback.engine.core.util import clamp
 from callback.engine.rolodex.casting import resolve_declined_role
 from callback.engine.rolodex.rolodex import Rolodex, new_rolodex, recompute_tracked, register_contact
 from callback.engine.simulation.career import ActorState, ProjectResult, new_actor, simulate_project
+from callback.engine.simulation._adaptations import maybe_attach_adaptation
 from callback.engine.simulation._franchises import (
     decay_dormant_franchises,
     director_continuity_bonus,
@@ -61,6 +63,7 @@ class FullState:
     director: DirectorState | None = None  # None until the player crosses into a directing career
     studio_relations: dict = field(default_factory=dict)  # studio_id -> simulation._relationships.Relationship
     director_relations: dict = field(default_factory=dict)  # npc_id -> simulation._relationships.Relationship (requested directors only)
+    multi_picture_deal: MultiPictureDeal | None = None  # None until the actor signs one (leverage.multi_picture_deal)
 
 
 def new_full_state(rng: random.Random, start_age: int = 22) -> FullState:
@@ -83,6 +86,7 @@ def offer_this_year(state: FullState, rng: random.Random) -> Role:
     if role.union and is_offered_non_union(state.actor.union_credits, rng):
         role = replace(role, union=False, budget_for_role=role.budget_for_role / 3.0)
     role = maybe_attach_franchise(role, state.franchises, current_year(state), rng)
+    role = maybe_attach_adaptation(role, rng)
     return role
 
 
@@ -143,7 +147,7 @@ def accept_and_play(
         state.actor, role, prep_choice, scene_choices, rng,
         genre_demand_override=demand, release_strategy=release_strategy,
         script_note=script_note, orientation_effect=orientation_effect, director_override=director_override,
-        franchise_audience_bonus=franchise_audience_bonus(role, state.franchises),
+        franchise_audience_bonus=franchise_audience_bonus(role, state.franchises, current_year(state)),
         streaming_multiplier_override=streaming_multiplier_override,
         streaming_bid_selector=streaming_bid_selector,
     )

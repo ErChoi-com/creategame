@@ -15,7 +15,7 @@ from callback.engine.actor.offers import Role
 from callback.engine.actor.standing import star_power
 from callback.engine.core.meters import StandingModel
 from callback.engine.director.skill import ENGAGEMENT_PASSION_PROJECT
-from callback.engine.genre.franchise import SEQUEL_BONUS_AUDIENCE_CENTRE, sequel_bonus
+from callback.engine.genre.franchise import SEQUEL_BONUS_AUDIENCE_CENTRE, sequel_bonus, spacing_modifier
 from callback.engine.leverage.indispensability import character_identification, decay_dormant, indispensability
 
 NEW_FRANCHISE_CHANCE = 0.05  # a fresh franchise starting from an original role, per offer rolled
@@ -24,6 +24,13 @@ SEQUEL_ELIGIBLE_MAX_DORMANT_YEARS = 4  # a franchise dormant longer than this is
 FRANCHISE_INDISPENSABILITY_HOLDOUT_THRESHOLD = 30.0
 DEFAULT_CONTRACTUAL_HOLD = 50.0  # §6.4 names this as a real input; not otherwise modeled this pass
 DEFAULT_CAST_AVERAGE_STAR_POWER = 50.0  # same — the rest of the cast's own star power isn't tracked per-NPC
+
+# A spin-off is a real player-initiated action, not a passive roll like maybe_attach_franchise:
+# once a character has become genuinely indispensable to its franchise, the actor can pitch a new
+# property built off that same standing (the same studio, usually the same genre, seeded with a
+# starting audience bonus off the parent's own indispensability instead of starting cold).
+SPINOFF_INDISPENSABILITY_THRESHOLD = 55.0
+SPINOFF_AUDIENCE_BONUS_COEF = 0.35  # how much of the parent's indispensability carries over as a head start
 
 
 @dataclass(frozen=True)
@@ -58,14 +65,17 @@ def maybe_attach_franchise(role: Role, franchises: dict, current_year: int, rng:
     return role
 
 
-def franchise_audience_bonus(role: Role, franchises: dict) -> float:
+def franchise_audience_bonus(role: Role, franchises: dict, current_year: int) -> float:
     """§9.5's sequel-value curve — a real box-office bonus, applied straight onto AudienceScore,
-    scaled by how well the last installment actually landed (not just "it's a sequel")."""
+    scaled by how well the last installment actually landed (not just "it's a sequel") — plus a
+    spacing modifier (genre.franchise.spacing_modifier): a rushed sequel reads as oversaturated,
+    a well-spaced one benefits from real anticipation."""
     if not role.franchise_id:
         return 0.0
     f = franchises.get(role.franchise_id)
     prior_audience = f.prior_audience_score if f else SEQUEL_BONUS_AUDIENCE_CENTRE
-    return sequel_bonus(role.installment_number, prior_audience)
+    years_since_last = current_year - f.last_installment_year if f else 999
+    return sequel_bonus(role.installment_number, prior_audience) + spacing_modifier(role.installment_number, years_since_last)
 
 
 def director_continuity_bonus(role: Role, franchises: dict, requested_director_npc_id: str | None) -> float:
@@ -122,3 +132,22 @@ def decay_dormant_franchises(franchises: dict, current_year: int) -> dict:
             continue
         result[franchise_id] = replace(f, indispensability=new_value)
     return result
+
+
+def spinoff_available(franchise: "FranchiseEntry") -> bool:
+    return franchise.indispensability >= SPINOFF_INDISPENSABILITY_THRESHOLD
+
+
+def create_spinoff_entry(parent: "FranchiseEntry", new_franchise_id: str, current_year: int) -> FranchiseEntry:
+    """A spin-off starts as its own franchise (installment 1 next time it's cast) rather than
+    continuing the parent's own installment count — but it isn't starting cold: prior_audience_
+    score is seeded off the parent's real indispensability, a genuine head start sequel_bonus()
+    reads the same way it reads a real prior installment's own audience_score. last_installment_
+    year is stamped to now, not left dormant — a brand-new entry's indispensability starts at 0,
+    and decay_dormant_franchises() releases anything at 0 the moment it isn't "touched this year";
+    without this it would vanish before ever actually being cast."""
+    seeded_audience = SEQUEL_BONUS_AUDIENCE_CENTRE + SPINOFF_AUDIENCE_BONUS_COEF * parent.indispensability
+    return FranchiseEntry(
+        franchise_id=new_franchise_id, genre=parent.genre, studio_id=parent.studio_id,
+        prior_audience_score=seeded_audience, last_installment_year=current_year,
+    )

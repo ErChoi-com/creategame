@@ -5,7 +5,9 @@ systems (Rolodex interactions, Leverage's agent tier/Disappear, Awards) are now 
 from __future__ import annotations
 
 import unittest
+from dataclasses import replace
 
+from callback.engine.simulation._franchises import FranchiseEntry
 from callback.engine.simulation.session import Session
 
 
@@ -284,6 +286,126 @@ class TestStreamingBidding(unittest.TestCase):
         if summary["studio_overruled"]:
             self.skipTest("studio overruled the streaming request this run — RNG variance, not a bug")
         self.assertIsNotNone(summary["streaming_buyer"])
+
+
+class TestMultiPictureDeal(unittest.TestCase):
+    def _accept_any_role(self, session: Session) -> bool:
+        board = session.offer_board()
+        avail = [o for o in board if o["available"]]
+        if not avail:
+            return False
+        session.accept(avail[0]["index"])
+        return True
+
+    def _boost_standing(self, session: Session) -> None:
+        standing = session.state.actor.standing.copy()
+        standing.add("heat", 60)
+        standing.add("affection", 40)
+        standing.add("prestige", 40)
+        session.state = replace(session.state, actor=replace(session.state.actor, standing=standing))
+
+    def test_unavailable_without_an_accepted_role(self):
+        session = Session(seed=50)
+        session.start("conservatory", "work")
+        self.assertFalse(session.multi_picture_deal_available())
+
+    def test_unavailable_below_standing_threshold(self):
+        session = Session(seed=51)
+        session.start("conservatory", "work")
+        if not self._accept_any_role(session):
+            self.skipTest("no offer came through — RNG variance, not a bug")
+        self.assertFalse(session.multi_picture_deal_available())
+
+    def test_available_once_standing_clears_the_bar_and_signing_locks_in_terms(self):
+        session = Session(seed=52)
+        session.start("conservatory", "work")
+        if not self._accept_any_role(session):
+            self.skipTest("no offer came through — RNG variance, not a bug")
+        self._boost_standing(session)
+        self.assertTrue(session.multi_picture_deal_available())
+
+        terms = session.multi_picture_deal_terms(3)
+        self.assertEqual(terms["films"], 3)
+        result = session.sign_multi_picture_deal(3)
+        self.assertEqual(result["films"], 3)
+
+        status = session.multi_picture_deal_status()
+        self.assertEqual(status["films_remaining"], 3)
+        self.assertFalse(session.multi_picture_deal_available())  # can't stack a second deal
+
+    def test_next_board_guarantees_a_listing_from_the_deal_studio(self):
+        session = Session(seed=53)
+        session.start("conservatory", "work")
+        if not self._accept_any_role(session):
+            self.skipTest("no offer came through — RNG variance, not a bug")
+        self._boost_standing(session)
+        session.sign_multi_picture_deal(2)
+        session.choose_deal(want_approvals=False)
+        session.choose_prep("table_work")
+        for _ in range(3):
+            session.play_scene({d: "with" for d, _ in session.dial_options()})
+        session.choose_release("wide")
+        session.end_year()
+
+        board = session.offer_board()
+        guaranteed = [o for o in board if o["guaranteed"]]
+        self.assertEqual(len(guaranteed), 1)
+        before_remaining = session.multi_picture_deal_status()["films_remaining"]
+        session.accept(guaranteed[0]["index"])
+        self.assertEqual(session.multi_picture_deal_status()["films_remaining"], before_remaining - 1)
+
+    def test_breaking_a_deal_costs_notoriety(self):
+        session = Session(seed=54)
+        session.start("conservatory", "work")
+        if not self._accept_any_role(session):
+            self.skipTest("no offer came through — RNG variance, not a bug")
+        self._boost_standing(session)
+        session.sign_multi_picture_deal(2)
+        notoriety_before = session.state.actor.standing["notoriety"]
+        session.break_multi_picture_deal()
+        self.assertIsNone(session.multi_picture_deal_status())
+        self.assertGreater(session.state.actor.standing["notoriety"], notoriety_before)
+
+
+class TestSpinoff(unittest.TestCase):
+    def test_not_available_without_an_indispensable_franchise(self):
+        session = Session(seed=55)
+        session.start("conservatory", "work")
+        self.assertEqual(session.spinoff_options(), [])
+
+    def test_available_once_a_franchise_crosses_the_threshold(self):
+        session = Session(seed=56)
+        session.start("conservatory", "work")
+        entry = FranchiseEntry(franchise_id="fr_test", genre="scifi", studio_id="blockbuster", indispensability=70.0)
+        session.state = replace(session.state, franchises={"fr_test": entry})
+        options = session.spinoff_options()
+        self.assertEqual(len(options), 1)
+        self.assertEqual(options[0]["franchise_id"], "fr_test")
+
+    def test_launching_guarantees_installment_one_on_the_next_board(self):
+        session = Session(seed=57)
+        session.start("conservatory", "work")
+        board = session.offer_board()
+        avail = [o for o in board if o["available"]]
+        if not avail:
+            self.skipTest("no offer came through — RNG variance, not a bug")
+        session.accept(avail[0]["index"])
+        entry = FranchiseEntry(franchise_id="fr_test", genre="scifi", studio_id="blockbuster", indispensability=70.0)
+        session.state = replace(session.state, franchises={**session.state.franchises, "fr_test": entry})
+        session.launch_spinoff("fr_test")
+
+        session.choose_deal(want_approvals=False)
+        session.choose_prep("table_work")
+        for _ in range(3):
+            session.play_scene({d: "with" for d, _ in session.dial_options()})
+        session.choose_release("wide")
+        session.end_year()
+
+        board2 = session.offer_board()
+        guaranteed = [o for o in board2 if o["guaranteed"]]
+        self.assertEqual(len(guaranteed), 1)
+        self.assertEqual(guaranteed[0]["installment_number"], 1)
+        self.assertEqual(guaranteed[0]["genre"], "scifi")
 
 
 class TestScriptNotes(unittest.TestCase):
