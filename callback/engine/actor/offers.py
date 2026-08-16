@@ -6,6 +6,7 @@ in the Rolodex later is additive, not a rewrite.
 """
 from __future__ import annotations
 
+import math
 import random
 from dataclasses import dataclass, field
 
@@ -47,6 +48,19 @@ NON_UNION_SUBSTITUTION_CHANCE = 0.25
 NON_UNION_PAY_FRACTION = 1.0 / 3.0
 
 BILLINGS = ("lead", "supporting", "bit", "extra")
+
+# A film's total budget (§4.4's listing generator, this pass's reading — see sample_role's
+# docstring): log-normal rather than a handful of fixed tiers, so nothing about the distribution
+# a player sees is a hard-coded step function. Median lands near BUDGET_MEDIAN, and the tail can
+# reach BUDGET_MAX (a real $300M tentpole) but only rarely — most films this samples are small.
+BUDGET_MIN = 1.5
+BUDGET_MAX = 300.0
+BUDGET_MEDIAN = 12.0
+BUDGET_LOGNORMAL_SIGMA = 1.15
+
+
+def sample_budget_millions(rng: random.Random) -> float:
+    return clamp(rng.lognormvariate(math.log(BUDGET_MEDIAN), BUDGET_LOGNORMAL_SIGMA), BUDGET_MIN, BUDGET_MAX)
 
 
 @dataclass(frozen=True)
@@ -154,7 +168,7 @@ def sample_role(rng: random.Random, budget_millions: float | None = None) -> Rol
     genre = rng.choice(GENRES)
     archetype = rng.choice(ARCHETYPES)
     billing = rng.choices(BILLINGS[:3], weights=[0.15, 0.45, 0.40])[0]  # leads are rarer to land
-    budget = budget_millions if budget_millions is not None else rng.choice([4, 12, 30, 60, 170])
+    budget = budget_millions if budget_millions is not None else sample_budget_millions(rng)
     gatekeeper = rng.choice(list(GATEKEEPER_WEIGHTS.keys()))
     studio = pick_studio(budget, rng).id  # who's financing scales with the film's own budget, not the role's fee
     return Role(

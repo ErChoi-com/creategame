@@ -163,7 +163,11 @@ surface the studio's name and pitch on the Offer Board and again at Post & Relea
   role's difficulty to the actor's own Standing the way the real offer board's Rolodex/agent-reach
   filtering would. This is the reason a headless career currently lands few credits: most rolls
   are simply too hard for a fresh actor. The fix is a real Standing-aware listing generator, not a
-  new formula — everything downstream of "you got the part" is already correct.
+  new formula — everything downstream of "you got the part" is already correct. Its budget draw
+  (`sample_budget_millions()`) got the same not-yet-Standing-aware treatment: a log-normal spread
+  from $1.5M to a real $300M tentpole ceiling, median ~$12M, replacing the old fixed five-tier
+  list — every value in range is reachable, not just five discrete stops, but which budget you
+  personally get offered still isn't scaled to your own career yet.
 - **`actor/palette.GENRE_DIAL_WEIGHTS`** and **`CANONICAL_ARCHETYPES`** are this pass's own
   documented readings, not undisclosed exact `design/` constants (§5.3 publishes target
   correlations, not the weight table itself). `verify.py creative` reports honestly against that
