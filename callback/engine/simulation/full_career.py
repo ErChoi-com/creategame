@@ -19,9 +19,17 @@ from callback.engine.life.health import HealthState
 from callback.engine.life.money import MoneyState
 from callback.engine.life.obituary import DeclinedRoleRecord, Obituary, generate_obituary
 from callback.engine.life.state import LifeState, advance_year as advance_life_year
+from callback.engine.core.util import clamp
 from callback.engine.rolodex.casting import resolve_declined_role
 from callback.engine.rolodex.rolodex import Rolodex, new_rolodex, recompute_tracked, register_contact
 from callback.engine.simulation.career import ActorState, ProjectResult, new_actor, simulate_project
+from callback.engine.simulation._franchises import (
+    decay_dormant_franchises,
+    director_continuity_bonus,
+    franchise_audience_bonus,
+    maybe_attach_franchise,
+    update_franchise_after_project,
+)
 from callback.engine.world.genre_cycle import accumulate_heat, decay_all
 from callback.engine.world.genre_cycle import genre_demand as world_genre_demand
 from callback.engine.world.guild import GuildState, add_residual_stream
@@ -47,6 +55,7 @@ class FullState:
     genre_heat: dict[str, float] = field(default_factory=dict)
     filmography: tuple[ProjectResult, ...] = ()
     declined: tuple[DeclinedRoleRecord, ...] = ()
+    franchises: dict = field(default_factory=dict)  # franchise_id -> simulation._franchises.FranchiseEntry
 
 
 def new_full_state(rng: random.Random, start_age: int = 22) -> FullState:
@@ -68,6 +77,7 @@ def offer_this_year(state: FullState, rng: random.Random) -> Role:
     role = sample_role(rng)
     if role.union and is_offered_non_union(state.actor.union_credits, rng):
         role = replace(role, union=False, budget_for_role=role.budget_for_role / 3.0)
+    role = maybe_attach_franchise(role, state.franchises, current_year(state), rng)
     return role
 
 
@@ -107,14 +117,24 @@ def accept_and_play(
     # industry's, §10.0) feeds real GenreDemand back into this project's own box office —
     # a hot genre isn't just trades-digest flavor, it changes what your film actually earns.
     demand = world_genre_demand(state.genre_heat, role.genre)
-    director_override = (
-        director_terms_for(state.rolodex, requested_director_npc_id)
-        if requested_director_npc_id is not None else None
-    )
+    director_override = None
+    if requested_director_npc_id is not None:
+        d_skill, d_command, d_prestige = director_terms_for(state.rolodex, requested_director_npc_id)
+        # a director returning to their own franchise reads as investment, mechanically —
+        # simulation._franchises.director_continuity_bonus, not just a flavor line.
+        d_skill = clamp(d_skill + director_continuity_bonus(role, state.franchises, requested_director_npc_id), 0.0, 100.0)
+        director_override = (d_skill, d_command, d_prestige)
+
     new_actor_state, result = simulate_project(
         state.actor, role, prep_choice, scene_choices, rng,
         genre_demand_override=demand, release_strategy=release_strategy,
         script_note=script_note, orientation_effect=orientation_effect, director_override=director_override,
+        franchise_audience_bonus=franchise_audience_bonus(role, state.franchises),
+    )
+
+    franchises = update_franchise_after_project(
+        state.franchises, role, result.notices, result.audience_score,
+        new_actor_state.standing, current_year(state), requested_director_npc_id,
     )
 
     rolodex = state.rolodex
@@ -135,7 +155,7 @@ def accept_and_play(
     genre_heat = accumulate_heat(state.genre_heat, role.genre, result.roi)
 
     new_state = replace(state, actor=new_actor_state, rolodex=rolodex, leverage=leverage, guild=guild,
-                         genre_heat=genre_heat, filmography=(*state.filmography, result))
+                         genre_heat=genre_heat, franchises=franchises, filmography=(*state.filmography, result))
     return new_state, result
 
 
@@ -190,9 +210,10 @@ def advance_between_years(state: FullState, rng: random.Random, worked_this_year
     genre_heat = decay_all(state.genre_heat)
     rolodex = recompute_tracked(state.rolodex, current_year(state))
     strikes = advance_grievance(state.strikes, rng)
+    franchises = decay_dormant_franchises(state.franchises, current_year(state))
 
     return replace(state, actor=actor, life=life, guild=guild, genre_heat=genre_heat,
-                   rolodex=rolodex, strikes=strikes)
+                   rolodex=rolodex, strikes=strikes, franchises=franchises)
 
 
 def obituary(state: FullState) -> Obituary:

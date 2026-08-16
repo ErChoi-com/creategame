@@ -1,0 +1,124 @@
+"""Session-level orchestration of design/part-09's sequel-value curve (genre/franchise.py) and
+design/part-06's Indispensability holdout (leverage/indispensability.py) — composing both, plus a
+returning director's own continuity across installments, into the actor's regular game loop.
+
+Kept alongside full_career.py's other simulation-layer state (Rolodex/Leverage/Life) rather than
+inside actor/ itself: "is this offer a sequel to a franchise you're already in" needs the
+FullState's franchise history, not just a single Role, so the orchestration belongs here.
+"""
+from __future__ import annotations
+
+import random
+from dataclasses import dataclass, replace
+
+from callback.engine.actor.offers import Role
+from callback.engine.actor.standing import star_power
+from callback.engine.core.meters import StandingModel
+from callback.engine.director.skill import ENGAGEMENT_PASSION_PROJECT
+from callback.engine.genre.franchise import SEQUEL_BONUS_AUDIENCE_CENTRE, sequel_bonus
+from callback.engine.leverage.indispensability import character_identification, decay_dormant, indispensability
+
+NEW_FRANCHISE_CHANCE = 0.05  # a fresh franchise starting from an original role, per offer rolled
+SEQUEL_CHANCE = 0.35  # if you have an eligible open franchise, a listing this year is a sequel this often
+SEQUEL_ELIGIBLE_MAX_DORMANT_YEARS = 4  # a franchise dormant longer than this isn't greenlighting a sequel
+FRANCHISE_INDISPENSABILITY_HOLDOUT_THRESHOLD = 30.0
+DEFAULT_CONTRACTUAL_HOLD = 50.0  # §6.4 names this as a real input; not otherwise modeled this pass
+DEFAULT_CAST_AVERAGE_STAR_POWER = 50.0  # same — the rest of the ensemble's own star power isn't tracked per-NPC
+
+
+@dataclass(frozen=True)
+class FranchiseEntry:
+    franchise_id: str
+    genre: str
+    studio_id: str  # a franchise stays with the studio that made it — real continuity, not flavor
+    installments_starred: int = 0
+    character_id: float = 20.0
+    indispensability: float = 0.0
+    prior_audience_score: float = SEQUEL_BONUS_AUDIENCE_CENTRE
+    last_installment_year: int = -999
+    prior_holdouts: int = 0
+    last_director_npc_id: str | None = None
+
+
+def maybe_attach_franchise(role: Role, franchises: dict, current_year: int, rng: random.Random) -> Role:
+    """Called on a freshly-sampled Role before it's ever shown on the board: with some chance,
+    turns it into either the next installment of an existing open franchise (same genre/studio,
+    continuity intact) or the first installment of a brand-new one."""
+    eligible = [
+        f for f in franchises.values()
+        if current_year - f.last_installment_year <= SEQUEL_ELIGIBLE_MAX_DORMANT_YEARS
+    ]
+    if eligible and rng.random() < SEQUEL_CHANCE:
+        f = rng.choice(eligible)
+        return replace(role, genre=f.genre, studio=f.studio_id, franchise_id=f.franchise_id,
+                        installment_number=f.installments_starred + 1)
+    if rng.random() < NEW_FRANCHISE_CHANCE:
+        franchise_id = f"fr_{rng.randrange(10**6):06d}"
+        return replace(role, franchise_id=franchise_id, installment_number=1)
+    return role
+
+
+def franchise_audience_bonus(role: Role, franchises: dict) -> float:
+    """§9.5's sequel-value curve — a real box-office bonus, applied straight onto AudienceScore,
+    scaled by how well the last installment actually landed (not just "it's a sequel")."""
+    if not role.franchise_id:
+        return 0.0
+    f = franchises.get(role.franchise_id)
+    prior_audience = f.prior_audience_score if f else SEQUEL_BONUS_AUDIENCE_CENTRE
+    return sequel_bonus(role.installment_number, prior_audience)
+
+
+def director_continuity_bonus(role: Role, franchises: dict, requested_director_npc_id: str | None) -> float:
+    """A director returning to their own franchise gets the same passion-project engagement bump
+    director/skill.py already defines for a genuinely personal project — continuity is rewarded
+    mechanically, not just described in flavor text."""
+    if not role.franchise_id or requested_director_npc_id is None:
+        return 0.0
+    f = franchises.get(role.franchise_id)
+    if f and f.last_director_npc_id == requested_director_npc_id:
+        return ENGAGEMENT_PASSION_PROJECT
+    return 0.0
+
+
+def update_franchise_after_project(
+    franchises: dict,
+    role: Role,
+    notices: float,
+    audience_score: float,
+    standing_model: StandingModel,
+    current_year: int,
+    requested_director_npc_id: str | None,
+) -> dict:
+    if not role.franchise_id:
+        return franchises
+    prior = franchises.get(role.franchise_id) or FranchiseEntry(
+        franchise_id=role.franchise_id, genre=role.genre, studio_id=role.studio,
+    )
+    new_character_id = character_identification(prior.character_id, notices, memorability=audience_score)
+    new_installments = prior.installments_starred + 1
+    new_indispensability = indispensability(
+        new_character_id, new_installments, star_power(standing_model),
+        DEFAULT_CAST_AVERAGE_STAR_POWER, DEFAULT_CONTRACTUAL_HOLD,
+    )
+    updated = replace(
+        prior, installments_starred=new_installments, character_id=new_character_id,
+        indispensability=new_indispensability, prior_audience_score=audience_score,
+        last_installment_year=current_year, last_director_npc_id=requested_director_npc_id,
+    )
+    return {**franchises, role.franchise_id: updated}
+
+
+def decay_dormant_franchises(franchises: dict, current_year: int) -> dict:
+    """§6.4's v9 fix, honored here too: decay runs unconditionally every dormant year, and a
+    property that crosses the release floor drops out of tracking entirely rather than sticking
+    around forever at a near-zero value."""
+    result = {}
+    for franchise_id, f in franchises.items():
+        if f.last_installment_year == current_year:
+            result[franchise_id] = f  # touched this year — already fresh, nothing to decay
+            continue
+        new_value, released = decay_dormant(f.indispensability)
+        if released:
+            continue
+        result[franchise_id] = replace(f, indispensability=new_value)
+    return result

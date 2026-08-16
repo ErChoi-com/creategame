@@ -52,6 +52,7 @@ Session.release_options() / choose_release()                   Post & Release
 Session.awards_campaign_available() / run_awards_campaign()    a real BuzzScore campaign
 Session.trades() / rolodex_summary() / interact()               the pull menu: Trades, Rolodex
 Session.leverage_status() / try_advance_agent_tier() / disappear()   the pull menu: Leverage
+Session.franchise_status() / holdout_available() / request_holdout() the pull menu: Franchises
 Session.obituary_summary()                                      the closing obituary
 ```
 
@@ -158,6 +159,43 @@ a studio weighted by the film's own budget (`studios.pick_studio()` — a $4M fi
 the blockbuster machine, a $200M one never lands at the indie house), and the CLI/`Session`
 surface the studio's name and pitch on the Offer Board and again at Post & Release.
 
+**Franchises and directors are now real, interacting systems, not just data sitting in `genre/`
+and `director/` unreached** (`simulation/_franchises.py`). Two previously-dormant systems —
+§9.5's sequel-value curve (`genre/franchise.py`) and §6.4-6.5's Indispensability holdout
+(`leverage/indispensability.py`) — are composed together and wired into the regular game loop,
+not bolted on as a side mode:
+
+- **Offers can be franchise entries.** `offer_this_year()` sometimes turns a freshly sampled role
+  into either the first installment of a brand-new franchise, or — if you already have an open one
+  — its next sequel, matching that franchise's genre and staying with the studio that financed the
+  original (continuity, not a fresh random studio each time). The Offer Board tags these
+  `[NEW FRANCHISE]` / `[SEQUEL — Part N]`.
+- **A real box-office bonus, not flavor text.** `franchise_audience_bonus()` reuses
+  `genre/franchise.py`'s `sequel_bonus()` exactly as designed — scaled by how well the *previous*
+  installment's audience actually responded, added straight onto AudienceScore alongside every
+  other reception input. A sequel to a poorly-received film earns far less than one following a
+  hit, the same asymmetry real franchises show.
+- **A returning director gets a mechanical bonus, not just a line of dialogue.** If you spend a
+  Leverage favour to request the *same* director who helmed the franchise's last installment
+  (`Session.request_director()`), `director_continuity_bonus()` applies `director/skill.py`'s own
+  passion-project engagement bump to their skill term — continuity is rewarded the same way the
+  formula already rewards a director who cares about the project.
+- **Indispensability is a real, playable holdout, not a stat that just sits there.** Every sequel
+  updates `character_identification()`/`indispensability()` off your real Notices, the audience's
+  response, and your own Standing's `star_power()`. Once it crosses a threshold,
+  `Session.holdout_available()` opens up `Session.request_holdout()` — the studio either pays a
+  real fee increase, calls your bluff and proceeds at the original terms, or recasts the part
+  entirely (voiding the project for that year and hitting your Standing's notoriety meter), per
+  `leverage/indispensability.resolve_holdout()`. A franchise left dormant too long decays
+  (`decay_dormant_franchises()`, honoring §6.4's v9 fix: decay always runs, and a property that
+  crosses the release floor drops out of tracking rather than sticking around forever) and stops
+  offering you sequels.
+- **Reachable everywhere a player already looks.** `Session.franchise_status()` shows in the pull
+  menu next to Rolodex/Leverage; Post & Release tags which installment you just played; the whole
+  system interacts with Studios (financing continuity), the Rolodex (the requested director),
+  Leverage (favours spent, the holdout itself), and Standing (notoriety on a failed holdout,
+  star_power feeding indispensability) rather than living in its own silo.
+
 ## Known gaps and simplifications (documented inline at each site too)
 
 - **`actor/offers.sample_role()`** is still a placeholder role generator — it doesn't scale a
@@ -189,9 +227,6 @@ surface the studio's name and pitch on the Offer Board and again at Post & Relea
   documented readings, not undisclosed exact `design/` constants (§5.3 publishes target
   correlations, not the weight table itself). `verify.py creative` reports honestly against that
   gap rather than faking a pass.
-- **`leverage/indispensability.py`'s holdout** has no player-facing entry point — it needs a
-  tracked "this is installment N of a franchise" concept (a multi-project identity spanning years)
-  that no part of `simulation/` builds yet. The formula is real and tested; nothing calls it.
 - **`director/`** is a complete second career (DirectorSkill, development-hell greenlighting, the
   steerable edit, casting from the other side) with no `Session` of its own yet — it's reachable
   directly as a library, not through the CLI. A `DirectorSession` alongside the actor one is the

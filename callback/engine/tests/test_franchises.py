@@ -1,0 +1,152 @@
+"""simulation/_franchises.py — the sequel-value curve (genre/franchise.py) and Indispensability
+holdout (leverage/indispensability.py), composed into the actor's game loop and interacting with
+Standing, the Rolodex-requested director, and the studio that financed the original film.
+"""
+from __future__ import annotations
+
+import random
+import unittest
+
+from callback.engine.actor.offers import Role
+from callback.engine.actor.standing import new_standing_model
+from callback.engine.simulation._franchises import (
+    FranchiseEntry,
+    director_continuity_bonus,
+    franchise_audience_bonus,
+    maybe_attach_franchise,
+    update_franchise_after_project,
+)
+from callback.engine.simulation.session import Session
+
+
+def _role(**overrides) -> Role:
+    base = dict(
+        project_id="p_000001", genre="action", archetype="everyman", billing="supporting",
+        char_age=35, type_strictness=0.5, difficulty=50.0, budget_for_role=10.0, gatekeeper="studio_tentpole",
+    )
+    base.update(overrides)
+    return Role(**base)
+
+
+class TestMaybeAttachFranchise(unittest.TestCase):
+    def test_can_start_a_new_franchise_from_an_original_role(self):
+        rng = random.Random(1)
+        attached_any = False
+        for _ in range(200):
+            role = maybe_attach_franchise(_role(), {}, current_year=0, rng=rng)
+            if role.franchise_id is not None:
+                self.assertEqual(role.installment_number, 1)
+                attached_any = True
+        self.assertTrue(attached_any)
+
+    def test_can_attach_a_sequel_to_an_eligible_open_franchise(self):
+        rng = random.Random(2)
+        franchise = FranchiseEntry(franchise_id="fr_001", genre="horror", studio_id="indie",
+                                    installments_starred=1, last_installment_year=10)
+        attached_sequel = False
+        for _ in range(200):
+            role = maybe_attach_franchise(_role(genre="comedy", studio="mid_major"), {"fr_001": franchise},
+                                           current_year=11, rng=rng)
+            if role.franchise_id == "fr_001":
+                self.assertEqual(role.installment_number, 2)
+                self.assertEqual(role.genre, "horror")  # continuity — the sequel keeps the franchise's genre
+                self.assertEqual(role.studio, "indie")  # and its studio
+                attached_sequel = True
+        self.assertTrue(attached_sequel)
+
+    def test_a_long_dormant_franchise_is_not_eligible_for_a_new_sequel(self):
+        rng = random.Random(3)
+        franchise = FranchiseEntry(franchise_id="fr_002", genre="horror", studio_id="indie",
+                                    installments_starred=1, last_installment_year=0)
+        for _ in range(200):
+            role = maybe_attach_franchise(_role(), {"fr_002": franchise}, current_year=50, rng=rng)
+            self.assertNotEqual(role.franchise_id, "fr_002")
+
+
+class TestFranchiseAudienceBonus(unittest.TestCase):
+    def test_non_franchise_role_gets_no_bonus(self):
+        self.assertEqual(franchise_audience_bonus(_role(), {}), 0.0)
+
+    def test_a_well_received_prior_installment_gives_a_bigger_bonus_than_a_poorly_received_one(self):
+        role = _role(franchise_id="fr_003", installment_number=2)
+        strong_prior = {"fr_003": FranchiseEntry(franchise_id="fr_003", genre="action", studio_id="mid_major",
+                                                  prior_audience_score=90.0)}
+        weak_prior = {"fr_003": FranchiseEntry(franchise_id="fr_003", genre="action", studio_id="mid_major",
+                                                prior_audience_score=20.0)}
+        self.assertGreater(franchise_audience_bonus(role, strong_prior), franchise_audience_bonus(role, weak_prior))
+
+
+class TestDirectorContinuityBonus(unittest.TestCase):
+    def test_the_same_returning_director_earns_a_bonus(self):
+        role = _role(franchise_id="fr_004", installment_number=2)
+        franchises = {"fr_004": FranchiseEntry(franchise_id="fr_004", genre="action", studio_id="mid_major",
+                                                last_director_npc_id="n_001")}
+        self.assertGreater(director_continuity_bonus(role, franchises, "n_001"), 0.0)
+
+    def test_a_different_or_no_director_earns_nothing(self):
+        role = _role(franchise_id="fr_005", installment_number=2)
+        franchises = {"fr_005": FranchiseEntry(franchise_id="fr_005", genre="action", studio_id="mid_major",
+                                                last_director_npc_id="n_001")}
+        self.assertEqual(director_continuity_bonus(role, franchises, "n_002"), 0.0)
+        self.assertEqual(director_continuity_bonus(role, franchises, None), 0.0)
+
+
+class TestUpdateFranchiseAfterProject(unittest.TestCase):
+    def test_installments_and_indispensability_grow_across_sequels(self):
+        standing = new_standing_model()
+        franchises = {}
+        role1 = _role(franchise_id="fr_006", installment_number=1)
+        franchises = update_franchise_after_project(franchises, role1, notices=70.0, audience_score=75.0,
+                                                      standing_model=standing, current_year=0,
+                                                      requested_director_npc_id="n_010")
+        f1 = franchises["fr_006"]
+        self.assertEqual(f1.installments_starred, 1)
+
+        role2 = _role(franchise_id="fr_006", installment_number=2)
+        franchises = update_franchise_after_project(franchises, role2, notices=75.0, audience_score=80.0,
+                                                      standing_model=standing, current_year=2,
+                                                      requested_director_npc_id="n_010")
+        f2 = franchises["fr_006"]
+        self.assertEqual(f2.installments_starred, 2)
+        self.assertGreaterEqual(f2.indispensability, f1.indispensability)
+        self.assertEqual(f2.last_director_npc_id, "n_010")
+
+
+class TestSessionFranchiseIntegration(unittest.TestCase):
+    def test_franchise_status_and_holdout_are_plain_data(self):
+        session = Session(seed=2026)
+        session.start("conservatory", "work")
+        for f in session.franchise_status():
+            self.assertIsInstance(f["id"], str)
+            self.assertIsInstance(f["indispensability"], float)
+        self.assertFalse(session.holdout_available())  # nothing accepted yet
+
+    def test_a_full_run_can_produce_a_tracked_franchise(self):
+        session = Session(seed=2026)
+        session.start("conservatory", "work")
+        for _ in range(15):
+            if session.is_over():
+                break
+            board = session.offer_board()
+            available = [o for o in board if o["available"]]
+            if not available:
+                session.decline_board()
+                continue
+            session.accept(available[0]["index"])
+            if session.holdout_available():
+                session.request_holdout()
+            if session._role is None:
+                continue  # a failed holdout got the part recast — no project this year
+            session.choose_deal(False)
+            session.choose_prep("table_work")
+            for _ in range(3):
+                session.play_scene({d: "with" for d, _ in session.dial_options()})
+            session.choose_release("wide")
+        # not asserting a franchise necessarily formed (RNG-dependent) — just that the run didn't crash
+        # and franchise_status() stays plain data throughout.
+        for f in session.franchise_status():
+            self.assertIsInstance(f["genre"], str)
+
+
+if __name__ == "__main__":
+    unittest.main()

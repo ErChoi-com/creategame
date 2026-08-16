@@ -137,6 +137,7 @@ def simulate_project(
     script_note: ScriptNoteEffect | None = None,
     orientation_effect: ModifierResult | None = None,
     director_override: tuple[float, float, float] | None = None,
+    franchise_audience_bonus: float = 0.0,
 ) -> tuple[ActorState, ProjectResult]:
     """script_note: design/part-05 §5.15's script-notes push (actor/script_notes.py), only
     meaningful if the player holds script approval — the caller enforces that gate.
@@ -144,6 +145,8 @@ def simulate_project(
     their scene partner this project.
     director_override: (director_skill, director_command, director_prestige) — a specific,
     requested director (e.g. a tracked Rolodex NPC) standing in for the usual random NPC sample.
+    franchise_audience_bonus: §9.5's sequel-value curve (simulation._franchises.franchise_audience_
+    bonus), a real AudienceScore bonus for a franchise installment — 0.0 for a standalone film.
     """
     palette = palette or generate_palette(role.genre, rng)
 
@@ -188,6 +191,7 @@ def simulate_project(
     cast_star_power = clamp(rng.gauss(50, 20), 0, 100)
     script_quality = clamp(rng.gauss(60, 14), 0, 100)
     palette_aud_effect, palette_crit_effect = palette_reception_effect(palette, role.genre)
+    palette_aud_effect += franchise_audience_bonus
     staleness = state.persona.staleness_penalty()
 
     if script_note is not None:

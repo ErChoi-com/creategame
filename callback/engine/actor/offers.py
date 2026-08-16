@@ -77,6 +77,8 @@ class Role:
     requirements: dict[str, float] = field(default_factory=dict)  # subset of voice/physicality/look
     union: bool = True
     studio: str = "mid_major"  # key into studios.STUDIOS — who's actually financing this film
+    franchise_id: str | None = None  # set by simulation._franchises.maybe_attach_franchise
+    installment_number: int = 0  # 0 = not a franchise entry; 1 = a new franchise; 2+ = a sequel
 
 
 def age_mismatch_penalty(char_age: int, your_age: int) -> float:

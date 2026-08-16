@@ -14,10 +14,14 @@ rolodex/interactions.py (check in / show up / read their agenda / vouch), levera
 Notices-worthy project) were all implemented and tested earlier but never called from anywhere a
 player could reach. They're reachable through this file now.
 
-Not wired here, and said plainly rather than faked shallow: leverage/indispensability.py's
-holdout needs a tracked "this is installment N of a franchise" concept this pass never built, and
-director/ is a second playable career — a different Session entirely. Both are real, tested
-engine code with no player-facing entry point yet.
+leverage/indispensability.py's holdout is wired in too, now that simulation/_franchises.py gives
+it the "this is installment N of a franchise" tracking it needs — see franchise_status()/
+holdout_available()/request_holdout() below, composed with genre/franchise.py's sequel-value
+curve and director/skill.py's engagement bonus for a director returning to their own franchise.
+
+Not wired here, said plainly rather than faked shallow: director/ is a second playable career — a
+different Session entirely (this file only ever reuses its skill formula for NPC directors, never
+plays a director's own arc). Real, tested engine code with no player-facing entry point yet.
 """
 from __future__ import annotations
 
@@ -36,6 +40,8 @@ from callback.engine.leverage.approvals import can_negotiate_approvals, fee_afte
 from callback.engine.leverage.catalogue import accumulate_scarcity, advance_agent_tier, can_advance_agent_tier, next_agent_tier
 from callback.engine.rolodex import interactions as rolodex_interactions
 from callback.engine.simulation._backgrounds import BACKGROUND_TABLE, REGIONAL_STAGE_START_AGE
+from callback.engine.simulation._franchises import FRANCHISE_INDISPENSABILITY_HOLDOUT_THRESHOLD
+from callback.engine.leverage.indispensability import recast_cost, resolve_holdout
 from callback.engine.simulation._release_labels import RELEASE_LABELS
 from callback.engine.simulation.bands import audience_band, critic_band, performance_band, relationship_band, roi_band, standing_band
 from callback.engine.simulation.career import ProjectResult
@@ -156,6 +162,8 @@ class Session:
                 "union": role.union,
                 "studio_name": studio.name,
                 "studio_tagline": studio.tagline,
+                "franchise_id": role.franchise_id,
+                "installment_number": role.installment_number,
             })
         return listings
 
@@ -190,6 +198,62 @@ class Session:
             })
         self.state = advance_between_years(self.state, self.rng, worked_this_year=False)
         return results
+
+    # ---- franchises (design §9.5's sequel-value curve + §6.4-6.5's Indispensability holdout) --
+
+    def franchise_status(self) -> list[dict]:
+        return [
+            {
+                "id": f.franchise_id,
+                "genre": f.genre,
+                "studio_name": STUDIOS[f.studio_id].name,
+                "installments": f.installments_starred,
+                "indispensability": round(f.indispensability, 1),
+                "recast_cost_millions": round(recast_cost(f.indispensability), 2),
+            }
+            for f in self.state.franchises.values()
+        ]
+
+    def holdout_available(self) -> bool:
+        """True only right after accept()-ing a sequel (installment 2+) to a franchise you've
+        built real Indispensability in — a brand-new franchise's part 1 has nothing to hold out
+        for yet."""
+        if self._role is None or not self._role.franchise_id or self._role.installment_number <= 1:
+            return False
+        f = self.state.franchises.get(self._role.franchise_id)
+        return f is not None and f.indispensability >= FRANCHISE_INDISPENSABILITY_HOLDOUT_THRESHOLD
+
+    def request_holdout(self) -> dict:
+        """Leverage's real Indispensability holdout (§6.5): they either pay a raise, recast the
+        part out from under you (the project doesn't happen this year, and you lose the
+        franchise), or call your bluff and proceed at the original terms."""
+        f = self.state.franchises[self._role.franchise_id]
+        outcome = resolve_holdout(f.indispensability, f.prior_holdouts, self.rng)
+
+        franchises = dict(self.state.franchises)
+        franchises[f.franchise_id] = replace(f, prior_holdouts=f.prior_holdouts + 1)
+
+        proceeds = True
+        if outcome.they_paid:
+            self._role = replace(self._role, budget_for_role=self._role.budget_for_role * outcome.raise_multiplier)
+        elif outcome.recast:
+            proceeds = False
+            del franchises[f.franchise_id]
+            standing = self.state.actor.standing.copy()
+            standing.add("notoriety", outcome.notoriety_delta)
+            self.state = replace(self.state, actor=replace(self.state.actor, standing=standing))
+
+        self.state = replace(self.state, franchises=franchises)
+        if not proceeds:
+            self.state = advance_between_years(self.state, self.rng, worked_this_year=False)
+            self._role = None
+
+        return {
+            "paid": outcome.they_paid,
+            "recast": outcome.recast,
+            "raise_multiplier": round(outcome.raise_multiplier, 2),
+            "proceeds": proceeds,
+        }
 
     # ---- the deal -----------------------------------------------------------------------------
 
@@ -304,6 +368,7 @@ class Session:
         """Resolves the whole project — the one point everything collected since offer_board()
         actually gets spent — and advances the year. Returns the Post & Release summary."""
         scenes = tuple(self._scenes) if len(self._scenes) == 3 else (self._scenes + [{}] * 3)[:3]
+        franchise_installment = self._role.installment_number
         self.state, result = accept_and_play(
             self.state, self._role, self._prep_choice or "table_work", scenes, self.rng,
             release_strategy=strategy,
@@ -328,6 +393,7 @@ class Session:
             "budget_millions": round(result.budget, 1),
             "roi": round(result.roi, 2),
             "weekly_gross": self._weekly_gross(result, strategy),
+            "franchise_installment": franchise_installment,
         }
 
     @staticmethod

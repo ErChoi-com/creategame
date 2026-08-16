@@ -50,11 +50,20 @@ def character_creation(session: Session, auto: bool) -> None:
     print(f"\n{session.start(bg_key, amb_key)}\n")
 
 
+def _franchise_tag(o: dict) -> str:
+    n = o.get("installment_number", 0)
+    if n >= 2:
+        return f"  [SEQUEL — Part {n}]"
+    if n == 1:
+        return "  [NEW FRANCHISE]"
+    return ""
+
+
 def _print_listings(listings: list[dict]) -> None:
     for o in listings:
         state = "" if o["available"] else "  (an audition — but it doesn't come through this year)"
         print(f"  [{o['index'] + 1}] {o['genre'].title()} · {o['billing']} · {o['budget_millions']:.2f}M — "
-              f"{o['studio_name']}{state}")
+              f"{o['studio_name']}{_franchise_tag(o)}{state}")
         print(f"       {o['studio_tagline']}")
 
 
@@ -69,7 +78,8 @@ def offer_board_screen(session: Session, auto: bool) -> int | None:
     while True:
         available = [o for o in listings if o["available"]]
         can_keep_looking = len(listings) < OFFER_BOARD_HARD_CAP
-        options = [(str(o["index"]), f"{o['genre'].title()} ({o['billing']}, {o['budget_millions']:.2f}M) — {o['studio_name']}")
+        options = [(str(o["index"]), f"{o['genre'].title()} ({o['billing']}, {o['budget_millions']:.2f}M) — "
+                                      f"{o['studio_name']}{_franchise_tag(o)}")
                    for o in available]
         if can_keep_looking:
             options.append(("__more__", "Keep looking — generate more listings"))
@@ -89,6 +99,25 @@ def offer_board_screen(session: Session, auto: bool) -> int | None:
                 print("  Nothing on the board came through this year.")
             return None
         return int(pick)
+
+
+def franchise_screen(session: Session, auto: bool) -> bool:
+    """Only reachable right after accept()-ing a sequel to a franchise you've built real
+    Indispensability in. Returns False if a failed holdout got the part recast out from under
+    you — the project doesn't happen this year — True otherwise (including "never came up")."""
+    if not session.holdout_available():
+        return True
+    choice = prompt("  You're indispensable to this franchise now — hold out for more money? [Y]/[N]", "N", auto)
+    if choice.upper() != "Y":
+        return True
+    result = session.request_holdout()
+    if result["paid"]:
+        print(f"    They paid — your fee just went up {result['raise_multiplier']}x.")
+    elif result["recast"]:
+        print("    They called your bluff and recast the part. You're out of the franchise.")
+    else:
+        print("    They didn't budge, but you're still in — proceeding at the original terms.")
+    return result["proceeds"]
 
 
 def deal_screen(session: Session, auto: bool) -> None:
@@ -170,6 +199,10 @@ def post_release_screen(summary: dict) -> None:
     print(f"    Critics: {summary['critic_band']} ({summary['critic_score']}/100)")
     print(f"    Audience: {summary['audience_band']}")
     print(f"    Release: {summary['release_label']}")
+    if summary["franchise_installment"] >= 2:
+        print(f"    Franchise: installment #{summary['franchise_installment']}")
+    elif summary["franchise_installment"] == 1:
+        print("    Franchise: the first installment — a new one, starting here")
     if summary["gross_millions"] <= 0:
         print(f"    Box office: {summary['roi_band']} — never really had one.")
         return
@@ -218,6 +251,13 @@ def pull_menu(session: Session, auto: bool) -> None:
         if lev_choice.upper() == "Y":
             print(f"    {session.try_advance_agent_tier()}")
 
+    franchises = session.franchise_status()
+    if franchises:
+        print("\n  FRANCHISES")
+        for f in franchises:
+            print(f"    {f['genre'].title()} ({f['studio_name']}) — {f['installments']} installment(s), "
+                  f"indispensability {f['indispensability']}, recast cost ${f['recast_cost_millions']}M")
+
 
 def run(auto: bool, seed: int, max_years: int) -> None:
     session = Session(seed=seed)
@@ -232,15 +272,19 @@ def run(auto: bool, seed: int, max_years: int) -> None:
 
         if chosen_index is not None:
             session.accept(chosen_index)
-            deal_screen(session, auto)
-            script_notes_screen(session, auto)
-            director_screen(session, auto)
-            costar_screen(session, auto)
-            prep_screen(session, auto)
-            shoot_screen(session, auto)
-            summary = release_screen(session, auto)
-            post_release_screen(summary)
-            awards_screen(session, auto)
+            proceeds = franchise_screen(session, auto)
+            if proceeds:
+                deal_screen(session, auto)
+                script_notes_screen(session, auto)
+                director_screen(session, auto)
+                costar_screen(session, auto)
+                prep_screen(session, auto)
+                shoot_screen(session, auto)
+                summary = release_screen(session, auto)
+                post_release_screen(summary)
+                awards_screen(session, auto)
+            else:
+                print("    No project this year — the franchise moved on without you.")
         else:
             for result in session.decline_board():
                 print(f"    A {result['genre']} film went to someone else: {result['roi_band']}, {result['critic_band']} reviews.")
