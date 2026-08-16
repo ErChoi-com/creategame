@@ -93,27 +93,28 @@ STUDIO_IDS = tuple(STUDIOS.keys())
 
 
 # The studio has the final say on how a film gets released — your request is real input, not a
-# choice you simply get to make. How much it actually sways them scales with how much they trust
-# you (studio_relations) and how big a star you currently are (Standing's own standing_score,
-# 0-100): a nobody's ask is noise against the studio's own preferred_release; a trusted A-lister's
-# is close to a mandate.
-STUDIO_INFLUENCE_BASE = 0.10
-STUDIO_INFLUENCE_TRUST_COEF = 0.35  # (trust-50)/100 -> -0.35..0.35
-STUDIO_INFLUENCE_IMPORTANCE_COEF = 0.45  # standing_score/100 -> 0..0.45
+# choice you simply get to make. How much it actually sways them is dominated by how big a star
+# you are right now (Standing's own standing_score, 0-100) — trust only wobbles that up or down
+# within a bounded band, it can never invert the ordering: a real A-lister always outweighs a real
+# nobody, no matter how burned the studio is on the star or how much they love the nobody. Fame is
+# the lever; trust is the modifier on the lever, not a second lever of the same size.
+STUDIO_INFLUENCE_BASE = 0.05
+STUDIO_INFLUENCE_IMPORTANCE_COEF = 0.85  # importance's ceiling contribution — dominant on purpose
+STUDIO_INFLUENCE_IMPORTANCE_POWER = 1.4  # >1 = convex: influence stays low until real fame, then climbs steeply
+STUDIO_INFLUENCE_TRUST_SWING = 0.20  # trust can only scale the importance term by +/-20%, never overturn it
 STUDIO_INFLUENCE_FLOOR = 0.03  # even a burned, nobody actor sometimes gets their way
-STUDIO_INFLUENCE_CEILING = 0.92  # even the biggest star doesn't always overrule the studio
+STUDIO_INFLUENCE_CEILING = 0.95  # even the biggest, most trusted star doesn't get an automatic yes
 
 
 def actor_influence_on_release(trust: float, actor_importance: float) -> float:
     """Probability the studio actually goes with the actor's requested release strategy instead
-    of its own preferred_release."""
-    trust_component = (trust - 50.0) / 100.0
-    importance_component = actor_importance / 100.0
-    influence = (
-        STUDIO_INFLUENCE_BASE
-        + STUDIO_INFLUENCE_TRUST_COEF * trust_component
-        + STUDIO_INFLUENCE_IMPORTANCE_COEF * importance_component
-    )
+    of its own preferred_release. actor_importance is the dominant, steeply-scaling term (a real
+    A-lister at any trust level always outweighs a real nobody at any trust level — a total-
+    nobody's importance term is 0, so trust can't move them off the floor at all); trust only
+    modulates an already-famous actor's own leverage up or down by a bounded +/-20%."""
+    importance_term = STUDIO_INFLUENCE_IMPORTANCE_COEF * (max(actor_importance, 0.0) / 100.0) ** STUDIO_INFLUENCE_IMPORTANCE_POWER
+    trust_multiplier = 1.0 + STUDIO_INFLUENCE_TRUST_SWING * (trust - 50.0) / 50.0
+    influence = STUDIO_INFLUENCE_BASE + importance_term * trust_multiplier
     return clamp(influence, STUDIO_INFLUENCE_FLOOR, STUDIO_INFLUENCE_CEILING)
 
 

@@ -184,6 +184,26 @@ class TestReleaseDecision(unittest.TestCase):
         outcomes = [decide_release_strategy(studio, "streaming", 95.0, 95.0, rng) for _ in range(200)]
         self.assertGreater(outcomes.count("streaming"), outcomes.count(studio.preferred_release))
 
+    def test_a_real_a_lister_always_outweighs_a_real_nobody_no_matter_how_trust_swings(self):
+        # the exact case that broke the old additive formula: a highly-trusted nobody used to be
+        # able to out-influence a moderately-famous but less-trusted actor.
+        worst_case_alister = actor_influence_on_release(trust=0.0, actor_importance=40.0)
+        best_case_nobody = actor_influence_on_release(trust=100.0, actor_importance=0.0)
+        self.assertGreater(worst_case_alister, best_case_nobody)
+
+    def test_a_total_nobody_gets_no_lift_from_trust_at_all(self):
+        # zero importance means zero leverage to modulate — trust can't invent fame that isn't there.
+        self.assertAlmostEqual(
+            actor_influence_on_release(trust=0.0, actor_importance=0.0),
+            actor_influence_on_release(trust=100.0, actor_importance=0.0),
+        )
+
+    def test_influence_scales_steeply_not_linearly(self):
+        # a convex curve: the jump from mid to high importance should dwarf the jump from low to mid.
+        low_to_mid = actor_influence_on_release(50.0, 50.0) - actor_influence_on_release(50.0, 25.0)
+        mid_to_high = actor_influence_on_release(50.0, 100.0) - actor_influence_on_release(50.0, 75.0)
+        self.assertGreater(mid_to_high, low_to_mid)
+
 
 if __name__ == "__main__":
     unittest.main()

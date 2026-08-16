@@ -205,16 +205,19 @@ selector it auto-accepts the best offer. The financing studio's own terms and th
 `SELF_DISTRIBUTE_MULTIPLIER` "for nothing" option are always on the table regardless of quality —
 they already own the film either way.
 
-**The studio has the final say on release strategy — you only get real input.**
-`Session.choose_release(strategy)`'s `strategy` argument is a *request*, not a command:
-`studios.decide_release_strategy()` honors it with probability `actor_influence_on_release(trust,
-standing_score)` — a function of how much this studio trusts you (`studio_relations`, off actual
-project P&L) and how big a star you currently are right now (Standing's own `standing_score`) —
-and otherwise releases the film its own way (`Studio.preferred_release`). A nobody's ask barely
-moves the needle; a trusted A-lister's is close to a mandate, but the studio always keeps some say
-either way (`STUDIO_INFLUENCE_FLOOR`/`CEILING` — never a guaranteed yes or no). The resolved
-summary reports both `requested_release` and whether `studio_overruled` it, and the CLI prints the
-override when it happens.
+**The studio has the final say on release strategy — you only get real input, and fame is the
+dominant lever, not trust.** `Session.choose_release(strategy)`'s `strategy` argument is a
+*request*, not a command: `studios.decide_release_strategy()` honors it with probability
+`actor_influence_on_release(trust, standing_score)`. Importance (Standing's own `standing_score`)
+is a convex, steeply-scaling term (`STUDIO_INFLUENCE_IMPORTANCE_POWER`) — influence stays low
+through minor/mid-tier fame and then climbs sharply near real A-lister territory (5% at zero
+importance up to ~90% near the top) — while trust (`studio_relations`, off actual project P&L)
+only modulates that term up or down within a bounded ±20% swing; it can never invert the ordering.
+A moderately-famous actor with a studio's total distrust still outweighs a maximally-trusted
+nobody, and a true nobody gets zero lift from trust at all — there's no fame to modulate. The
+studio always keeps some say either way (`STUDIO_INFLUENCE_FLOOR`/`CEILING` — never a guaranteed
+yes or no). The resolved summary reports both `requested_release` and whether `studio_overruled`
+it, and the CLI prints the override when it happens.
 
 **A single project's resolution is now four separable stages, not one ~150-line function.**
 `simulation/career.py` used to do the whole shoot-through-standing-update chain inline; it's now
