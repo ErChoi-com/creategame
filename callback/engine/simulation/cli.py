@@ -135,9 +135,9 @@ def shoot_screen(rng, auto: bool):
 def post_release_screen(result):
     print("  --- POST & RELEASE ---")
     print(f"    Your work: {performance_band(result.performance)}")
-    print(f"    Critics: {critic_band(result.film_critic_score)}")
+    print(f"    Critics: {critic_band(result.film_critic_score)} ({result.film_critic_score:.0f}/100)")
     print(f"    Audience: {audience_band(result.audience_score)}")
-    print(f"    Box office: {roi_band(result.roi)}")
+    print(f"    Box office: {roi_band(result.roi)} — ${result.gross:.1f}M on a ${result.budget:.1f}M budget (ROI {result.roi:.2f}x)")
 
 
 def reckoning_screen(state):
@@ -186,7 +186,9 @@ def run(auto: bool, seed: int, max_years: int) -> None:
     print(f"  {len(ob.filmography)} credited roles played.")
     print(f"  {len(ob.declined)} roles turned down — here's what became of them:")
     for d in ob.declined[:5]:
-        print(f"    - A {d.role_genre} film you passed on: {roi_band(d.result.reception.roi)}, {critic_band(d.result.reception.film_critic_score)} reviews.")
+        r = d.result.reception
+        print(f"    - A {d.role_genre} film you passed on: {roi_band(r.roi)} (${r.gross:.1f}M, {r.roi:.2f}x), "
+              f"{critic_band(r.film_critic_score)} reviews ({r.film_critic_score:.0f}/100).")
     print(f"  {len(ob.kept)} relationships you kept. {len(ob.lost)} you lost.")
     if ob.best_hidden_performance:
         r = ob.best_hidden_performance

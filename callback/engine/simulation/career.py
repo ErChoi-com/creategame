@@ -90,6 +90,8 @@ class ProjectResult:
     film_critic_score: float
     audience_score: float
     roi: float
+    budget: float
+    gross: float
     heat_delta: float
     prestige_delta: float
     affection_delta: float
@@ -201,6 +203,8 @@ def simulate_project(
         film_critic_score=reception.film_critic_score,
         audience_score=reception.audience_score,
         roi=reception.roi,
+        budget=reception.budget,
+        gross=reception.gross,
         heat_delta=heat_delta,
         prestige_delta=prestige_delta,
         affection_delta=affection_delta,
