@@ -17,8 +17,14 @@ FEE_DISCOUNT_PER_APPROVAL = 0.30
 # bar than approvals — §6.5's own executive-producer-credit row already gates a small backend
 # behind Indispensability 55; this is the general-case version, gated on Standing instead, and set
 # higher than the 65 approvals ask on purpose: real profit participation is a rarer, harder get
-# than script/co-star/director/cut approval.
-BOX_OFFICE_BONUS_STANDING_THRESHOLD = 80.0
+# than script/co-star/director/cut approval. Originally 80 — checked against the actor's Standing
+# *before* that year's own film (the only sensible timing; you negotiate before you shoot), a real
+# trial run genuinely sustaining "a star"-tier Standing for over a decade straight (weighted score
+# 68-79.8 for 25+ consecutive years) still only crossed 80 exactly once in a 45-year career. That's
+# not a stale-check bug, it's a threshold so narrow it was barely reachable even at the top of the
+# game — brought down to 75, still a real bar clearly above approvals' 65, but one a sustained star
+# can actually clear and hold rather than a single-year fluke.
+BOX_OFFICE_BONUS_STANDING_THRESHOLD = 75.0
 BOX_OFFICE_BONUS_SHARE = 0.03  # of the film's Gross, paid only if it actually clears break-even
 
 

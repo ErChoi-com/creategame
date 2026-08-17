@@ -4,7 +4,12 @@ from __future__ import annotations
 import random
 import unittest
 
-from callback.engine.leverage.approvals import fee_after_approvals
+from callback.engine.leverage.approvals import (
+    APPROVAL_STANDING_THRESHOLD,
+    BOX_OFFICE_BONUS_STANDING_THRESHOLD,
+    can_negotiate_box_office_bonus,
+    fee_after_approvals,
+)
 from callback.engine.leverage.catalogue import (
     accumulate_scarcity,
     advance_agent_tier,
@@ -70,6 +75,16 @@ class TestApprovals(unittest.TestCase):
         one = fee_after_approvals(100, frozenset({"script"}))
         two = fee_after_approvals(100, frozenset({"script", "costar"}))
         self.assertLess(two, one)
+
+    def test_box_office_bonus_bar_is_still_above_approvals_but_reachable(self):
+        # A real, sustained "a star"-tier career should be able to hold this line, not just brush
+        # past it once in a lucky year — the old 80.0 threshold turned out to be barely reachable
+        # even at the top of the game (see leverage/approvals.py's own note on the trial that
+        # found this). Still meaningfully harder than approvals' 65, just not a single-year fluke.
+        self.assertGreater(BOX_OFFICE_BONUS_STANDING_THRESHOLD, APPROVAL_STANDING_THRESHOLD)
+        self.assertLess(BOX_OFFICE_BONUS_STANDING_THRESHOLD, 80.0)
+        self.assertFalse(can_negotiate_box_office_bonus(70.0))
+        self.assertTrue(can_negotiate_box_office_bonus(76.0))
 
 
 class TestCatalogue(unittest.TestCase):

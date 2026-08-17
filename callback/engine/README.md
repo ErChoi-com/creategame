@@ -523,6 +523,16 @@ reception on more than half its films, and Affection genuinely compounded — pe
 finally crossing both the 65 (approvals) and momentarily the 80 (box office bonus) Standing
 thresholds, unlocking 35/45 approvals in a single run for the first time.
 
+**The box-office bonus threshold turned out to be barely reachable even at the top of the game —
+brought down from 80 to 75** (`leverage/approvals.py`). `box_office_bonus_available()` checks the
+actor's Standing *before* that year's own film resolves — the only sensible timing, you negotiate
+before you shoot — and a trial run instrumented to log every year's check confirmed it wasn't a
+stale-data problem: a "biggest star" run genuinely sustained a weighted Standing score of 68-79.8
+for 25+ consecutive years and still only crossed 80 in exactly one of them. `BOX_OFFICE_BONUS_
+STANDING_THRESHOLD` moved to 75 — still a real bar clearly above approvals' 65 (a rarer, harder
+get, same as before), just no longer one that a sustained star can hold for over two decades and
+still only clear once by luck.
+
 ## Known gaps and simplifications (documented inline at each site too)
 
 - **`actor/offers.sample_role()`** is still a placeholder role generator — it doesn't scale a
