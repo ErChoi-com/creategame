@@ -521,6 +521,18 @@ Note it reads `YourNotices`, not `YourPerformance`. **Awards do not reward being
 
 **Each edge stores `affinity (−100..100)`, `grudge`, `sharedProjects`, and `lastContact`.**
 
+**Temperament and ego, made real** *(v9, new)*. "Temperament" (directors) and "ego" (co-stars/rivals) have sat in the table above as labels since the first draft — read only in flavour, never given a number. They're one:
+
+```
+Temperament / Ego ~ N(50, 22), clamped [0, 100], rolled once per NPC and never re-rolled
+```
+
+A high roll isn't "difficult" on its own — it's an amplifier, and which way it amplifies depends on what else the NPC is carrying (§7.5's own **difficult genius** casting row is exactly high Temperament stacked on a high Craft ceiling: worth the risk, not a flaw to route around). It feeds three places this doc has already named without a formula behind them:
+
+- **Chaos** (§4.7's shoot event pool already reads "director temperament" as one of chaos's own inputs) — Temperament above 65 adds to chaos directly, the same weight budget pressure carries.
+- **The on-set conflict** — §5.12 resolves it.
+- **Loyalty-roster stickiness** — a high-Ego co-star's affinity climbs at a discount; the same two good collaborations that lock in a low-ego actor's `affinity > 70` roster slot cost a high-ego one a third.
+
 **The loyalty roster is the key mechanic.** Directors keep a stable of actors they cast repeatedly. Getting onto a great director's roster (`affinity > 70`, achieved through 2+ good collaborations) means recurring direct offers on prestige projects for the rest of their career. This is how real careers actually work — Scorsese/De Niro, Anderson/Murray, Burton/Depp — and it's an enormous, earnable, losable asset.
 
 **NPCs have their own arcs.** Directors decline. Your rival wins the award you wanted and then flames out. The producer who blacklisted you at 30 gets fired at 45 and the door reopens. The world should feel like it's running whether or not you're in it — §10.0 is the mechanism, not just the promise: NPCs' Standing, Skill, and Signature move because of films they made that you were never in, computed by the same formulas as your own career.

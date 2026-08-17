@@ -366,6 +366,24 @@ Something in rehearsal that isn't in the script.
 | Keep it for the take | Surprise on camera — high variance, real chemistry effects on scene partners |
 | Rebuild the performance around it | A full swing, mid-shoot, with everything already committed |
 
+### The situational pool, one resolved: on-set conflict *(v9, new)*
+
+§4.6's Live It row flags "risk of on-set conflict." §7.5's difficult-genius archetype names "on-set conflict events." Both have pointed here since the first draft, and neither ever got a formula. §4.12 gave Temperament/Ego a real number; this is what it resolves into.
+
+```
+P(conflict this shoot) = clamp(0.04 + 0.006·(Temperament_or_Ego − 50) + 0.30·chaos, 0.02, 0.55)
+
+On trigger, one of:
+    A blowup over the work     Craft contribution −, affinity −8 to −15, chaos +0.05 for the rest
+                                of this project
+    A blowup that leaks        As above, plus Notoriety +, roughly 40% of the time — the press
+                                (§4.13) picks it up whether or not either of you wanted it to
+    A walkout threat            Schedule −1 block equiv., talked down by Command (you as the
+                                director) or Standing (you as the actor)
+```
+
+**`affinity > 70` halves the trigger probability.** That's the mechanical shape of "we've worked together before, we know how to handle each other" — a loyalty-roster relationship isn't just recurring offers, it's a temperamental fight the two of you have already had once and settled, so it stops being a live risk on every subsequent set. A first-time pairing with a high-Temperament director carries the full number; the fifth film with the same one barely does.
+
 ## 5.13 The director's creative decisions
 
 ### What the film is about
@@ -459,6 +477,39 @@ Every project you seriously considered and passed on for money, schedule, or fea
 There is no meter and no penalty. It's not a morality system and the game never comments. It simply appears at the end, in the obituary (§11.8 — "the roles you declined, and what became of them," the same tracked list named here from the other end), next to the filmography — and for some careers the two lists are the same, and for most they are not.
 
 That's not a mechanic. It's the reason to build the rest of it.
+
+## 5.18 Limited series *(v9, new)*
+
+§4.8 has listed "Limited series" and "TV season" as calendar-block project types since the first draft, without ever saying what either one actually resolves into. A season isn't a film with a different budget line — it's several films' worth of reception compressed into one commitment, and whether it comes back for another one is a real, external answer, the same shape as a greenlight, that the player doesn't get to make.
+
+**You play the premiere and the finale in full.** Everything between resolves at a flat, discounted echo of the premiere — the studio isn't reshooting your best work for episode six, but it isn't letting a mid-season episode surprise you upward either:
+
+```
+N episodes: 4–10 (limited series), 8–13 (a returning show)
+
+episode[0]      = played in full — three scenes, §5.6, against this episode's own script
+episode[N−1]    = played in full — same
+episode[1..N−2] = episode[0].Notices × 0.94, episode[0].Ensemble × 0.94, no new decision
+
+SeasonNotices  = mean(episode[i].Notices  for all i)
+SeasonEnsemble = mean(episode[i].Ensemble for all i)
+SeasonCritic   = resolveReception(SeasonEnsemble, …)   // §4.10's own formula, unchanged, fed
+                                                        // season-scale inputs instead of a film's
+
+Retention[0]   = 100
+Retention[i]   = Retention[i-1] × (0.90 + 0.002·SeasonCritic)   // a good show holds its audience
+                                                                  // week to week; a bad one bleeds it
+```
+
+**Renewal is the studio's call, resolved the same way every other greenlight in this design is:**
+
+```
+P(renewed) = clamp(0.20 + 0.01·(SeasonAudience − 50) + 0.15·Retention[N−1], 0.05, 0.85)
+```
+
+A season that opens strong and bleeds retention through a sagging middle can still get cancelled on a weak finale even with a fine average across the whole run — which is the honest version of what actually kills shows, and it's exactly why the finale has to be a real, played scene rather than another discounted echo: **it's the number the renewal decision is reading, not the premiere everyone remembers.**
+
+**What it costs, and what it's worth.** A season pays like several films for one calendar commitment (2 blocks, §4.8) — real efficiency early, chasing credits or Standing. But it locks that block for the run's full length, the same trap §9.6's multi-picture deal already names for a franchise: you signed at your year-one Quote, and a hit is worth renegotiating for by season two — if the studio doesn't recast around you first. A cancelled season after one costs almost nothing beyond the two blocks it took. A hit that runs eight years is a career on its own terms, parallel to the film ladder rather than a rung on it.
 
 ---
 
