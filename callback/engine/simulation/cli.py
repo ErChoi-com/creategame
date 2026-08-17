@@ -443,7 +443,17 @@ def directing_block(session: Session, auto: bool) -> None:
     action_key = choose(session.director_dev_action_options(), "  DEVELOPMENT HELL — this year's move:", 0, auto)
     result = session.advance_directing(action_key)
 
-    if result["greenlit"]:
+    if "self_finance_acquired" in result:
+        if result["self_finance_acquired"]:
+            if result["self_finance_released_free"]:
+                print("    The studio let the project go — it's entirely yours now, no strings attached.")
+            else:
+                print(f"    Bought the studio out for ${result['self_finance_cost_paid']:.1f}M — "
+                      f"it's your own money in it now, and your own call on everything from here.")
+        elif result["self_finance_could_not_afford"]:
+            print(f"    The studio wants ${result['self_finance_buyout_cost']:.1f}M for it and you don't "
+                  f"have that kind of money — still theirs.")
+    elif result["greenlit"]:
         print(f"    GREENLIT — ${result['budget_millions']:.1f}M production, "
               f"${result['marketing_millions']:.1f}M marketing. Critics {result['critic_band']} "
               f"({result['critic_score']}), audience {result['audience_band']}, "

@@ -26,7 +26,7 @@ from __future__ import annotations
 import random
 from dataclasses import dataclass, field, replace
 
-from callback.engine.actor.reception import RIGHTS_SHARE, ReceptionResult, resolve_reception
+from callback.engine.actor.reception import BREAK_EVEN_MARKETING_SHARE, RIGHTS_SHARE, ReceptionResult, resolve_reception
 from callback.engine.actor.release import RELEASE_STRATEGIES, STREAMING_BUYOUT_MULTIPLIER, WIDE, apply_release_strategy
 from callback.engine.core.script_notes import DIRECTOR_SCRIPT_NOTE_OPTIONS, ScriptNoteEffect, apply_script_note
 from callback.engine.actor.standing import (
@@ -42,6 +42,7 @@ from callback.engine.actor.standing import (
     star_power,
 )
 from callback.engine.actor.studios import (
+    MARKETING_PUSH_BONUS,
     OPENING_MARKETING_COEF,
     decide_marketing_spend,
     decide_release_strategy,
@@ -52,7 +53,14 @@ from callback.engine.actor.studios import (
 from callback.engine.core.meters import StandingModel
 from callback.engine.core.util import clamp
 from callback.engine.director.attributes import DirectorAttributes
-from callback.engine.director.development import DevProject, apply_action, advance_quarter, package_strength
+from callback.engine.director.development import (
+    DevProject,
+    apply_action,
+    advance_quarter,
+    attempt_self_finance,
+    package_strength,
+    self_finance_buyout_cost,
+)
 from callback.engine.director.edit import steered_post_luck
 from callback.engine.director.skill import director_skill
 
@@ -116,22 +124,45 @@ def request_director_marketing_push(state: DirectorState) -> DirectorState:
 def _resolve_directed_film(
     state: DirectorState, project: DevProject, genre: str, genre_demand: float, rng: random.Random,
 ) -> tuple[ReceptionResult, str, bool]:
-    """Returns (reception, actual_release_strategy, marketing_push_honored)."""
-    studio = pick_studio(project.budget_ask, rng)
-    director_importance = standing_score(state.standing)
+    """Returns (reception, actual_release_strategy, marketing_push_honored).
 
-    marketing = decide_marketing_spend(
-        studio, project.budget_ask, DIRECTOR_STUDIO_TRUST, star_power(state.standing), genre_demand,
-        is_franchise_or_adaptation=False, requested_push=state.pending_marketing_push, rng=rng,
-        influence_fn=director_influence_on_studio_decision,
-    )
-    marketing_share = marketing.marketing_share
-
+    A self-financed project (project.self_financed) skips the studio entirely — there's no one to
+    negotiate marketing spend or release strategy with, because there's no one else's money in the
+    film. Every call a studio would normally make (how much to spend marketing it, how wide to
+    release it, and the full rights_share that would otherwise go to a financing studio) is
+    genuinely the director's own instead of a request that can be overruled; the tradeoff for that
+    control is real (apply_dev_action_and_advance deducts the whole budget from the director's own
+    money the moment this resolves)."""
     cast_star_power = clamp(30.0 + 0.5 * project.attached_star_bankability + rng.gauss(0.0, 10.0), 0.0, 100.0)
     craft_contribution = clamp(rng.gauss(55.0 + 0.10 * state.attrs.command, 15.0), 0.0, 100.0)
     passion_project = project.attached_star_bankability < PASSION_PROJECT_STAR_THRESHOLD
     skill = director_skill(state.attrs, passion_project, rng)
     steered_luck = steered_post_luck(state.attrs.craft, state.attrs.efficiency, rng)
+
+    if project.self_financed:
+        marketing_share = BREAK_EVEN_MARKETING_SHARE + (MARKETING_PUSH_BONUS if state.pending_marketing_push else 0.0)
+        rights_share = 1.0  # no studio anywhere in this film's money — you keep all of it
+        festival_tier_bonus = 0.0
+        streaming_multiplier = STREAMING_BUYOUT_MULTIPLIER
+        actual_strategy = state.pending_release_request or WIDE  # your call, not a request
+        push_honored = state.pending_marketing_push  # your own money, your own campaign — always honored
+    else:
+        studio = pick_studio(project.budget_ask, rng)
+        director_importance = standing_score(state.standing)
+        marketing = decide_marketing_spend(
+            studio, project.budget_ask, DIRECTOR_STUDIO_TRUST, star_power(state.standing), genre_demand,
+            is_franchise_or_adaptation=False, requested_push=state.pending_marketing_push, rng=rng,
+            influence_fn=director_influence_on_studio_decision,
+        )
+        marketing_share = marketing.marketing_share
+        rights_share = RIGHTS_SHARE + studio.rights_share_delta
+        festival_tier_bonus = studio.festival_tier_bonus
+        streaming_multiplier = STREAMING_BUYOUT_MULTIPLIER + studio.streaming_multiplier_delta
+        actual_strategy = decide_release_strategy(
+            studio, state.pending_release_request or WIDE, DIRECTOR_STUDIO_TRUST, director_importance, rng,
+            influence_fn=director_influence_on_studio_decision,
+        )
+        push_honored = marketing.push_honored
 
     reception = resolve_reception(
         script_quality=state.current_true_script_quality,
@@ -147,31 +178,48 @@ def _resolve_directed_film(
         palette_audience_effect=state.pending_script_note.audience_delta,
         palette_critic_effect=state.pending_script_note.critic_delta,
         marketing_share=marketing_share,
-        rights_share=RIGHTS_SHARE + studio.rights_share_delta,
+        rights_share=rights_share,
         opening_marketing_coef=OPENING_MARKETING_COEF,
         post_luck_override=steered_luck,
     )
-
-    actual_strategy = decide_release_strategy(
-        studio, state.pending_release_request or WIDE, DIRECTOR_STUDIO_TRUST, director_importance, rng,
-        influence_fn=director_influence_on_studio_decision,
-    )
     resolved = apply_release_strategy(
         reception, actual_strategy, rng, cast_star_power=cast_star_power,
-        festival_tier_bonus=studio.festival_tier_bonus,
-        marketing_share=marketing_share, rights_share=RIGHTS_SHARE + studio.rights_share_delta,
-        streaming_multiplier=STREAMING_BUYOUT_MULTIPLIER + studio.streaming_multiplier_delta,
+        festival_tier_bonus=festival_tier_bonus,
+        marketing_share=marketing_share, rights_share=rights_share,
+        streaming_multiplier=streaming_multiplier,
     )
-    return resolved, actual_strategy, marketing.push_honored
+    return resolved, actual_strategy, push_honored
 
 
-def apply_dev_action_and_advance(state: DirectorState, action: str, genre_demand: float, rng: random.Random) -> tuple[DirectorState, dict]:
+def apply_dev_action_and_advance(
+    state: DirectorState, action: str, genre_demand: float, rng: random.Random, available_money: float = 0.0,
+) -> tuple[DirectorState, dict]:
     """One year's directing work: apply the chosen development action, attempt a greenlight, and
     resolve the film immediately if it lands. Mirrors simulate_project's one-project-a-year cadence
-    on the acting side."""
+    on the acting side.
+
+    available_money: the director's own current net worth (Session's to know, not DirectorState's —
+    this module stays money-agnostic otherwise), consulted only when action == "self_finance" on a
+    project that isn't already self-financed — see attempt_self_finance()'s own docstring for the
+    acquisition it resolves."""
     project = state.current_project
     genre = state.current_genre
     true_quality = state.current_true_script_quality
+
+    if action == "self_finance" and not project.self_financed:
+        # Acquiring the project is its own beat, distinct from actually making the film — a studio
+        # that hasn't let go yet isn't going to also greenlight it the same year you buy them out.
+        outcome = attempt_self_finance(project, rng, available_money)
+        new_state = replace(state, current_project=outcome.project, current_true_script_quality=true_quality)
+        info = {
+            "greenlit": False, "dead": False, "frozen": False, "momentum": round(outcome.project.momentum, 2),
+            "self_finance_acquired": outcome.just_acquired,
+            "self_finance_released_free": outcome.released_free,
+            "self_finance_cost_paid": outcome.cost_paid,
+            "self_finance_could_not_afford": outcome.could_not_afford,
+            "self_finance_buyout_cost": self_finance_buyout_cost(project.budget_ask),
+        }
+        return new_state, info
 
     if action == "attach_star":
         project = replace(project, attached_star_bankability=clamp(
@@ -185,8 +233,14 @@ def apply_dev_action_and_advance(state: DirectorState, action: str, genre_demand
         new_state = replace(state, current_project=project, current_true_script_quality=true_quality)
         return new_state, {"greenlit": False, "dead": False, "frozen": True, "momentum": round(project.momentum, 2)}
 
-    pkg_strength = package_strength(project.attached_star_bankability, true_quality, standing_score(state.standing))
-    new_project, greenlit = advance_quarter(project, pkg_strength, rng)
+    if project.self_financed:
+        # No studio's yes to wait on — the film is made this year, guaranteed. The usual
+        # package_strength/difficulty roll only ever decided whether a studio would say yes;
+        # self-financing means there's no studio to ask.
+        new_project, greenlit = project, True
+    else:
+        pkg_strength = package_strength(project.attached_star_bankability, true_quality, standing_score(state.standing))
+        new_project, greenlit = advance_quarter(project, pkg_strength, rng)
 
     if not greenlit:
         if new_project.dead:
@@ -216,7 +270,7 @@ def apply_dev_action_and_advance(state: DirectorState, action: str, genre_demand
     )
     info = {
         "greenlit": True, "dead": False, "frozen": False, "momentum": 1.0,
-        "genre": genre, "budget": project.budget_ask,
+        "genre": genre, "budget": project.budget_ask, "self_financed": project.self_financed,
         "critic_score": round(reception.film_critic_score),
         "film_critic_score": reception.film_critic_score,
         "audience_score": reception.audience_score,

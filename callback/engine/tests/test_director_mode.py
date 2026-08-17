@@ -294,5 +294,82 @@ class TestSessionDirectorCreativeOptions(unittest.TestCase):
         self.assertTrue(resolved)
 
 
+class TestSelfFinanceAcquisitionFlow(unittest.TestCase):
+    """Self-financing is now a real two-step negotiation, not a same-year guarantee: the studio
+    has to actually let the project go (free, or bought out) before it's yours, and only once it's
+    yours does choosing self_finance again guarantee the film gets made."""
+
+    def test_acquisition_year_never_greenlights_even_when_successful(self):
+        state = new_director_state()
+        state = start_development(state, "drama", 170.0, random.Random(9))
+        state, info = apply_dev_action_and_advance(
+            state, "self_finance", genre_demand=55.0, rng=random.Random(1), available_money=1_000_000.0,
+        )
+        self.assertFalse(info["greenlit"])
+        self.assertIn("self_finance_acquired", info)
+
+    def test_cannot_afford_it_leaves_the_project_with_the_studio(self):
+        found_failure = False
+        for seed in range(30):
+            trial_state = start_development(new_director_state(), "drama", 170.0, random.Random(9))
+            trial_state, info = apply_dev_action_and_advance(
+                trial_state, "self_finance", genre_demand=55.0, rng=random.Random(seed), available_money=0.0,
+            )
+            if not info["self_finance_acquired"]:
+                found_failure = True
+                self.assertFalse(trial_state.current_project.self_financed)
+                self.assertTrue(info["self_finance_could_not_afford"] or not info["self_finance_released_free"])
+                break
+        self.assertTrue(found_failure)
+
+    def test_once_acquired_the_next_self_finance_call_guarantees_a_greenlight(self):
+        state = new_director_state()
+        state = start_development(state, "drama", 170.0, random.Random(9))
+        state, acquire_info = apply_dev_action_and_advance(
+            state, "self_finance", genre_demand=55.0, rng=random.Random(1), available_money=1_000_000.0,
+        )
+        self.assertTrue(acquire_info["self_finance_acquired"])
+        self.assertTrue(state.current_project.self_financed)
+        # A deliberately weak package (low script quality, no attached star, low standing) that
+        # would almost never clear a real studio greenlight roll — self-financing bypasses that
+        # check entirely once the project is actually owned.
+        state, info = apply_dev_action_and_advance(
+            state, "self_finance", genre_demand=55.0, rng=random.Random(2), available_money=0.0,
+        )
+        self.assertTrue(info["greenlit"])
+        self.assertTrue(info["self_financed"])
+
+    def test_release_and_marketing_are_always_honored_once_self_financed(self):
+        session = Session(seed=44)
+        session.start("conservatory", "work")
+        session.become_director()
+        session.start_directing_project("drama", "low")
+        session.request_director_release_strategy("streaming")
+        session.request_director_marketing_push_action()
+        result = session.advance_directing("self_finance")
+        while not result.get("self_finance_acquired") and not result["dead"] and not result["greenlit"]:
+            result = session.advance_directing("self_finance")
+        self.assertTrue(result["self_finance_acquired"])
+        result = session.advance_directing("self_finance")
+        self.assertTrue(result["greenlit"])
+        self.assertFalse(result["release_overruled"])
+        self.assertTrue(result["marketing_push_honored"])
+
+    def test_buyout_cost_is_deducted_from_net_worth(self):
+        session = Session(seed=7)
+        session.start("conservatory", "work")
+        session.become_director()
+        session.start_directing_project("drama", "tentpole")  # high budget -> real buyout cost, studio holds on more
+        before = session.state.life.money.net_worth
+        for _ in range(30):
+            result = session.advance_directing("self_finance")
+            if result.get("self_finance_acquired") and result.get("self_finance_cost_paid", 0.0) > 0.0:
+                self.assertLess(session.state.life.money.net_worth, before)
+                return
+            if result.get("self_finance_acquired"):
+                return  # released free — nothing to assert about cost here
+        self.fail("expected the project to eventually be acquired within 30 attempts")
+
+
 if __name__ == "__main__":
     unittest.main()

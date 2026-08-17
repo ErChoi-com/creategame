@@ -28,6 +28,13 @@ CUT_BUDGET_DIFFICULTY_REDUCTION = 8.0
 NEW_FINANCIER_MOMENTUM = 0.25
 MARKET_MOMENTUM = 0.30
 
+# Self-financing isn't just a better roll — you're taking the project away from whoever's been
+# financing it. A limping, low-momentum project isn't worth a studio holding onto (they let it go
+# for nothing); a project with real heat, they don't just hand over, and you have to buy them out.
+SELF_FINANCE_FREE_RELEASE_BASE = 0.35
+SELF_FINANCE_FREE_RELEASE_MOMENTUM_COEF = 0.6
+SELF_FINANCE_BUYOUT_FRACTION = 0.15  # of budget_ask, if the studio won't just walk away
+
 DEV_ACTIONS = ("rewrite", "attach_star", "cut_budget", "new_financier", "take_to_market", "self_finance", "drawer")
 
 
@@ -61,6 +68,7 @@ class DevProject:
     quarters_in_dev: int = 0
     frozen: bool = False
     dead: bool = False
+    self_financed: bool = False  # you're the studio now — see apply_action("self_finance")
 
 
 def apply_action(project: DevProject, action: str, script_quality_delta: float = 0.0) -> DevProject:
@@ -79,10 +87,51 @@ def apply_action(project: DevProject, action: str, script_quality_delta: float =
     if action == "take_to_market":
         return replace(project, momentum=project.momentum + MARKET_MOMENTUM)
     if action == "self_finance":
+        # Only reached once the project is already yours (see attempt_self_finance below — the
+        # acquisition itself, from a studio that hasn't yet let go, is a separate step with its own
+        # rng/cost and doesn't route through here). A renewed vote of confidence on a project you
+        # already own: momentum resets, self_financed was already True and stays that way.
         return replace(project, momentum=1.0)
     if action == "drawer":
         return replace(project, frozen=True)
     return project
+
+
+def studio_release_probability(momentum: float) -> float:
+    """Whether the financing studio just lets a stalled project go for nothing, rather than making
+    you pay for it. A low-momentum project isn't worth holding onto; one with real heat, they don't
+    just hand over."""
+    return clamp(SELF_FINANCE_FREE_RELEASE_BASE - SELF_FINANCE_FREE_RELEASE_MOMENTUM_COEF * momentum, 0.05, 0.9)
+
+
+def self_finance_buyout_cost(budget_ask: float) -> float:
+    return budget_ask * SELF_FINANCE_BUYOUT_FRACTION
+
+
+@dataclass(frozen=True)
+class SelfFinanceOutcome:
+    project: DevProject
+    acquired: bool  # True if the project is self_financed after this call — already was, or just became
+    just_acquired: bool  # True only if it became True this call
+    cost_paid: float = 0.0
+    released_free: bool = False
+    could_not_afford: bool = False
+
+
+def attempt_self_finance(project: DevProject, rng: random.Random, available_money: float) -> SelfFinanceOutcome:
+    """The acquisition step: does the financing studio let this project go? A project already
+    self-financed is a no-op here (already yours). Otherwise, roll studio_release_probability() —
+    on a miss, the studio wants paid for it (self_finance_buyout_cost()), and the acquisition only
+    goes through if available_money actually covers that. Doesn't touch momentum either way — this
+    is a negotiation, not a development beat; the project's own progress is untouched by it."""
+    if project.self_financed:
+        return SelfFinanceOutcome(project, acquired=True, just_acquired=False)
+    if rng.random() < studio_release_probability(project.momentum):
+        return SelfFinanceOutcome(replace(project, self_financed=True), acquired=True, just_acquired=True, released_free=True)
+    cost = self_finance_buyout_cost(project.budget_ask)
+    if cost <= available_money:
+        return SelfFinanceOutcome(replace(project, self_financed=True), acquired=True, just_acquired=True, cost_paid=cost)
+    return SelfFinanceOutcome(project, acquired=False, just_acquired=False, could_not_afford=True)
 
 
 def advance_quarter(project: DevProject, pkg_strength: float, rng: random.Random) -> tuple[DevProject, bool]:

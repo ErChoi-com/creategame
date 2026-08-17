@@ -12,7 +12,16 @@ from callback.engine.actor.persona import Persona
 from callback.engine.actor.standing import new_standing_model
 from callback.engine.director.attributes import DirectorAttributes, perceived_script_quality
 from callback.engine.director.casting import evaluate_candidate
-from callback.engine.director.development import DevProject, advance_quarter, apply_action, difficulty
+from callback.engine.director.development import (
+    DevProject,
+    SELF_FINANCE_BUYOUT_FRACTION,
+    advance_quarter,
+    apply_action,
+    attempt_self_finance,
+    difficulty,
+    self_finance_buyout_cost,
+    studio_release_probability,
+)
 from callback.engine.director.edit import steered_post_luck
 from callback.engine.director.skill import director_skill
 
@@ -62,15 +71,76 @@ class TestDevelopment(unittest.TestCase):
                 break
         self.assertTrue(project.dead or greenlit)
 
-    def test_self_finance_forces_full_momentum(self):
-        project = apply_action(DevProject(script_id="s1", momentum=0.3), "self_finance")
+    def test_self_finance_forces_full_momentum_on_an_already_owned_project(self):
+        # apply_action's own "self_finance" branch only ever runs on a project you already own —
+        # acquiring it in the first place is attempt_self_finance()'s job, tested below.
+        owned = DevProject(script_id="s1", momentum=0.3, self_financed=True)
+        project = apply_action(owned, "self_finance")
         self.assertEqual(project.momentum, 1.0)
+        self.assertTrue(project.self_financed)
+
+    def test_apply_action_alone_never_grants_self_financing(self):
+        project = apply_action(DevProject(script_id="s1"), "self_finance")
+        self.assertFalse(project.self_financed)
+
+    def test_a_fresh_project_is_not_self_financed(self):
+        self.assertFalse(DevProject(script_id="s1").self_financed)
 
     def test_frozen_project_never_advances(self):
         project = apply_action(DevProject(script_id="s1"), "drawer")
         new_project, greenlit = advance_quarter(project, pkg_strength=90, rng=random.Random(5))
         self.assertFalse(greenlit)
         self.assertEqual(new_project.momentum, project.momentum)
+
+
+class TestSelfFinanceAcquisition(unittest.TestCase):
+    def test_studio_release_probability_falls_as_momentum_rises(self):
+        self.assertGreater(studio_release_probability(0.1), studio_release_probability(0.9))
+
+    def test_buyout_cost_scales_with_budget(self):
+        self.assertAlmostEqual(self_finance_buyout_cost(100.0), 100.0 * SELF_FINANCE_BUYOUT_FRACTION)
+
+    def test_already_self_financed_project_is_a_no_op(self):
+        project = DevProject(script_id="s1", self_financed=True)
+        outcome = attempt_self_finance(project, random.Random(1), available_money=0.0)
+        self.assertTrue(outcome.acquired)
+        self.assertFalse(outcome.just_acquired)
+        self.assertEqual(outcome.cost_paid, 0.0)
+
+    def test_a_stalled_low_momentum_project_is_often_released_for_free(self):
+        project = DevProject(script_id="s1", momentum=0.1, budget_ask=50.0)
+        rng = random.Random(2)
+        freebies = sum(
+            1 for _ in range(300)
+            if attempt_self_finance(project, rng, available_money=0.0).released_free
+        )
+        self.assertGreater(freebies, 0)
+
+    def test_cannot_afford_the_buyout_and_studio_wont_release_leaves_it_unowned(self):
+        # A near-certain-to-hold-on studio (very high momentum) with a real buyout price and zero
+        # money to pay it — the acquisition should fail outright, deterministically enough across
+        # many seeds that this isn't a fluke.
+        project = DevProject(script_id="s1", momentum=5.0, budget_ask=170.0)
+        for seed in range(30):
+            outcome = attempt_self_finance(project, random.Random(seed), available_money=0.0)
+            if not outcome.acquired:
+                self.assertTrue(outcome.could_not_afford)
+                self.assertEqual(outcome.cost_paid, 0.0)
+                return
+        self.fail("expected at least one seed where the studio didn't release it for free")
+
+    def test_affording_the_buyout_acquires_the_project(self):
+        project = DevProject(script_id="s1", momentum=5.0, budget_ask=170.0)
+        cost = self_finance_buyout_cost(project.budget_ask)
+        for seed in range(30):
+            outcome = attempt_self_finance(project, random.Random(seed), available_money=cost)
+            if not outcome.released_free:
+                self.assertTrue(outcome.acquired)
+                self.assertTrue(outcome.just_acquired)
+                self.assertEqual(outcome.cost_paid, cost)
+                self.assertTrue(outcome.project.self_financed)
+                return
+        self.fail("expected at least one seed where the studio didn't release it for free")
 
 
 class TestEditAndCasting(unittest.TestCase):

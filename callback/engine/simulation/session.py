@@ -852,6 +852,7 @@ class Session:
             "budget_ask": round(d.current_project.budget_ask, 2) if in_development else None,
             "momentum": round(d.current_project.momentum, 2) if in_development else None,
             "quarters_in_dev": d.current_project.quarters_in_dev if in_development else 0,
+            "self_financed": d.current_project.self_financed if in_development else False,
         }
 
     @staticmethod
@@ -905,7 +906,8 @@ class Session:
             "cut_budget": "Cut the budget — easier to greenlight, less to work with",
             "new_financier": "Find a new financier",
             "take_to_market": "Take it to market",
-            "self_finance": "Self-finance — guarantee it happens",
+            "self_finance": "Self-finance — buy the project out from the studio (or they let it go for "
+                            "nothing) and make it entirely your own, on your own money",
             "drawer": "Put it in the drawer — walk away for now",
         }
         return [(a, labels[a]) for a in DEV_ACTIONS]
@@ -915,18 +917,42 @@ class Session:
         the acting side. Does not advance the shared calendar itself (see end_year()) — acting and
         directing no longer compete for the same year; you can do both in the same turn."""
         demand = world_genre_demand(self.state.genre_heat, self.state.director.current_genre)
-        director, info = apply_dev_action_and_advance(self.state.director, action, demand, self.rng)
+        director, info = apply_dev_action_and_advance(
+            self.state.director, action, demand, self.rng,
+            available_money=self.state.life.money.net_worth,
+        )
 
         genre_heat = self.state.genre_heat
         guild = self.state.guild
+        life = self.state.life
+        if info.get("self_finance_cost_paid", 0.0) > 0.0:
+            # The studio wouldn't just walk away — bought the rights outright, out of your own
+            # money, before you've made a dollar back on the film itself.
+            life = replace(life, money=replace(life.money, net_worth=life.money.net_worth - info["self_finance_cost_paid"]))
         if info["greenlit"]:
             genre_heat = accumulate_heat(genre_heat, info["genre"], info["roi"])
             guild = add_residual_stream(guild, info["roi"], info["budget"])
+            if info.get("self_financed"):
+                # You took the studio's usual role, including the studio's usual money — the whole
+                # budget comes straight out of your own net worth the moment the film is actually
+                # made, real risk for the real control request_director_release_strategy()/
+                # request_director_marketing_push_action() now genuinely guarantee on this project.
+                life = replace(life, money=replace(life.money, net_worth=life.money.net_worth - info["budget"]))
 
-        self.state = replace(self.state, director=director, genre_heat=genre_heat, guild=guild)
+        self.state = replace(self.state, director=director, genre_heat=genre_heat, guild=guild, life=life)
 
         result = {"greenlit": info["greenlit"], "dead": info["dead"], "frozen": info.get("frozen", False),
                   "momentum": info["momentum"]}
+        if "self_finance_acquired" in info:
+            # An acquisition-only year — the studio either released it for free or you bought it
+            # out, but the film itself isn't made yet (that's a separate, later action).
+            result.update({
+                "self_finance_acquired": info["self_finance_acquired"],
+                "self_finance_released_free": info["self_finance_released_free"],
+                "self_finance_cost_paid": round(info["self_finance_cost_paid"], 2),
+                "self_finance_could_not_afford": info["self_finance_could_not_afford"],
+                "self_finance_buyout_cost": round(info["self_finance_buyout_cost"], 2),
+            })
         if info["greenlit"]:
             result.update({
                 "critic_band": critic_band(info["film_critic_score"]),
@@ -942,6 +968,7 @@ class Session:
                 "release_overruled": info["release_overruled"],
                 "marketing_push_requested": info["marketing_push_requested"],
                 "marketing_push_honored": info["marketing_push_honored"],
+                "self_financed": info["self_financed"],
             })
         return result
 

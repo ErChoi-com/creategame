@@ -477,6 +477,35 @@ the same film but only one of them was real. `post_release_screen()` now names w
 the film (`ProjectResult.director_note_choice`), so the mutual-but-unequal push is visible, not just
 mechanical.
 
+**Self-financing a directed project is a real acquisition, not a same-year guarantee**
+(`director/development.py`, `simulation/_director.py`). It used to mean "better odds at the usual
+studio-greenlight roll"; now it means what the name says: you take the project away from whoever's
+been financing it, and every call a studio would normally make becomes genuinely yours instead.
+
+- **The studio has to actually let go of it.** Choosing `self_finance` on a project you don't yet
+  own is an acquisition attempt, not a development beat: `studio_release_probability(momentum)`
+  rolls whether they just hand it over for nothing — a limping, low-momentum project isn't worth
+  holding onto — or `self_finance_buyout_cost(budget_ask)` (15% of the budget ask) is what it costs
+  you to buy them out instead, checked against your own real net worth
+  (`Session.advance_directing()` now threads `life.money.net_worth` in as `available_money`). Can't
+  afford it and the studio won't release it for free? Nothing happens that year — the project stays
+  theirs, try again later.
+- **Once it's actually yours, choosing self_finance again guarantees the film gets made** — no
+  package_strength/difficulty roll, because there's no studio left to say yes or no to. This is
+  deliberately a two-step process (acquire, then decide to shoot) rather than one action doing
+  both, so a player can keep rewriting/attaching stars on an owned project before pulling the
+  trigger, same as before.
+- **You assume the money risk for real, twice over.** The buyout cost (if any) comes out of your
+  own net worth the moment you acquire it; the *entire production budget* comes out of your own net
+  worth again the moment the film actually gets made (`Session.advance_directing()`'s existing
+  self-financed budget deduction, now paired with the buyout deduction above) — a studio's money
+  was never in this film at any point.
+- **Release strategy and marketing spend become genuinely, unconditionally yours.**
+  `_resolve_directed_film()` skips `decide_release_strategy()`/`decide_marketing_spend()`'s
+  studio-negotiation path entirely for a self-financed project — your requested release strategy
+  is never overruled, your marketing push is never ignored, and the full rights share is yours
+  (no studio's cut coming off the top).
+
 ## Known gaps and simplifications (documented inline at each site too)
 
 - **`actor/offers.sample_role()`** is still a placeholder role generator — it doesn't scale a
