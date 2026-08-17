@@ -511,5 +511,48 @@ A season that opens strong and bleeds retention through a sagging middle can sti
 
 **What it costs, and what it's worth.** A season pays like several films for one calendar commitment (2 blocks, §4.8) — real efficiency early, chasing credits or Standing. But it locks that block for the run's full length, the same trap §9.6's multi-picture deal already names for a franchise: you signed at your year-one Quote, and a hit is worth renegotiating for by season two — if the studio doesn't recast around you first. A cancelled season after one costs almost nothing beyond the two blocks it took. A hit that runs eight years is a career on its own terms, parallel to the film ladder rather than a rung on it.
 
+## 5.19 The rating *(v9, new)*
+
+Like the palette itself, a film's content rating isn't chosen — it's read off what the film already is. It exists to be a real number the rest of the design can gate on, not a lever with its own screen.
+
+```
+RatingScore = 0.70·Intensity + genreBaseline[genre]     // §5.3's own Intensity dial (Gentle ↔
+                                                          // Intense), the one palette axis that
+                                                          // was always describing this
+
+genreBaseline:
+    Family +family-comedy  −22 ; Musical  −10 ; Comedy  −4 ; Romance  −2 ; Period  0
+    Drama  +4 ; Sci-fi  +2 ; Thriller  +6 ; Action  +8 ; Horror  +18
+
+Rating:
+    RatingScore < −25    G / family
+    −25 to 0              PG
+    0 to 25                PG-13
+    25 to 50                 R
+    > 50                       NC-17 / unrated
+```
+
+The genre baseline is doing the honest work here, not the excuse-making: the same Intensity setting that reads PG-13 in a thriller reads R in a horror film, because a horror audience's whole relationship to the genre is calibrated around what an R rating signals is actually on the table (§5.3's own verified finding — restraint pleasing horror critics *and* audiences at once — is the same instinct this baseline is naming from the other side).
+
+**What it gates, all of it already-named systems reading one more real number:**
+
+- **The family audience segment** (Standing, box-office reach) opens at PG or better and is effectively closed above it — the commercial logic behind every four-quadrant tentpole's PG-13 ceiling.
+- **Toy-driven financing** (§9.7) already implies kid-safe content without ever naming the number that enforces it. It does now: a toy company's financing offer requires PG or better, full stop.
+- **Some regional industries gate on it directly** — Bollywood's existing "family-audience content limits" row (§10.5) is this same mechanic, read through one specific industry's stricter version of the line.
+- **A franchise creeping from PG-13 toward R across its own sequels** is a real, recognizable shape (§9.5's sequel curve doesn't stop this on its own) — a director chasing "authentic" per §5.16's genre-specific creative question, a studio watching its toy-shelf revenue evaporate one installment at a time. Neither side is wrong, which is exactly why it's worth having in the model instead of asserting as flavour text.
+
+**The one real decision this creates: cut for rating.** Available only when `RatingScore` lands within 6 points of a band boundary — a genuine borderline case, not a choice on every film, the same restraint §5.12's situational pool already applies to which moments even get asked.
+
+```
+Cut for the friendlier rating   Intensity's realized effect trimmed just enough to cross the line;
+                                 FilmCritic −3 to −6 (the compromise shows on screen); unlocks the
+                                 wider band's audience and, if applicable, the toy deal
+Release as cut                   the film as made, the harder rating, the narrower reach — and for
+                                  horror and action specifically, no penalty at all: the rating was
+                                  never the problem for that audience, it was the point
+```
+
+This is not §7.7's edit — it's a separate, narrower call that happens to share a moment with it, and it's the honest version of a fight that happens on real films constantly: the studio wants the four-quadrant number, the director wants the film they shot. Both readings are computed off the same `RatingScore`; neither one is asserted as correct.
+
 ---
 
