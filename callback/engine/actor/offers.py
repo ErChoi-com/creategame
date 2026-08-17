@@ -49,6 +49,18 @@ NON_UNION_PAY_FRACTION = 1.0 / 3.0
 
 BILLINGS = ("lead", "supporting", "bit", "extra")
 
+# What billing tier a role's fee can plausibly land in, as a share of the film's own budget — a
+# lead genuinely competes for a real cut of the budget; a bit or extra part earns scale, not a
+# meaningful fraction of it, regardless of how big the film is. No single number inside either
+# band is "the" fee — see negotiated_fee_share() below for how the actual figure gets picked.
+BILLING_FEE_SHARE = {
+    "lead": (0.010, 0.30),
+    "supporting": (0.003, 0.09),
+    "bit": (0.0006, 0.020),
+    "extra": (0.0001, 0.004),
+}
+FEE_NEGOTIATION_NOISE_SD = 0.18  # real negotiations don't land exactly where leverage alone predicts
+
 # A film's total budget (§4.4's listing generator, this pass's reading — see sample_role's
 # docstring): log-normal rather than a handful of fixed tiers, so nothing about the distribution
 # a player sees is a hard-coded step function. Median lands near BUDGET_MEDIAN, and the tail can
@@ -61,6 +73,18 @@ BUDGET_LOGNORMAL_SIGMA = 1.15
 
 def sample_budget_millions(rng: random.Random) -> float:
     return clamp(rng.lognormvariate(math.log(BUDGET_MEDIAN), BUDGET_LOGNORMAL_SIGMA), BUDGET_MIN, BUDGET_MAX)
+
+
+def negotiated_fee_share(billing: str, actor_leverage: float, rng: random.Random) -> float:
+    """Where in this billing tier's own band (BILLING_FEE_SHARE) the fee actually lands — a real
+    negotiation outcome, not a fixed point or a billing-blind roll. actor_leverage (0-1, typically
+    the actor's own standing_score/100 — how big a name they currently are) pulls the outcome
+    toward the top of the band; real noise on top means even a maximally leveraged negotiation
+    doesn't land on the exact same number twice, and a total nobody can still occasionally get a
+    surprisingly generous offer, or a big name a surprisingly stingy one."""
+    lo, hi = BILLING_FEE_SHARE[billing]
+    position = clamp(actor_leverage + rng.gauss(0.0, FEE_NEGOTIATION_NOISE_SD), 0.0, 1.0)
+    return lo + (hi - lo) * position
 
 
 @dataclass(frozen=True)
@@ -174,17 +198,23 @@ def is_offered_non_union(credits: int, rng: random.Random) -> bool:
     return rng.random() < NON_UNION_SUBSTITUTION_CHANCE
 
 
-def sample_role(rng: random.Random, budget_millions: float | None = None) -> Role:
+def sample_role(rng: random.Random, budget_millions: float | None = None, actor_leverage: float | None = None) -> Role:
     """A minimal role-listing generator for simulation/career.py's headless loop. This is not the
     full offer-board content system (§4.4's own listing generator reads the world's production
     pipeline, §10.0 — out of scope here); it draws a plausible role so casting/Utility can be
-    exercised end to end."""
+    exercised end to end.
+
+    actor_leverage: 0-1, typically the actor's own standing_score/100 — how much real pull they
+    bring into the fee negotiation for this listing. None (the default, used by any caller without
+    a real actor in hand — verify.py, standalone tests) falls back to a random position, same as
+    treating every anonymous listing as negotiated by an unknown quantity."""
     genre = rng.choice(GENRES)
     archetype = rng.choice(ARCHETYPES)
     billing = rng.choices(BILLINGS[:3], weights=[0.15, 0.45, 0.40])[0]  # leads are rarer to land
     budget = budget_millions if budget_millions is not None else sample_budget_millions(rng)
     gatekeeper = rng.choice(list(GATEKEEPER_WEIGHTS.keys()))
     studio = pick_studio(budget, rng).id  # who's financing scales with the film's own budget, not the role's fee
+    leverage = actor_leverage if actor_leverage is not None else rng.random()
     return Role(
         project_id=f"p_{rng.randrange(10**6):06d}",
         genre=genre,
@@ -193,7 +223,7 @@ def sample_role(rng: random.Random, budget_millions: float | None = None) -> Rol
         char_age=int(clamp(rng.gauss(38, 12), 8, 85)),
         type_strictness=clamp(rng.gauss(0.6, 0.2), 0.0, 1.0),
         difficulty=clamp(rng.gauss(50, 15), 5, 95),
-        budget_for_role=budget * rng.uniform(0.05, 0.35),  # this role's fee ceiling vs. total budget
+        budget_for_role=budget * negotiated_fee_share(billing, leverage, rng),  # a negotiated fee, not a hard number
         gatekeeper=gatekeeper,
         studio=studio,
         film_budget_millions=budget,  # the real film budget — kept, not discarded, for reception/ROI/marketing

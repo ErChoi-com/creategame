@@ -231,6 +231,19 @@ call. `simulate_project()` still just calls them in a straight line — no dynam
 object churn, the exact same sequence of `rng` draws as the old monolithic version — so the split
 costs nothing at runtime and every existing seed still reproduces byte-for-byte identical results.
 
+**Fixed a real bug: a role's fee was drawn from the same 5-35% range regardless of billing, so a
+bit part could out-earn a lead.** `offers.sample_role()` used `budget * rng.uniform(0.05, 0.35)`
+for every billing tier alike — a background player on a $170M tentpole could draw a $59.5M fee,
+26% of the whole production, purely by chance. `BILLING_FEE_SHARE` now gives each billing its own
+real band (lead 1-30%, supporting 0.3-9%, bit 0.06-2%, extra 0.01-0.4%), and — per the request that
+nothing here should be a hard number — `negotiated_fee_share(billing, actor_leverage, rng)` picks
+the actual figure as a real negotiation outcome inside that band: `actor_leverage` (the actor's own
+`standing_score/100` — how big a name they already are, threaded in from `full_career.offer_this_
+year()`) pulls the outcome toward the top, with real Gaussian noise on top so even a maximally
+leveraged negotiation doesn't land on the same number twice, and a total nobody can still
+occasionally land a surprisingly generous offer. The Offer Board now shows both the film's real
+budget and the actor's own negotiated fee side by side.
+
 **Marketing spend is a real, reactive studio decision now, not a fixed studio/budget lookup**
 (`studios.decide_marketing_spend()`). The old `marketing_share_for(studio, budget)` — a flat number
 off two static facts — is still the anchor, but the actual spend now also moves on: how much this

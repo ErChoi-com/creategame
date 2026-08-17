@@ -12,7 +12,7 @@ from dataclasses import dataclass, field, replace
 
 from callback.engine.actor.aging import apply_look_curve
 from callback.engine.actor.offers import Role, is_offered_non_union, sample_role, utility
-from callback.engine.actor.standing import AFFECTION_DECAY, HEAT_KEEP, NOTORIETY_DECAY, PRESTIGE_DECAY
+from callback.engine.actor.standing import AFFECTION_DECAY, HEAT_KEEP, NOTORIETY_DECAY, PRESTIGE_DECAY, standing_score
 from callback.engine.leverage.catalogue import LeverageState, new_leverage_state
 from callback.engine.leverage.multi_picture_deal import MultiPictureDeal
 from callback.engine.life.family import FamilyState
@@ -82,7 +82,10 @@ def current_year(state: FullState) -> int:
 
 
 def offer_this_year(state: FullState, rng: random.Random) -> Role:
-    role = sample_role(rng)
+    # The fee this listing settles on is a real negotiation, not a blind roll: how big a name the
+    # actor already is (standing_score/100) is their actual leverage going in.
+    leverage = standing_score(state.actor.standing) / 100.0
+    role = sample_role(rng, actor_leverage=leverage)
     if role.union and is_offered_non_union(state.actor.union_credits, rng):
         role = replace(role, union=False, budget_for_role=role.budget_for_role / 3.0)
     role = maybe_attach_franchise(role, state.franchises, current_year(state), rng)
