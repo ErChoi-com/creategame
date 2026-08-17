@@ -28,7 +28,7 @@ from dataclasses import dataclass, field, replace
 
 from callback.engine.actor.reception import RIGHTS_SHARE, ReceptionResult, resolve_reception
 from callback.engine.actor.release import RELEASE_STRATEGIES, STREAMING_BUYOUT_MULTIPLIER, WIDE, apply_release_strategy
-from callback.engine.actor.script_notes import DIRECTOR_SCRIPT_NOTE_OPTIONS, ScriptNoteEffect, apply_script_note
+from callback.engine.core.script_notes import DIRECTOR_SCRIPT_NOTE_OPTIONS, ScriptNoteEffect, apply_script_note
 from callback.engine.actor.standing import (
     AFFECTION_DECAY,
     HEAT_KEEP,

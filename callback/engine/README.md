@@ -443,6 +443,31 @@ someone else's film. `Session.director_release_options()` and the CLI's directin
 both requests, and a GREENLIT result now reports whether the requested strategy/push was honored or
 overruled.
 
+**Script notes moved to `core/`, and the director is now every film's primary creative authority —
+in relative weight, not by shutting the actor out** (`core/script_notes.py`,
+`simulation/career.py`). The mechanic used to live in `actor/script_notes.py`, which was really a
+layering bug: a director shaping their own film and an actor holding script approval on someone
+else's are the same underlying choice at different weights, not two separate systems, so it moved
+to `core/` per §3.3's own rule — both `actor/` and `director/`-driven code import one module, not
+one reaching into the other's package.
+
+That move is also what made the actual rebalance possible. Every film an actor works on now has its
+own NPC director (`career.DirectorTerms`, already sampled per-project) contribute a real script
+note of their own — `core.script_notes.sample_director_note()`, biased toward "whole film" by their
+skill/command, the same way a more capable director in real life reaches for the subtler fix more
+often. That note applies at full strength (`DIRECTOR_NOTE_WEIGHT = 1.0`); if the actor also holds
+script approval and pushes their own note, it layers on top at a reduced weight
+(`ACTOR_FILM_NOTE_WEIGHT = 0.4`, `ScriptNoteEffect.scaled()`/`.combined_with()`) — a real, always-
+present secondary voice, never the deciding one, on someone else's film. `fit_delta` — the "your
+part" option's whole reason to exist — is never scaled by either side's weight: an actor's read on
+their own performance stays entirely theirs regardless of who else weighs in, which is the flip
+side of the rebalance ("the actor changes their own performance; the director changes the film").
+On a director's *own* project their note is still the film's only one, at full weight, exactly as
+before — this rebalance is about the actor path, where two people's notes were always meeting on
+the same film but only one of them was real. `post_release_screen()` now names whose note carried
+the film (`ProjectResult.director_note_choice`), so the mutual-but-unequal push is visible, not just
+mechanical.
+
 ## Known gaps and simplifications (documented inline at each site too)
 
 - **`actor/offers.sample_role()`** is still a placeholder role generator — it doesn't scale a

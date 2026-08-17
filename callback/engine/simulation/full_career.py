@@ -124,7 +124,7 @@ def accept_and_play(
     studio_trust: float = 50.0,
     requested_marketing_push: bool = False,
 ) -> tuple[FullState, ProjectResult]:
-    """script_note: actor.script_notes.ScriptNoteEffect, from a Session-level script-approval
+    """script_note: core.script_notes.ScriptNoteEffect, from a Session-level script-approval
     push. orientation_npc_id + orientation_effect: the tracked co-star this project centres on
     and positions.generosity()/upstaging()'s resulting ModifierResult. requested_director_npc_id:
     a tracked Rolodex director pulled onto the project in place of the usual random NPC sample —

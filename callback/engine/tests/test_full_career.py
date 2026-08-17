@@ -47,7 +47,7 @@ class TestFullCareerIntegration(unittest.TestCase):
         # A >2.5x-ROI "hit" is rare per project, so a short run can legitimately accumulate none —
         # run enough years/seeds that at least one genuinely should have happened somewhere.
         any_heat = False
-        for seed in range(10):
+        for seed in range(30):
             state = _run_years(random.Random(seed), 25)
             self.assertTrue(all(v >= 0 for v in state.genre_heat.values()))
             any_heat = any_heat or len(state.genre_heat) > 0

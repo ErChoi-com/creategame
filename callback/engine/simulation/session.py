@@ -37,7 +37,7 @@ from callback.engine.actor.persona import GENRES
 from callback.engine.actor.positions import DIAL_LABELS, DIALS, PLAYER_LABELS, POSITIONS, generosity, upstaging
 from callback.engine.actor.prep import PREP_OPTIONS, WING_IT
 from callback.engine.actor.release import RELEASE_STRATEGIES, STREAMING_BUYOUT_MULTIPLIER, WIDE, LIMITED, weekly_gross_curve
-from callback.engine.actor.script_notes import DIRECTOR_SCRIPT_NOTE_OPTIONS, SCRIPT_NOTE_OPTIONS, apply_script_note
+from callback.engine.core.script_notes import DIRECTOR_SCRIPT_NOTE_OPTIONS, SCRIPT_NOTE_OPTIONS, apply_script_note
 from callback.engine.actor.standing import standing_score
 from callback.engine.actor.studios import SELF_DISTRIBUTE_MULTIPLIER, STUDIOS, decide_release_strategy, streaming_bidders
 from callback.engine.awards.awards import NarrativeContext, buzz_score, narrative_bonus
@@ -716,6 +716,7 @@ class Session:
             "weekly_gross": self._weekly_gross(result, actual_strategy),
             "franchise_installment": franchise_installment,
             "box_office_bonus_millions": round(bonus, 2),
+            "director_note_choice": result.director_note_choice,
         }
 
     @staticmethod
@@ -858,10 +859,13 @@ class Session:
         self.state = replace(self.state, director=start_development(self.state.director, genre, budget, self.rng))
 
     # ---- a director's own script notes, release request, and marketing push ------------------
-    # Ported from the acting side, reusing the same underlying formulas: script notes
-    # (actor.script_notes), the release-strategy request (studios.decide_release_strategy), and
-    # the marketing push (studios.decide_marketing_spend) — but weighed by director_influence_on_
-    # studio_decision() instead of the actor curve, since it's the director's own film either way.
+    # Reuses the same underlying formulas as the acting side: script notes (core.script_notes),
+    # the release-strategy request (studios.decide_release_strategy), and the marketing push
+    # (studios.decide_marketing_spend) — but weighed by director_influence_on_studio_decision()
+    # instead of the actor curve, since it's the director's own film either way. On a directed
+    # project the director's script note IS the film's primary note (core.script_notes.DIRECTOR_
+    # NOTE_WEIGHT, full strength) — there's no separate NPC director sampling one on top, unlike an
+    # actor's own film (simulation/career.py's resolve_shoot/resolve_quality).
 
     @staticmethod
     def director_script_note_options() -> list[tuple[str, str]]:

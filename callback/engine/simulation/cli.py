@@ -265,9 +265,19 @@ def release_screen(session: Session, auto: bool) -> dict:
     return summary
 
 
+DIRECTOR_NOTE_LABELS = {
+    "clarity": "the director pushed for clarity",
+    "ambiguity": "the director pushed for ambiguity",
+    "whole_film": "the director pushed for the whole film",
+}
+
+
 def post_release_screen(summary: dict) -> None:
     print("  --- POST & RELEASE ---")
     print(f"    {summary['studio_name']}")
+    note_label = DIRECTOR_NOTE_LABELS.get(summary.get("director_note_choice", ""))
+    if note_label:
+        print(f"    Notes: {note_label} — it's their film to call, whatever you pushed for on top.")
     print(f"    Your work: {summary['performance_band']}")
     print(f"    Critics: {summary['critic_band']} ({summary['critic_score']}/100)")
     print(f"    Audience: {summary['audience_band']}")

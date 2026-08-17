@@ -24,7 +24,7 @@ from callback.engine.simulation.session import Session
 
 class TestDirectorScriptNoteReleaseAndMarketingPending(unittest.TestCase):
     def test_your_part_is_not_offered_to_a_director(self):
-        from callback.engine.actor.script_notes import DIRECTOR_SCRIPT_NOTE_OPTIONS
+        from callback.engine.core.script_notes import DIRECTOR_SCRIPT_NOTE_OPTIONS
         self.assertNotIn("your_part", DIRECTOR_SCRIPT_NOTE_OPTIONS)
 
     def test_choosing_a_script_note_applies_quality_immediately_and_holds_the_rest_pending(self):

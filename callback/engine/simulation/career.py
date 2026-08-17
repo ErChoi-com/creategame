@@ -35,7 +35,7 @@ from callback.engine.actor.positions import (
 from callback.engine.actor.prep import PrepResult, resolve_prep
 from callback.engine.actor.reception import RIGHTS_SHARE, ReceptionResult, resolve_reception
 from callback.engine.actor.release import STREAMING, STREAMING_BUYOUT_MULTIPLIER, WIDE, apply_release_strategy
-from callback.engine.actor.script_notes import ScriptNoteEffect
+from callback.engine.core.script_notes import ACTOR_FILM_NOTE_WEIGHT, ScriptNoteEffect, sample_director_note
 from callback.engine.actor.shape import resolve_shape
 from callback.engine.genre.adaptation import adaptation_audience_bonus, adaptation_critic_risk
 from callback.engine.actor.studios import (
@@ -120,6 +120,7 @@ class ProjectResult:
     studio_id: str = "mid_major"
     marketing_push_requested: bool = False
     marketing_push_honored: bool = False
+    director_note_choice: str = ""
 
 
 def default_scene_policy(rng: random.Random) -> tuple[SceneChoice, SceneChoice, SceneChoice]:
@@ -181,6 +182,8 @@ class ShootResult:
     spotlight: float
     craft_contribution: float
     npc_affinity_delta: float
+    director_note_choice: str
+    director_note: ScriptNoteEffect
 
 
 def resolve_shoot(
@@ -193,6 +196,11 @@ def resolve_shoot(
     script_note: ScriptNoteEffect | None = None,
     orientation_effect: ModifierResult | None = None,
 ) -> ShootResult:
+    # The director's own creative push on this film — sampled once here (the primary, dominant
+    # note) and combined with the actor's own note (secondary, if they hold script approval) inside
+    # resolve_quality. fit_delta stays the actor's alone: their own read on their own part isn't
+    # something the director's note touches.
+    director_note_choice, director_note = sample_director_note(director.skill, director.command, rng)
     prep_result = resolve_prep(prep_choice, state.attrs.resilience, is_biographical_or_period=(role.genre == "period"))
     fit = fit_score(state.attrs, state.persona, role, state.age)
     if script_note is not None:
@@ -217,7 +225,10 @@ def resolve_shoot(
         craft_contribution = craft_contribution + orientation_effect.film_craft_contribution
         npc_affinity_delta = orientation_effect.affinity_delta
 
-    return ShootResult(prep_result, perf_result, spotlight, craft_contribution, npc_affinity_delta)
+    return ShootResult(
+        prep_result, perf_result, spotlight, craft_contribution, npc_affinity_delta,
+        director_note_choice, director_note,
+    )
 
 
 def resolve_quality(
@@ -255,10 +266,16 @@ def resolve_quality(
     palette_crit_effect += adaptation_critic_risk(role.source_material)
     staleness = state.persona.staleness_penalty()
 
+    # The director's note is the film's primary creative signal (full weight, sampled once in
+    # resolve_shoot); the actor's own note — real, but secondary on someone else's film — is scaled
+    # down before it's added on top. Both genuinely move the finished film; the director's moves it
+    # more, matching who actually holds the film's creative authority.
+    combined_note = shoot.director_note
     if script_note is not None:
-        script_quality = clamp(script_quality + script_note.script_quality_delta, 0.0, 100.0)
-        palette_aud_effect += script_note.audience_delta
-        palette_crit_effect += script_note.critic_delta
+        combined_note = combined_note.combined_with(script_note.scaled(ACTOR_FILM_NOTE_WEIGHT))
+    script_quality = clamp(script_quality + combined_note.script_quality_delta, 0.0, 100.0)
+    palette_aud_effect += combined_note.audience_delta
+    palette_crit_effect += combined_note.critic_delta
 
     studio = STUDIOS[role.studio]
     marketing_decision = decide_marketing_spend(
@@ -382,8 +399,11 @@ def simulate_project(
     studio_trust: float = 50.0,
     requested_marketing_push: bool = False,
 ) -> tuple[ActorState, ProjectResult]:
-    """script_note: design/part-05 §5.15's script-notes push (actor/script_notes.py), only
-    meaningful if the player holds script approval — the caller enforces that gate.
+    """script_note: design/part-05 §5.15's script-notes push (core/script_notes.py), only
+    meaningful if the player holds script approval — the caller enforces that gate. Combined inside
+    resolve_quality with the film's own NPC director's note (sampled in resolve_shoot), which
+    applies at full weight while the actor's applies at core.script_notes.ACTOR_FILM_NOTE_WEIGHT —
+    the director is this film's primary creative authority, not the actor.
     orientation_effect: positions.generosity()/upstaging(), the player's declared stance toward
     their scene partner this project.
     director_override: (director_skill, director_command, director_prestige) — a specific,
@@ -440,6 +460,7 @@ def simulate_project(
         studio_id=role.studio,
         marketing_push_requested=marketing_decision.push_requested,
         marketing_push_honored=marketing_decision.push_honored,
+        director_note_choice=shoot.director_note_choice,
     )
     return update.state, result
 
