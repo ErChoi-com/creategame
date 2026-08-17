@@ -12,11 +12,14 @@ from callback.engine.actor.standing import new_standing_model
 from callback.engine.genre.franchise import SEQUEL_BONUS_AUDIENCE_CENTRE
 from callback.engine.simulation._franchises import (
     FranchiseEntry,
+    SEQUEL_CHANCE_BASE,
+    SEQUEL_CHANCE_CEILING,
     SPINOFF_INDISPENSABILITY_THRESHOLD,
     create_spinoff_entry,
     director_continuity_bonus,
     franchise_audience_bonus,
     maybe_attach_franchise,
+    sequel_probability,
     spinoff_available,
     update_franchise_after_project,
 )
@@ -65,6 +68,62 @@ class TestMaybeAttachFranchise(unittest.TestCase):
         for _ in range(200):
             role = maybe_attach_franchise(_role(), {"fr_002": franchise}, current_year=50, rng=rng)
             self.assertNotEqual(role.franchise_id, "fr_002")
+
+    def test_a_hit_franchise_gets_sequels_far_more_often_than_a_flop(self):
+        # The whole point of the rebalance: two otherwise-identical franchises should no longer
+        # compete for the same flat 35% shot — a beloved hit and a poorly-received flop need to
+        # produce visibly different sequel rates over enough rolls.
+        hit = FranchiseEntry(franchise_id="fr_hit", genre="action", studio_id="indie",
+                              installments_starred=1, last_installment_year=10, prior_audience_score=95.0)
+        flop = FranchiseEntry(franchise_id="fr_flop", genre="action", studio_id="indie",
+                               installments_starred=1, last_installment_year=10, prior_audience_score=10.0)
+        hit_sequels = 0
+        flop_sequels = 0
+        rng = random.Random(11)
+        for _ in range(500):
+            if maybe_attach_franchise(_role(), {"fr_hit": hit}, current_year=11, rng=rng).franchise_id == "fr_hit":
+                hit_sequels += 1
+        for _ in range(500):
+            if maybe_attach_franchise(_role(), {"fr_flop": flop}, current_year=11, rng=rng).franchise_id == "fr_flop":
+                flop_sequels += 1
+        self.assertGreater(hit_sequels, flop_sequels * 2)
+
+    def test_multiple_eligible_franchises_each_get_their_own_independent_roll(self):
+        hit = FranchiseEntry(franchise_id="fr_hit", genre="action", studio_id="indie",
+                              installments_starred=1, last_installment_year=10, prior_audience_score=95.0)
+        flop = FranchiseEntry(franchise_id="fr_flop", genre="action", studio_id="indie",
+                               installments_starred=1, last_installment_year=10, prior_audience_score=10.0)
+        hit_count = 0
+        flop_count = 0
+        rng = random.Random(12)
+        for _ in range(500):
+            role = maybe_attach_franchise(_role(), {"fr_hit": hit, "fr_flop": flop}, current_year=11, rng=rng)
+            if role.franchise_id == "fr_hit":
+                hit_count += 1
+            elif role.franchise_id == "fr_flop":
+                flop_count += 1
+        self.assertGreater(hit_count, flop_count)
+
+
+class TestSequelProbability(unittest.TestCase):
+    def test_average_reception_and_zero_indispensability_matches_the_base_rate(self):
+        self.assertAlmostEqual(sequel_probability(SEQUEL_BONUS_AUDIENCE_CENTRE, 0.0), SEQUEL_CHANCE_BASE, places=6)
+
+    def test_better_reception_raises_the_probability(self):
+        low = sequel_probability(20.0, 0.0)
+        high = sequel_probability(90.0, 0.0)
+        self.assertGreater(high, low)
+
+    def test_higher_indispensability_raises_the_probability_independent_of_reception(self):
+        base = sequel_probability(SEQUEL_BONUS_AUDIENCE_CENTRE, 0.0)
+        boosted = sequel_probability(SEQUEL_BONUS_AUDIENCE_CENTRE, 80.0)
+        self.assertGreater(boosted, base)
+
+    def test_never_exceeds_the_ceiling_even_at_extreme_inputs(self):
+        self.assertLessEqual(sequel_probability(100.0, 100.0), SEQUEL_CHANCE_CEILING)
+
+    def test_never_goes_negative_at_extreme_low_reception(self):
+        self.assertGreaterEqual(sequel_probability(0.0, 0.0), 0.0)
 
 
 class TestFranchiseAudienceBonus(unittest.TestCase):

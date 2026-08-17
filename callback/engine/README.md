@@ -317,11 +317,20 @@ and `director/` unreached** (`simulation/_franchises.py`). Two previously-dorman
 (`leverage/indispensability.py`) — are composed together and wired into the regular game loop,
 not bolted on as a side mode:
 
-- **Offers can be franchise entries.** `offer_this_year()` sometimes turns a freshly sampled role
-  into either the first installment of a brand-new franchise, or — if you already have an open one
-  — its next sequel, matching that franchise's genre and staying with the studio that financed the
-  original (continuity, not a fresh random studio each time). The Offer Board tags these
-  `[NEW FRANCHISE]` / `[SEQUEL — Part N]`.
+- **Offers can be franchise entries — and whether a sequel gets greenlit at all now actually reads
+  the last installment, not a flat coin flip.** `offer_this_year()` sometimes turns a freshly
+  sampled role into either the first installment of a brand-new franchise, or — if you already have
+  an open one — its next sequel, matching that franchise's genre and staying with the studio that
+  financed the original (continuity, not a fresh random studio each time). Whether that actually
+  happens this year used to be one flat 35% roll regardless of how the franchise was doing;
+  `sequel_probability()` replaces that with a real function of the prior installment's own
+  `AudienceScore` (a sigmoid centred on the same reception midpoint `genre/franchise.py`'s box-office
+  bonus already uses, so a $3M festival flop's sequel is a genuine long shot while a hit's is far
+  more likely) and the franchise's built-up Indispensability (a character audiences have identified
+  with keeps getting greenlit even past a middling number, capped well short of guaranteed). With
+  more than one open franchise, each now gets its own independent roll off its own reception —
+  a beloved hit and a franchise nobody liked are no longer drawing from the same pool. The Offer
+  Board tags these `[NEW FRANCHISE]` / `[SEQUEL — Part N]`.
 - **A real box-office bonus, not flavor text.** `franchise_audience_bonus()` reuses
   `genre/franchise.py`'s `sequel_bonus()` exactly as designed — scaled by how well the *previous*
   installment's audience actually responded, added straight onto AudienceScore alongside every

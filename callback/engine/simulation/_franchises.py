@@ -14,13 +14,37 @@ from dataclasses import dataclass, replace
 from callback.engine.actor.offers import Role
 from callback.engine.actor.standing import star_power
 from callback.engine.core.meters import StandingModel
+from callback.engine.core.util import clamp, sigmoid
 from callback.engine.director.skill import ENGAGEMENT_PASSION_PROJECT
 from callback.engine.genre.franchise import SEQUEL_BONUS_AUDIENCE_CENTRE, sequel_bonus, spacing_modifier
 from callback.engine.leverage.indispensability import character_identification, decay_dormant, indispensability
 
 NEW_FRANCHISE_CHANCE = 0.05  # a fresh franchise starting from an original role, per offer rolled
-SEQUEL_CHANCE = 0.35  # if you have an eligible open franchise, a listing this year is a sequel this often
 SEQUEL_ELIGIBLE_MAX_DORMANT_YEARS = 4  # a franchise dormant longer than this isn't greenlighting a sequel
+
+# A studio doesn't roll one flat number for "is this a sequel year" regardless of how the last
+# installment actually did — sequel_probability() reads the same prior_audience_score the sequel-
+# value curve (genre/franchise.py) already tracks, plus how indispensable the lead has become.
+# SEQUEL_CHANCE_BASE is what a franchise gets at exactly-average reception (audience score at
+# SEQUEL_BONUS_AUDIENCE_CENTRE) with no built-up indispensability — the same 0.35 this used to be
+# unconditionally, now a baseline rather than the whole story.
+SEQUEL_CHANCE_BASE = 0.35
+SEQUEL_AUDIENCE_SLOPE = 0.045  # how hard reception swings the odds around that baseline
+SEQUEL_INDISPENSABILITY_COEF = 0.006  # a beloved, hard-to-recast lead keeps a studio coming back
+SEQUEL_CHANCE_CEILING = 0.75  # even a beloved hit franchise isn't greenlit on autopilot every year
+
+
+def sequel_probability(prior_audience_score: float, franchise_indispensability: float) -> float:
+    """How likely a studio is to greenlight the next installment this year, given an eligible,
+    non-dormant franchise. sigmoid(...) * 2 centres on 1.0 at exactly-average reception (so
+    SEQUEL_CHANCE_BASE is unchanged at that point), climbing for a franchise that actually landed
+    with audiences and falling for one that didn't — a $3M flop's sequel is a real long shot, not
+    the same coin flip as a $200M runaway hit's. Indispensability layers a second, independent
+    reason on top: a character audiences have identified with keeps a studio coming back even if
+    the numbers alone wouldn't justify it."""
+    reception_multiplier = sigmoid(SEQUEL_AUDIENCE_SLOPE * (prior_audience_score - SEQUEL_BONUS_AUDIENCE_CENTRE)) * 2.0
+    indispensability_multiplier = 1.0 + SEQUEL_INDISPENSABILITY_COEF * max(franchise_indispensability, 0.0)
+    return clamp(SEQUEL_CHANCE_BASE * reception_multiplier * indispensability_multiplier, 0.0, SEQUEL_CHANCE_CEILING)
 FRANCHISE_INDISPENSABILITY_HOLDOUT_THRESHOLD = 30.0
 DEFAULT_CONTRACTUAL_HOLD = 50.0  # §6.4 names this as a real input; not otherwise modeled this pass
 DEFAULT_CAST_AVERAGE_STAR_POWER = 50.0  # same — the rest of the cast's own star power isn't tracked per-NPC
@@ -55,10 +79,14 @@ def maybe_attach_franchise(role: Role, franchises: dict, current_year: int, rng:
         f for f in franchises.values()
         if current_year - f.last_installment_year <= SEQUEL_ELIGIBLE_MAX_DORMANT_YEARS
     ]
-    if eligible and rng.random() < SEQUEL_CHANCE:
-        f = rng.choice(eligible)
-        return replace(role, genre=f.genre, studio=f.studio_id, franchise_id=f.franchise_id,
-                        installment_number=f.installments_starred + 1)
+    # Each eligible franchise gets its own independent roll, in shuffled order (so with several
+    # open franchises it isn't always the same one checked first) — a beloved hit and a franchise
+    # nobody liked are no longer competing for the same flat chance, each stands on its own
+    # reception. First one to clear its own bar wins the slot.
+    for f in rng.sample(eligible, len(eligible)):
+        if rng.random() < sequel_probability(f.prior_audience_score, f.indispensability):
+            return replace(role, genre=f.genre, studio=f.studio_id, franchise_id=f.franchise_id,
+                            installment_number=f.installments_starred + 1)
     if rng.random() < NEW_FRANCHISE_CHANCE:
         franchise_id = f"fr_{rng.randrange(10**6):06d}"
         return replace(role, franchise_id=franchise_id, installment_number=1)
