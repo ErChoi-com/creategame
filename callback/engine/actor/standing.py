@@ -17,7 +17,13 @@ METER_NAMES = ("heat", "prestige", "affection", "notoriety")
 # §4.3 baseline yearly decay — Prestige/Affection/Notoriety are fixed; Heat's is billing-aware
 # (HEAT_KEEP below) so it isn't listed here.
 PRESTIGE_DECAY = 0.985
-AFFECTION_DECAY = 0.96
+# Affection had no billing-aware keep rate the way Heat does, and no base gain per film the way
+# Heat's HEAT_BASE gives it either — delta_affection is pure signed audience-score-vs-centre with
+# nothing to offset a "steady" (average) film, so 0.96 (4%/yr) meant it could barely ever
+# outrun its own decay even for a genuinely well-liked star, decaying back to near-zero within a
+# few years of anything less than a sustained hit streak. Brought closer to Prestige's own rate —
+# still real decay, still needs tending, just no longer structurally impossible to hold onto.
+AFFECTION_DECAY = 0.975
 NOTORIETY_DECAY = 0.84
 
 # §4.3 — "the tier you can reach has to be able to outrun the decay on that tier."

@@ -506,6 +506,17 @@ been financing it, and every call a studio would normally make becomes genuinely
   is never overruled, your marketing push is never ignored, and the full rights share is yours
   (no studio's cut coming off the top).
 
+**Affection's decay was structurally impossible to outrun, rebalanced to 0.975** (`actor/
+standing.py`). `delta_affection` — unlike Heat's `HEAT_BASE` (a guaranteed gain "just for working")
+or Prestige's own critic-driven baseline — has no floor term of its own: it's pure
+`0.10 × (audience_score − 55)`, so anything short of consistently above-average reception nets flat
+or negative, on top of a decay that used to erase 4%/year regardless. A real trial run (a maxed-out,
+always-lead, "biggest star ever" strategy, genuinely landing several "a phenomenon" results) still
+finished with Affection bouncing between single digits and the low-20s the whole career, never
+compounding — the meter behaved as if it were actively working against a well-liked star, not just
+a neutral one. `AFFECTION_DECAY` moved from 0.96 to 0.975, closer to Prestige's own 0.985: still a
+real, tended-to resource, just no longer one that decays faster than an ordinary hit can build it.
+
 ## Known gaps and simplifications (documented inline at each site too)
 
 - **`actor/offers.sample_role()`** is still a placeholder role generator — it doesn't scale a
