@@ -7,12 +7,29 @@ from __future__ import annotations
 import random
 import unittest
 
+from callback.engine.director.development import greenlight_probability
 from callback.engine.simulation._director import (
     apply_dev_action_and_advance,
     new_director_state,
     start_development,
 )
 from callback.engine.simulation.session import Session
+
+
+class TestGreenlightProbabilityIsClamped(unittest.TestCase):
+    def test_never_exceeds_one_even_at_extreme_momentum(self):
+        p = greenlight_probability(pkg_strength=100.0, diff=0.0, momentum=50.0)
+        self.assertLessEqual(p, 1.0)
+
+    def test_never_goes_negative_at_extreme_low_inputs(self):
+        p = greenlight_probability(pkg_strength=0.0, diff=200.0, momentum=0.0)
+        self.assertGreaterEqual(p, 0.0)
+
+    def test_stays_unclamped_in_ordinary_ranges(self):
+        # a realistic case shouldn't get artificially capped by the safety clamp
+        p = greenlight_probability(pkg_strength=70.0, diff=60.0, momentum=1.0)
+        self.assertGreater(p, 0.0)
+        self.assertLess(p, 1.0)
 
 
 class TestDirectorStateBasics(unittest.TestCase):

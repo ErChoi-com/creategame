@@ -7,7 +7,7 @@ import math
 import random
 from dataclasses import dataclass, replace
 
-from callback.engine.core.util import sigmoid
+from callback.engine.core.util import clamp, sigmoid
 
 PACKAGE_STAR_WEIGHT = 0.40
 PACKAGE_SCRIPT_WEIGHT = 0.30
@@ -44,7 +44,12 @@ def difficulty(budget_millions: float) -> float:
 
 
 def greenlight_probability(pkg_strength: float, diff: float, momentum: float) -> float:
-    return GREENLIGHT_BASE_PROBABILITY * sigmoid(GREENLIGHT_SLOPE * (pkg_strength - diff)) * momentum
+    """momentum has no upper bound of its own (it compounds across quarters, uncapped) and enters
+    here as a flat multiplier — nothing else in this formula stops the product from exceeding 1.0
+    at a high enough momentum, which isn't a meaningful probability. Never observed in practice at
+    realistic momentum/package values, but clamped explicitly so it's provably safe rather than
+    safe-by-coincidence."""
+    return clamp(GREENLIGHT_BASE_PROBABILITY * sigmoid(GREENLIGHT_SLOPE * (pkg_strength - diff)) * momentum, 0.0, 1.0)
 
 
 @dataclass(frozen=True)
