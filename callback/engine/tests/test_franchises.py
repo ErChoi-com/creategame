@@ -251,6 +251,19 @@ class TestSessionFranchiseIntegration(unittest.TestCase):
         for f in session.franchise_status():
             self.assertIsInstance(f["genre"], str)
 
+    def test_a_pruned_pending_spinoff_does_not_crash_the_next_offer_board(self):
+        # A signed multi-picture deal takes the guaranteed slot over a spin-off launched the same
+        # year (_guaranteed_listing's own documented priority) — the spin-off's own franchise entry
+        # never gets "touched" that year, and decay_dormant_franchises() prunes an untouched,
+        # still-zero-indispensability entry. The dangling _pending_spinoff_franchise_id pointer used
+        # to crash the very next offer_board() with a KeyError; it should now just no-op instead.
+        session = Session(seed=99)
+        session.start("conservatory", "work")
+        session._pending_spinoff_franchise_id = "fr_spinoff_does_not_exist"
+        listings = session.offer_board()  # must not raise
+        self.assertIsNone(session._pending_spinoff_franchise_id)
+        self.assertGreater(len(listings), 0)
+
 
 if __name__ == "__main__":
     unittest.main()

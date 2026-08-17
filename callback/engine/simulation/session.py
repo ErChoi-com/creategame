@@ -219,7 +219,15 @@ class Session:
             )
             source = "deal"
         elif self._pending_spinoff_franchise_id is not None:
-            f = self.state.franchises[self._pending_spinoff_franchise_id]
+            f = self.state.franchises.get(self._pending_spinoff_franchise_id)
+            if f is None:
+                # A signed multi-picture deal can take the guaranteed slot the same year a spin-off
+                # was launched, leaving the spin-off's own listing un-fulfilled that year — untouched,
+                # it's exactly what decay_dormant_franchises() prunes at year's end. The pointer here
+                # would otherwise dangle into a KeyError next time the board is built; treat a pruned
+                # spin-off the same as one that was never launched rather than crashing on it.
+                self._pending_spinoff_franchise_id = None
+                return None
             role = replace(
                 sample_role(self.rng), studio=f.studio_id, genre=f.genre,
                 franchise_id=self._pending_spinoff_franchise_id, installment_number=1,
