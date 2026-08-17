@@ -506,16 +506,22 @@ been financing it, and every call a studio would normally make becomes genuinely
   is never overruled, your marketing push is never ignored, and the full rights share is yours
   (no studio's cut coming off the top).
 
-**Affection's decay was structurally impossible to outrun, rebalanced to 0.975** (`actor/
-standing.py`). `delta_affection` — unlike Heat's `HEAT_BASE` (a guaranteed gain "just for working")
-or Prestige's own critic-driven baseline — has no floor term of its own: it's pure
+**Affection's decay was structurally impossible to outrun, now matched to Prestige's own rate**
+(`actor/standing.py`). `delta_affection` — unlike Heat's `HEAT_BASE` (a guaranteed gain "just for
+working") or Prestige's own critic-driven baseline — has no floor term of its own: it's pure
 `0.10 × (audience_score − 55)`, so anything short of consistently above-average reception nets flat
 or negative, on top of a decay that used to erase 4%/year regardless. A real trial run (a maxed-out,
 always-lead, "biggest star ever" strategy, genuinely landing several "a phenomenon" results) still
 finished with Affection bouncing between single digits and the low-20s the whole career, never
 compounding — the meter behaved as if it were actively working against a well-liked star, not just
-a neutral one. `AFFECTION_DECAY` moved from 0.96 to 0.975, closer to Prestige's own 0.985: still a
-real, tended-to resource, just no longer one that decays faster than an ordinary hit can build it.
+a neutral one. A first pass moved `AFFECTION_DECAY` from 0.96 to 0.975; a second pass set it equal
+to `PRESTIGE_DECAY` (0.985) outright — Affection has no per-film floor the way the other three
+meters effectively do, so there's no principled reason for it to decay *faster* than Prestige, only
+a reason for it to still decay at all. A follow-up trial (same "biggest star" strategy) rode one
+scifi franchise through 5 installments and 6 spin-off chains, landed "a phenomenon" audience
+reception on more than half its films, and Affection genuinely compounded — peaking at 91.3 and
+finally crossing both the 65 (approvals) and momentarily the 80 (box office bonus) Standing
+thresholds, unlocking 35/45 approvals in a single run for the first time.
 
 ## Known gaps and simplifications (documented inline at each site too)
 

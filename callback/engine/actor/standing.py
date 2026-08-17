@@ -21,9 +21,12 @@ PRESTIGE_DECAY = 0.985
 # Heat's HEAT_BASE gives it either — delta_affection is pure signed audience-score-vs-centre with
 # nothing to offset a "steady" (average) film, so 0.96 (4%/yr) meant it could barely ever
 # outrun its own decay even for a genuinely well-liked star, decaying back to near-zero within a
-# few years of anything less than a sustained hit streak. Brought closer to Prestige's own rate —
-# still real decay, still needs tending, just no longer structurally impossible to hold onto.
-AFFECTION_DECAY = 0.975
+# few years of anything less than a sustained hit streak. A first pass moved this to 0.975; still
+# not quite reasonable — Affection is the one meter with no per-film floor at all, so it should
+# decay no faster than Prestige's own rate, not just "less fast than before." Matched to
+# PRESTIGE_DECAY directly: still real decay, still needs tending, just no longer the one meter
+# structurally harder to hold onto than every other.
+AFFECTION_DECAY = PRESTIGE_DECAY
 NOTORIETY_DECAY = 0.84
 
 # §4.3 — "the tier you can reach has to be able to outrun the decay on that tier."
