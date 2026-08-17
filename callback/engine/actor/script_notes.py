@@ -10,6 +10,12 @@ from dataclasses import dataclass
 CLARITY, AMBIGUITY, YOUR_PART, WHOLE_FILM = "clarity", "ambiguity", "your_part", "whole_film"
 SCRIPT_NOTE_OPTIONS = (CLARITY, AMBIGUITY, YOUR_PART, WHOLE_FILM)
 
+# A director pushing notes on their own film has no "your part" to push for — that option is
+# specifically an actor angling for their own role at the film's expense. The other three (make it
+# read clearer, make it read richer, or just make the whole thing better) are exactly the choices
+# a director actually faces.
+DIRECTOR_SCRIPT_NOTE_OPTIONS = (CLARITY, AMBIGUITY, WHOLE_FILM)
+
 CLARITY_AUDIENCE_DELTA = 4.0
 CLARITY_CRITIC_DELTA = -3.0
 

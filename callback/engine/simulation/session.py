@@ -37,7 +37,7 @@ from callback.engine.actor.persona import GENRES
 from callback.engine.actor.positions import DIAL_LABELS, DIALS, PLAYER_LABELS, POSITIONS, generosity, upstaging
 from callback.engine.actor.prep import PREP_OPTIONS, WING_IT
 from callback.engine.actor.release import RELEASE_STRATEGIES, STREAMING_BUYOUT_MULTIPLIER, WIDE, LIMITED, weekly_gross_curve
-from callback.engine.actor.script_notes import SCRIPT_NOTE_OPTIONS, apply_script_note
+from callback.engine.actor.script_notes import DIRECTOR_SCRIPT_NOTE_OPTIONS, SCRIPT_NOTE_OPTIONS, apply_script_note
 from callback.engine.actor.standing import standing_score
 from callback.engine.actor.studios import SELF_DISTRIBUTE_MULTIPLIER, STUDIOS, decide_release_strategy, streaming_bidders
 from callback.engine.awards.awards import NarrativeContext, buzz_score, narrative_bonus
@@ -69,7 +69,10 @@ from callback.engine.director.development import DEV_ACTIONS
 from callback.engine.studio.slate import TIER_BUDGETS
 from callback.engine.simulation._director import (
     apply_dev_action_and_advance,
+    choose_director_script_note,
     new_director_state,
+    request_director_marketing_push,
+    request_director_release,
     start_development,
 )
 from callback.engine.world.genre_cycle import accumulate_heat
@@ -854,6 +857,34 @@ class Session:
         budget = TIER_BUDGETS.get(budget_tier, TIER_BUDGETS["low"])
         self.state = replace(self.state, director=start_development(self.state.director, genre, budget, self.rng))
 
+    # ---- a director's own script notes, release request, and marketing push ------------------
+    # Ported from the acting side, reusing the same underlying formulas: script notes
+    # (actor.script_notes), the release-strategy request (studios.decide_release_strategy), and
+    # the marketing push (studios.decide_marketing_spend) — but weighed by director_influence_on_
+    # studio_decision() instead of the actor curve, since it's the director's own film either way.
+
+    @staticmethod
+    def director_script_note_options() -> list[tuple[str, str]]:
+        labels = {
+            "clarity": "Push for clarity — audiences follow it, critics call it obvious",
+            "ambiguity": "Push for ambiguity — critics lean in, audiences find it cold",
+            "whole_film": "Push for the whole film — no angle, it just gets better",
+        }
+        return [(o, labels[o]) for o in DIRECTOR_SCRIPT_NOTE_OPTIONS]
+
+    def choose_director_script_note_action(self, choice: str) -> None:
+        self.state = replace(self.state, director=choose_director_script_note(self.state.director, choice))
+
+    @staticmethod
+    def director_release_options() -> list[tuple[str, str]]:
+        return [(s, RELEASE_LABELS[s]) for s in RELEASE_STRATEGIES]
+
+    def request_director_release_strategy(self, strategy: str) -> None:
+        self.state = replace(self.state, director=request_director_release(self.state.director, strategy))
+
+    def request_director_marketing_push_action(self) -> None:
+        self.state = replace(self.state, director=request_director_marketing_push(self.state.director))
+
     @staticmethod
     def director_dev_action_options() -> list[tuple[str, str]]:
         labels = {
@@ -894,6 +925,11 @@ class Session:
                 "gross_millions": info["gross_millions"],
                 "budget_millions": round(info["budget"], 1),
                 "marketing_millions": info["marketing_millions"],
+                "requested_release": RELEASE_LABELS[info["requested_release"]] if info["requested_release"] else None,
+                "release_label": RELEASE_LABELS[info["release_strategy"]],
+                "release_overruled": info["release_overruled"],
+                "marketing_push_requested": info["marketing_push_requested"],
+                "marketing_push_honored": info["marketing_push_honored"],
             })
         return result
 

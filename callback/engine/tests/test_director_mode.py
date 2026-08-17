@@ -13,10 +13,57 @@ from callback.engine.actor.standing import delta_prestige
 from callback.engine.director.development import greenlight_probability
 from callback.engine.simulation._director import (
     apply_dev_action_and_advance,
+    choose_director_script_note,
     new_director_state,
+    request_director_marketing_push,
+    request_director_release,
     start_development,
 )
 from callback.engine.simulation.session import Session
+
+
+class TestDirectorScriptNoteReleaseAndMarketingPending(unittest.TestCase):
+    def test_your_part_is_not_offered_to_a_director(self):
+        from callback.engine.actor.script_notes import DIRECTOR_SCRIPT_NOTE_OPTIONS
+        self.assertNotIn("your_part", DIRECTOR_SCRIPT_NOTE_OPTIONS)
+
+    def test_choosing_a_script_note_applies_quality_immediately_and_holds_the_rest_pending(self):
+        state = new_director_state()
+        state = start_development(state, "drama", 30.0, random.Random(1))
+        quality_before = state.current_true_script_quality
+        state = choose_director_script_note(state, "whole_film")
+        self.assertGreater(state.current_true_script_quality, quality_before)
+        self.assertNotEqual(state.pending_script_note.script_quality_delta, 0.0)
+
+    def test_an_unknown_choice_is_a_no_op(self):
+        state = new_director_state()
+        state = start_development(state, "drama", 30.0, random.Random(1))
+        same = choose_director_script_note(state, "your_part")
+        self.assertEqual(same, state)
+
+    def test_release_request_only_accepts_a_real_strategy(self):
+        state = new_director_state()
+        state = start_development(state, "drama", 30.0, random.Random(1))
+        updated = request_director_release(state, "streaming")
+        self.assertEqual(updated.pending_release_request, "streaming")
+        rejected = request_director_release(state, "not_a_real_strategy")
+        self.assertIsNone(rejected.pending_release_request)
+
+    def test_marketing_push_request_sets_the_flag(self):
+        state = new_director_state()
+        updated = request_director_marketing_push(state)
+        self.assertTrue(updated.pending_marketing_push)
+
+    def test_starting_a_new_project_clears_stale_pending_choices(self):
+        state = new_director_state()
+        state = start_development(state, "drama", 30.0, random.Random(1))
+        state = choose_director_script_note(state, "clarity")
+        state = request_director_release(state, "streaming")
+        state = request_director_marketing_push(state)
+        fresh = start_development(state, "comedy", 12.0, random.Random(2))
+        self.assertEqual(fresh.pending_script_note.script_quality_delta, 0.0)
+        self.assertIsNone(fresh.pending_release_request)
+        self.assertFalse(fresh.pending_marketing_push)
 
 
 class TestDirectorPrestigeUsesAudienceScoreNotDoubledCritic(unittest.TestCase):
@@ -34,7 +81,7 @@ class TestDirectorPrestigeUsesAudienceScoreNotDoubledCritic(unittest.TestCase):
         )
         prestige_before = state.standing["prestige"]
         with patch("callback.engine.simulation._director.advance_quarter", return_value=(state.current_project, True)), \
-             patch("callback.engine.simulation._director._resolve_directed_film", return_value=fake_reception):
+             patch("callback.engine.simulation._director._resolve_directed_film", return_value=(fake_reception, "wide", False)):
             new_state, info = apply_dev_action_and_advance(state, "rewrite", genre_demand=55.0, rng=random.Random(2))
 
         self.assertTrue(info["greenlit"])
@@ -186,6 +233,62 @@ class TestSessionDirectorIntegration(unittest.TestCase):
             if result["greenlit"]:
                 self.assertIsInstance(result["critic_band"], str)
                 self.assertIsInstance(result["roi"], float)
+                resolved = True
+                break
+        self.assertTrue(resolved)
+
+
+class TestSessionDirectorCreativeOptions(unittest.TestCase):
+    def test_script_note_options_exposed_and_settable(self):
+        session = Session(seed=30)
+        session.start("conservatory", "work")
+        session.become_director()
+        session.start_directing_project("drama", "low")
+        keys = [k for k, _ in session.director_script_note_options()]
+        self.assertIn("clarity", keys)
+        self.assertNotIn("your_part", keys)
+        session.choose_director_script_note_action("clarity")
+        self.assertNotEqual(session.state.director.pending_script_note.audience_delta, 0.0)
+
+    def test_release_request_and_marketing_push_reach_the_resolved_greenlight(self):
+        session = Session(seed=31)
+        session.start("conservatory", "work")
+        session.become_director()
+        session.start_directing_project("drama", "low")
+        session.request_director_release_strategy("streaming")
+        session.request_director_marketing_push_action()
+
+        resolved = False
+        for _ in range(50):
+            if not session.director_status()["in_development"]:
+                session.start_directing_project("drama", "low")
+                session.request_director_release_strategy("streaming")
+                session.request_director_marketing_push_action()
+            result = session.advance_directing("attach_star")
+            if result["greenlit"]:
+                self.assertIn(result["requested_release"], (None, "Streaming — a flat guaranteed payout, no upside"))
+                self.assertIsInstance(result["release_overruled"], bool)
+                self.assertIsInstance(result["marketing_push_requested"], bool)
+                self.assertIsInstance(result["marketing_push_honored"], bool)
+                resolved = True
+                break
+        self.assertTrue(resolved)
+
+    def test_no_request_means_not_requested_or_honored(self):
+        session = Session(seed=32)
+        session.start("conservatory", "work")
+        session.become_director()
+        session.start_directing_project("drama", "low")
+        resolved = False
+        for _ in range(50):
+            if not session.director_status()["in_development"]:
+                session.start_directing_project("drama", "low")
+            result = session.advance_directing("attach_star")
+            if result["greenlit"]:
+                self.assertIsNone(result["requested_release"])
+                self.assertFalse(result["release_overruled"])
+                self.assertFalse(result["marketing_push_requested"])
+                self.assertFalse(result["marketing_push_honored"])
                 resolved = True
                 break
         self.assertTrue(resolved)

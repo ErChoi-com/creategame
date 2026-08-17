@@ -416,6 +416,33 @@ win earns back. That trust then changes real numbers, not just a ledger:
   `director_relationship_status()` show in the pull menu next to Rolodex/Franchises/Leverage, and
   `available_directors()` now shows trust alongside the existing relationship/favour-balance read.
 
+**Directing a film now has the same in-project creative choices acting does, not just
+development-hell actions** (`actor/script_notes.py`, `actor/studios.py`, `simulation/_director.py`).
+A director starting a new project makes three real calls before it ever reaches a greenlight:
+
+- **Script notes**, reusing `apply_script_note()` directly — but through
+  `DIRECTOR_SCRIPT_NOTE_OPTIONS`, a three-option subset (clarity, ambiguity, whole film) that drops
+  the actor-only "your part" choice, since a director pushing notes on their own film has no
+  separate on-screen role to angle for. `Session.director_script_note_options()` /
+  `choose_director_script_note_action()`.
+- **A release-strategy request** — a directed film was always hardcoded Wide; now
+  `request_director_release_strategy()` lets you ask for any of `RELEASE_STRATEGIES`, resolved
+  through the same `decide_release_strategy()` the actor path uses.
+- **A marketing-push request** — `request_director_marketing_push_action()` reuses
+  `decide_marketing_spend()`'s existing `requested_push` lever, previously only reachable from the
+  actor side.
+
+Both requests are genuinely negotiated, not guaranteed: `decide_release_strategy()` and
+`decide_marketing_spend()` gained an `influence_fn` parameter so they can be steered by a curve
+other than the actor's own `actor_influence_on_studio_decision()`. Directors get
+`director_influence_on_studio_decision()` — same convex shape, same 0.92 ceiling as the actor
+curve (never a higher roof), but a real, higher floor (0.08 vs 0.02) and a gentler power (cubed,
+not to the fourth) so it climbs faster through the low-and-middle range: it's their own picture,
+their name on it either way, which is a genuinely stronger position than a hired actor lobbying on
+someone else's film. `Session.director_release_options()` and the CLI's directing block surface
+both requests, and a GREENLIT result now reports whether the requested strategy/push was honored or
+overruled.
+
 ## Known gaps and simplifications (documented inline at each site too)
 
 - **`actor/offers.sample_role()`** is still a placeholder role generator — it doesn't scale a

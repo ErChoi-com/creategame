@@ -416,6 +416,16 @@ def directing_block(session: Session, auto: bool) -> None:
         tier_key = choose(session.director_budget_tier_options(), "  Pick a budget tier to pursue:", 1, auto)
         session.start_directing_project(genre_key, tier_key)
         status = session.director_status()
+
+        note_key = choose(session.director_script_note_options(), "  Your own notes pass on the script:", 0, auto)
+        session.choose_director_script_note_action(note_key)
+
+        release_key = choose(session.director_release_options(), "  How do you want this one released, if it lands?", 0, auto)
+        session.request_director_release_strategy(release_key)
+
+        push_choice = prompt("  Lobby the studio for a bigger marketing campaign, if it lands? [Y]/[N]", "N", auto)
+        if push_choice.upper() == "Y":
+            session.request_director_marketing_push_action()
     else:
         print(f"    Still developing: {status['genre']} · ${status['budget_ask']:.0f}M · "
               f"momentum {status['momentum']} · {status['quarters_in_dev']} quarter(s) in")
@@ -428,6 +438,11 @@ def directing_block(session: Session, auto: bool) -> None:
               f"${result['marketing_millions']:.1f}M marketing. Critics {result['critic_band']} "
               f"({result['critic_score']}), audience {result['audience_band']}, "
               f"{result['roi_band']} (ROI {result['roi']:.2f}x), ${result['gross_millions']:.1f}M gross.")
+        print(f"    Release: {result['release_label']}"
+              + (f" (you asked for {result['requested_release']} — overruled)" if result['release_overruled'] else ""))
+        if result["marketing_push_requested"]:
+            print(f"    (Your lobbying for a bigger campaign was "
+                  f"{'honored' if result['marketing_push_honored'] else 'ignored'}.)")
     elif result["dead"]:
         print("    The project died in development hell.")
     elif result["frozen"]:

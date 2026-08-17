@@ -127,13 +127,38 @@ def actor_influence_on_studio_decision(trust: float, actor_importance: float) ->
 # Backward-compatible name — release-strategy call sites keep importing this exact function.
 actor_influence_on_release = actor_influence_on_studio_decision
 
+# A director asking the studio to release or market *their own* film starts from a genuinely
+# stronger position than a hired actor lobbying on someone else's — it's their picture, their name
+# on it either way. Same shape of curve (still convex, still bounded, still never a guaranteed
+# yes), but a real, higher floor (0.08 vs 0.02) and a gentler power (3 vs 4) so it climbs faster
+# through the low-and-middle range — without raising the ceiling at all: even the biggest director
+# tops out at the same 0.92 an A-lister actor does, not higher.
+DIRECTOR_INFLUENCE_BASE = 0.10
+DIRECTOR_INFLUENCE_IMPORTANCE_COEF = 0.85
+DIRECTOR_INFLUENCE_IMPORTANCE_POWER = 3.0
+DIRECTOR_INFLUENCE_TRUST_SWING = 0.20
+DIRECTOR_INFLUENCE_FLOOR = 0.08
+DIRECTOR_INFLUENCE_CEILING = STUDIO_INFLUENCE_CEILING  # same cap as an actor — better odds, not a higher roof
+
+
+def director_influence_on_studio_decision(trust: float, director_importance: float) -> float:
+    """The director-side version of actor_influence_on_studio_decision() — same convex shape, a
+    higher floor and gentler power so a director's own say on their own film climbs faster through
+    ordinary Standing levels, but never a higher ceiling than an actor's own best case."""
+    importance_term = DIRECTOR_INFLUENCE_IMPORTANCE_COEF * (max(director_importance, 0.0) / 100.0) ** DIRECTOR_INFLUENCE_IMPORTANCE_POWER
+    trust_multiplier = 1.0 + DIRECTOR_INFLUENCE_TRUST_SWING * (trust - 50.0) / 50.0
+    influence = DIRECTOR_INFLUENCE_BASE + importance_term * trust_multiplier
+    return clamp(influence, DIRECTOR_INFLUENCE_FLOOR, DIRECTOR_INFLUENCE_CEILING)
+
 
 def decide_release_strategy(
     studio: Studio, requested_strategy: str, trust: float, actor_importance: float, rng: random.Random,
+    influence_fn=actor_influence_on_release,
 ) -> str:
-    """The studio's actual call — requested_strategy only wins with probability
-    actor_influence_on_release(); otherwise the studio releases the film its own way."""
-    influence = actor_influence_on_release(trust, actor_importance)
+    """The studio's actual call — requested_strategy only wins with probability influence_fn()
+    (actor_influence_on_release by default; pass director_influence_on_studio_decision for a
+    director's own request); otherwise the studio releases the film its own way."""
+    influence = influence_fn(trust, actor_importance)
     return requested_strategy if rng.random() < influence else studio.preferred_release
 
 
@@ -175,12 +200,15 @@ def decide_marketing_spend(
     is_franchise_or_adaptation: bool,
     requested_push: bool,
     rng: random.Random,
+    influence_fn=actor_influence_on_studio_decision,
 ) -> MarketingDecision:
     """How much of this film's real budget the studio actually spends marketing it — reactive to
     everything actually knowable at that point (trust, the actor's own pull, the genre's mood,
     whether the built-in-awareness discount applies, and whether a lobbied-for push landed), but
     dominated by real noise (MARKETING_NOISE_SD) rather than the film's own quality, which nobody
-    — including the studio — has a reliable read on yet."""
+    — including the studio — has a reliable read on yet. influence_fn: which "how much does the
+    studio listen to this push" curve to use — pass director_influence_on_studio_decision for a
+    director's own request."""
     baseline = marketing_share_for(studio, film_budget_millions)
     trust_component = MARKETING_TRUST_COEF * (trust - 50.0) / 100.0
     star_component = MARKETING_STARPOWER_COEF * (actor_star_power - 50.0) / 100.0
@@ -191,7 +219,7 @@ def decide_marketing_spend(
     push_honored = False
     push_component = 0.0
     if requested_push:
-        influence = actor_influence_on_studio_decision(trust, actor_star_power)
+        influence = influence_fn(trust, actor_star_power)
         push_honored = rng.random() < influence
         push_component = MARKETING_PUSH_BONUS if push_honored else 0.0
 

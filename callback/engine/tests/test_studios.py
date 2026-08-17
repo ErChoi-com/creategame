@@ -9,13 +9,17 @@ import unittest
 from callback.engine.actor.reception import BREAK_EVEN_MARKETING_SHARE, RIGHTS_SHARE, resolve_reception
 from callback.engine.actor.release import STREAMING_BUYOUT_MULTIPLIER, STREAMING, apply_release_strategy
 from callback.engine.actor.studios import (
+    DIRECTOR_INFLUENCE_CEILING,
+    DIRECTOR_INFLUENCE_FLOOR,
     MARKETING_SHARE_CEILING,
     MARKETING_SHARE_FLOOR,
     SELF_DISTRIBUTE_MULTIPLIER,
+    STUDIO_INFLUENCE_CEILING,
     STUDIOS,
     actor_influence_on_release,
     decide_marketing_spend,
     decide_release_strategy,
+    director_influence_on_studio_decision,
     marketing_share_for,
     pick_studio,
     quality_adjusted_bids,
@@ -285,6 +289,46 @@ class TestMarketingDecision(unittest.TestCase):
             decision = decide_marketing_spend(studio, 250.0, 0.0, 0.0, 0.0, True, False, random.Random(i))
             self.assertGreaterEqual(decision.marketing_share, MARKETING_SHARE_FLOOR)
             self.assertLessEqual(decision.marketing_share, MARKETING_SHARE_CEILING)
+
+
+class TestDirectorInfluenceCurve(unittest.TestCase):
+    def test_higher_floor_than_the_actor_curve(self):
+        self.assertGreater(
+            director_influence_on_studio_decision(trust=50.0, director_importance=0.0),
+            actor_influence_on_release(50.0, 0.0),
+        )
+        self.assertGreaterEqual(director_influence_on_studio_decision(0.0, 0.0), DIRECTOR_INFLUENCE_FLOOR)
+
+    def test_scales_faster_through_the_middle_than_the_actor_curve(self):
+        director_mid = director_influence_on_studio_decision(trust=50.0, director_importance=50.0)
+        actor_mid = actor_influence_on_release(trust=50.0, actor_importance=50.0)
+        self.assertGreater(director_mid, actor_mid)
+
+    def test_never_exceeds_the_same_ceiling_the_actor_curve_has(self):
+        self.assertEqual(DIRECTOR_INFLUENCE_CEILING, STUDIO_INFLUENCE_CEILING)
+        director_top = director_influence_on_studio_decision(trust=100.0, director_importance=100.0)
+        self.assertLessEqual(director_top, STUDIO_INFLUENCE_CEILING)
+
+    def test_decide_release_strategy_accepts_the_director_influence_curve(self):
+        studio = STUDIOS["mid_major"]  # preferred_release="wide"
+        rng = random.Random(7)
+        outcomes = [
+            decide_release_strategy(studio, "streaming", 50.0, 90.0, rng, influence_fn=director_influence_on_studio_decision)
+            for _ in range(200)
+        ]
+        self.assertGreater(outcomes.count("streaming"), 0)
+
+    def test_decide_marketing_spend_accepts_the_director_influence_curve(self):
+        studio = STUDIOS["mid_major"]
+        rng = random.Random(8)
+        honored = sum(
+            decide_marketing_spend(
+                studio, 30.0, 50.0, 90.0, 50.0, False, True, random.Random(i),
+                influence_fn=director_influence_on_studio_decision,
+            ).push_honored
+            for i in range(200)
+        )
+        self.assertGreater(honored, 0)
 
 
 if __name__ == "__main__":

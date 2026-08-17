@@ -9,16 +9,26 @@ you worked, through full_career.advance_between_years exactly as they already do
 
 Explicitly out of scope for this pass, same as the acting-only build originally was for several
 systems: a directed film doesn't participate in the franchise/sequel system (simulation/
-_franchises.py) or offer a release-strategy choice — every directed film is a straight Wide
-release. Both are real, bounded follow-ups, not attempted here.
+_franchises.py). A real, bounded follow-up, not attempted here.
+
+Three actor-side mechanics are ported onto the director track, reusing the same underlying
+formulas rather than inventing parallel ones: script notes (a director's own three-of-four —
+clarity/ambiguity/whole-film; "your part" doesn't apply, they have no part), a release-strategy
+request, and a marketing-push request. The latter two use studios.decide_release_strategy()/
+decide_marketing_spend() exactly as the actor path does, but with director_influence_on_studio_
+decision() in place of the actor curve — a director asking for their own film starts from a real,
+higher floor and climbs faster, though never past the same ceiling an A-list actor already has.
+No persistent director-studio relationship is tracked yet (unlike studio_relations on the acting
+side) — DIRECTOR_STUDIO_TRUST is a flat, neutral stand-in until that's built out.
 """
 from __future__ import annotations
 
 import random
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 
 from callback.engine.actor.reception import RIGHTS_SHARE, ReceptionResult, resolve_reception
-from callback.engine.actor.release import STREAMING_BUYOUT_MULTIPLIER, WIDE, apply_release_strategy
+from callback.engine.actor.release import RELEASE_STRATEGIES, STREAMING_BUYOUT_MULTIPLIER, WIDE, apply_release_strategy
+from callback.engine.actor.script_notes import DIRECTOR_SCRIPT_NOTE_OPTIONS, ScriptNoteEffect, apply_script_note
 from callback.engine.actor.standing import (
     AFFECTION_DECAY,
     HEAT_KEEP,
@@ -29,8 +39,16 @@ from callback.engine.actor.standing import (
     delta_prestige,
     new_standing_model,
     standing_score,
+    star_power,
 )
-from callback.engine.actor.studios import OPENING_MARKETING_COEF, marketing_share_for, pick_studio
+from callback.engine.actor.studios import (
+    OPENING_MARKETING_COEF,
+    decide_marketing_spend,
+    decide_release_strategy,
+    director_influence_on_studio_decision,
+    marketing_share_for,
+    pick_studio,
+)
 from callback.engine.core.meters import StandingModel
 from callback.engine.core.util import clamp
 from callback.engine.director.attributes import DirectorAttributes
@@ -43,6 +61,7 @@ REWRITE_SCRIPT_QUALITY_GAIN = 6.0
 NEW_PROJECT_SCRIPT_QUALITY_MEAN = 58.0
 NEW_PROJECT_SCRIPT_QUALITY_SD = 14.0
 PASSION_PROJECT_STAR_THRESHOLD = 10.0  # under this attached-star bankability, it reads as a passion project
+DIRECTOR_STUDIO_TRUST = 50.0  # neutral baseline — no persistent director-studio relationship tracked yet
 
 
 @dataclass(frozen=True)
@@ -53,6 +72,9 @@ class DirectorState:
     current_project: DevProject | None = None
     current_genre: str | None = None
     current_true_script_quality: float = 0.0
+    pending_script_note: ScriptNoteEffect = field(default_factory=ScriptNoteEffect)
+    pending_release_request: str | None = None
+    pending_marketing_push: bool = False
 
 
 def new_director_state() -> DirectorState:
@@ -62,14 +84,48 @@ def new_director_state() -> DirectorState:
 def start_development(state: DirectorState, genre: str, budget_ask: float, rng: random.Random) -> DirectorState:
     project = DevProject(script_id=f"d_{rng.randrange(10**6):06d}", budget_ask=budget_ask)
     quality = clamp(rng.gauss(NEW_PROJECT_SCRIPT_QUALITY_MEAN, NEW_PROJECT_SCRIPT_QUALITY_SD), 0.0, 100.0)
-    return replace(state, current_project=project, current_genre=genre, current_true_script_quality=quality)
+    return replace(
+        state, current_project=project, current_genre=genre, current_true_script_quality=quality,
+        pending_script_note=ScriptNoteEffect(), pending_release_request=None, pending_marketing_push=False,
+    )
+
+
+def choose_director_script_note(state: DirectorState, choice: str) -> DirectorState:
+    """A director's own notes pass — see DIRECTOR_SCRIPT_NOTE_OPTIONS for the three real choices.
+    script_quality_delta applies immediately (same as a rewrite); the audience/critic deltas are
+    held until the film actually resolves (see _resolve_directed_film)."""
+    if choice not in DIRECTOR_SCRIPT_NOTE_OPTIONS:
+        return state
+    effect = apply_script_note(choice)
+    new_quality = clamp(state.current_true_script_quality + effect.script_quality_delta, 0.0, 100.0)
+    return replace(state, current_true_script_quality=new_quality, pending_script_note=effect)
+
+
+def request_director_release(state: DirectorState, strategy: str) -> DirectorState:
+    """A request, not a command — resolved the same way an actor's is, at greenlight time, via
+    decide_release_strategy() and director_influence_on_studio_decision()."""
+    if strategy not in RELEASE_STRATEGIES:
+        return state
+    return replace(state, pending_release_request=strategy)
+
+
+def request_director_marketing_push(state: DirectorState) -> DirectorState:
+    return replace(state, pending_marketing_push=True)
 
 
 def _resolve_directed_film(
     state: DirectorState, project: DevProject, genre: str, genre_demand: float, rng: random.Random,
-) -> ReceptionResult:
+) -> tuple[ReceptionResult, str, bool]:
+    """Returns (reception, actual_release_strategy, marketing_push_honored)."""
     studio = pick_studio(project.budget_ask, rng)
-    marketing_share = marketing_share_for(studio, project.budget_ask)
+    director_importance = standing_score(state.standing)
+
+    marketing = decide_marketing_spend(
+        studio, project.budget_ask, DIRECTOR_STUDIO_TRUST, star_power(state.standing), genre_demand,
+        is_franchise_or_adaptation=False, requested_push=state.pending_marketing_push, rng=rng,
+        influence_fn=director_influence_on_studio_decision,
+    )
+    marketing_share = marketing.marketing_share
 
     cast_star_power = clamp(30.0 + 0.5 * project.attached_star_bankability + rng.gauss(0.0, 10.0), 0.0, 100.0)
     craft_contribution = clamp(rng.gauss(55.0 + 0.10 * state.attrs.command, 15.0), 0.0, 100.0)
@@ -88,16 +144,25 @@ def _resolve_directed_film(
         cast_star_power=cast_star_power,
         genre_demand=genre_demand,
         rng=rng,
+        palette_audience_effect=state.pending_script_note.audience_delta,
+        palette_critic_effect=state.pending_script_note.critic_delta,
         marketing_share=marketing_share,
         rights_share=RIGHTS_SHARE + studio.rights_share_delta,
         opening_marketing_coef=OPENING_MARKETING_COEF,
         post_luck_override=steered_luck,
     )
-    return apply_release_strategy(
-        reception, WIDE, rng, cast_star_power=cast_star_power,
+
+    actual_strategy = decide_release_strategy(
+        studio, state.pending_release_request or WIDE, DIRECTOR_STUDIO_TRUST, director_importance, rng,
+        influence_fn=director_influence_on_studio_decision,
+    )
+    resolved = apply_release_strategy(
+        reception, actual_strategy, rng, cast_star_power=cast_star_power,
+        festival_tier_bonus=studio.festival_tier_bonus,
         marketing_share=marketing_share, rights_share=RIGHTS_SHARE + studio.rights_share_delta,
         streaming_multiplier=STREAMING_BUYOUT_MULTIPLIER + studio.streaming_multiplier_delta,
     )
+    return resolved, actual_strategy, marketing.push_honored
 
 
 def apply_dev_action_and_advance(state: DirectorState, action: str, genre_demand: float, rng: random.Random) -> tuple[DirectorState, dict]:
@@ -131,7 +196,7 @@ def apply_dev_action_and_advance(state: DirectorState, action: str, genre_demand
         return updated, {"greenlit": False, "dead": False, "frozen": False, "momentum": round(new_project.momentum, 2)}
 
     working_state = replace(state, current_project=new_project, current_true_script_quality=true_quality)
-    reception = _resolve_directed_film(working_state, new_project, genre, genre_demand, rng)
+    reception, actual_strategy, push_honored = _resolve_directed_film(working_state, new_project, genre, genre_demand, rng)
 
     billing_weight = 1.0  # you're always the whole show on your own film
     standing = state.standing.copy()
@@ -158,6 +223,11 @@ def apply_dev_action_and_advance(state: DirectorState, action: str, genre_demand
         "roi": round(reception.roi, 2),
         "gross_millions": round(reception.gross, 1),
         "marketing_millions": round(reception.marketing, 1),
+        "requested_release": state.pending_release_request,
+        "release_strategy": actual_strategy,
+        "release_overruled": state.pending_release_request is not None and state.pending_release_request != actual_strategy,
+        "marketing_push_requested": state.pending_marketing_push,
+        "marketing_push_honored": push_honored,
     }
     return resolved_state, info
 
