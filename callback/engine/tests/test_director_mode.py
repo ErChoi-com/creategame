@@ -6,7 +6,10 @@ from __future__ import annotations
 
 import random
 import unittest
+from unittest.mock import patch
 
+from callback.engine.actor.reception import ReceptionResult
+from callback.engine.actor.standing import delta_prestige
 from callback.engine.director.development import greenlight_probability
 from callback.engine.simulation._director import (
     apply_dev_action_and_advance,
@@ -14,6 +17,32 @@ from callback.engine.simulation._director import (
     start_development,
 )
 from callback.engine.simulation.session import Session
+
+
+class TestDirectorPrestigeUsesAudienceScoreNotDoubledCritic(unittest.TestCase):
+    def test_greenlit_film_prestige_delta_reads_audience_score_independently(self):
+        # Regression test for a real bug: the greenlight resolution used to pass
+        # film_critic_score into BOTH delta_prestige args, double-weighting critic reception
+        # (0.11+0.26 combined) while a director's actual audience reach never factored in at all.
+        state = new_director_state()
+        state = start_development(state, "drama", 30.0, random.Random(1))
+
+        fake_reception = ReceptionResult(
+            project_quality=60.0, film_critic_score=80.0, audience_score=20.0,  # deliberately far apart
+            budget=30.0, marketing=15.0, break_even=45.0, opening=20.0, zeitgeist=50.0, legs=2.0,
+            gross=60.0, roi=1.5,
+        )
+        prestige_before = state.standing["prestige"]
+        with patch("callback.engine.simulation._director.advance_quarter", return_value=(state.current_project, True)), \
+             patch("callback.engine.simulation._director._resolve_directed_film", return_value=fake_reception):
+            new_state, info = apply_dev_action_and_advance(state, "rewrite", genre_demand=55.0, rng=random.Random(2))
+
+        self.assertTrue(info["greenlit"])
+        actual_delta = new_state.standing["prestige"] - prestige_before
+        expected_delta = delta_prestige(1.0, state.credits, fake_reception.film_critic_score, fake_reception.audience_score)
+        wrong_doubled_delta = delta_prestige(1.0, state.credits, fake_reception.film_critic_score, fake_reception.film_critic_score)
+        self.assertAlmostEqual(actual_delta, expected_delta, places=6)
+        self.assertNotAlmostEqual(actual_delta, wrong_doubled_delta, places=6)
 
 
 class TestGreenlightProbabilityIsClamped(unittest.TestCase):

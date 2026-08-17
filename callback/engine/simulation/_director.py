@@ -136,7 +136,13 @@ def apply_dev_action_and_advance(state: DirectorState, action: str, genre_demand
     billing_weight = 1.0  # you're always the whole show on your own film
     standing = state.standing.copy()
     standing.add("heat", delta_heat(billing_weight, state.credits, project.budget_ask, reception.roi, reception.audience_score))
-    standing.add("prestige", delta_prestige(billing_weight, state.credits, reception.film_critic_score, reception.film_critic_score))
+    # delta_prestige wants two genuinely independent signals — what critics thought
+    # (film_critic_score, centred on 57) and a separate visibility term (your_spotlight, centred
+    # on 54). A director has no on-screen Spotlight of their own; audience_score is the real
+    # analog (how much the audience actually embraced the film), not a second read of the same
+    # critic number — reusing film_critic_score for both args here used to double-weight critical
+    # reception (0.11+0.26 combined) while the film's actual audience reach never factored in.
+    standing.add("prestige", delta_prestige(billing_weight, state.credits, reception.film_critic_score, reception.audience_score))
     standing.add("affection", delta_affection(billing_weight, state.credits, project.budget_ask, reception.audience_score))
 
     resolved_state = DirectorState(
