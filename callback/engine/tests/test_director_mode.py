@@ -6,24 +6,13 @@ from __future__ import annotations
 
 import random
 import unittest
-from dataclasses import replace
 
 from callback.engine.simulation._director import (
-    DIRECTOR_UNLOCK_MIN_CREDITS,
-    DIRECTOR_UNLOCK_PRESTIGE,
     apply_dev_action_and_advance,
     new_director_state,
     start_development,
 )
 from callback.engine.simulation.session import Session
-
-
-def _unlock_directing(session: Session) -> None:
-    standing = session.state.actor.standing.copy()
-    standing.add("prestige", DIRECTOR_UNLOCK_PRESTIGE + 5.0)
-    session.state = replace(session.state, actor=replace(
-        session.state.actor, standing=standing, credits=DIRECTOR_UNLOCK_MIN_CREDITS + 1,
-    ))
 
 
 class TestDirectorStateBasics(unittest.TestCase):
@@ -58,32 +47,32 @@ class TestDirectorStateBasics(unittest.TestCase):
 
 
 class TestSessionDirectorIntegration(unittest.TestCase):
-    def test_directing_locked_by_default(self):
+    def test_directing_is_accessible_from_the_very_start_no_gate(self):
+        # Real performance comes entirely from DirectorAttributes (director/attributes.py) once
+        # you're in the chair — a completely separate stat block that never reads the actor's own
+        # Standing — so there's nothing on the acting side to unlock first.
         session = Session(seed=10)
         session.start("conservatory", "work")
-        self.assertFalse(session.directing_unlocked())
-        self.assertFalse(session.is_directing())
+        self.assertTrue(session.directing_unlocked())
+        self.assertFalse(session.is_directing())  # accessible, but not opted into yet
 
-    def test_become_director_requires_unlock(self):
+    def test_become_director_succeeds_immediately_from_a_fresh_session(self):
         session = Session(seed=11)
         session.start("conservatory", "work")
-        msg = session.become_director()
-        self.assertIn("weight in the room", msg)
-        self.assertFalse(session.is_directing())
-
-    def test_become_director_succeeds_once_unlocked(self):
-        session = Session(seed=12)
-        session.start("conservatory", "work")
-        _unlock_directing(session)
-        self.assertTrue(session.directing_unlocked())
         msg = session.become_director()
         self.assertIn("step behind the camera", msg.lower())
         self.assertTrue(session.is_directing())
 
+    def test_becoming_director_twice_is_a_no_op_message(self):
+        session = Session(seed=12)
+        session.start("conservatory", "work")
+        session.become_director()
+        msg = session.become_director()
+        self.assertIn("already directing", msg.lower())
+
     def test_director_status_is_plain_data(self):
         session = Session(seed=13)
         session.start("conservatory", "work")
-        _unlock_directing(session)
         session.become_director()
         status = session.director_status()
         self.assertIsInstance(status["credits"], int)
@@ -104,7 +93,6 @@ class TestSessionDirectorIntegration(unittest.TestCase):
     def test_advance_directing_leaves_the_calendar_to_end_year(self):
         session = Session(seed=14)
         session.start("conservatory", "work")
-        _unlock_directing(session)
         session.become_director()
         session.start_directing_project("drama", "low")
         start_age = session.age()
@@ -118,7 +106,6 @@ class TestSessionDirectorIntegration(unittest.TestCase):
     def test_acting_and_directing_can_both_happen_in_the_same_year(self):
         session = Session(seed=20)
         session.start("conservatory", "work")
-        _unlock_directing(session)
         session.become_director()
         session.start_directing_project("drama", "low")
         start_age = session.age()
@@ -141,7 +128,6 @@ class TestSessionDirectorIntegration(unittest.TestCase):
     def test_a_directed_project_can_eventually_greenlight_and_resolve(self):
         session = Session(seed=15)
         session.start("conservatory", "work")
-        _unlock_directing(session)
         session.become_director()
         session.start_directing_project("drama", "low")
         resolved = False

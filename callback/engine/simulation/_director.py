@@ -38,9 +38,6 @@ from callback.engine.director.development import DevProject, apply_action, advan
 from callback.engine.director.edit import steered_post_luck
 from callback.engine.director.skill import director_skill
 
-DIRECTOR_UNLOCK_PRESTIGE = 55.0  # real weight in the room, not a rubber stamp
-DIRECTOR_UNLOCK_MIN_CREDITS = 5
-
 ATTACH_STAR_BANKABILITY_GAIN = 25.0
 REWRITE_SCRIPT_QUALITY_GAIN = 6.0
 NEW_PROJECT_SCRIPT_QUALITY_MEAN = 58.0

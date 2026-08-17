@@ -403,8 +403,7 @@ def directing_block(session: Session, auto: bool) -> None:
     advance the calendar (see Session.end_year())."""
     if not session.is_directing():
         choice = prompt(
-            "  You've got real weight in the room now — someone would finance your own film. "
-            "Step behind the camera? [Y]/[N]", "Y", auto,
+            "  Step behind the camera and direct your own film? [Y]/[N]", "Y", auto,
         )
         if choice.upper() != "Y":
             return

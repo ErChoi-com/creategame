@@ -68,8 +68,6 @@ from callback.engine.leverage.indispensability import recast_cost, resolve_holdo
 from callback.engine.director.development import DEV_ACTIONS
 from callback.engine.studio.slate import TIER_BUDGETS
 from callback.engine.simulation._director import (
-    DIRECTOR_UNLOCK_MIN_CREDITS,
-    DIRECTOR_UNLOCK_PRESTIGE,
     apply_dev_action_and_advance,
     new_director_state,
     start_development,
@@ -813,12 +811,14 @@ class Session:
     # ---- directing — a second career fused into this same Session/FullState ------------------
 
     def directing_unlocked(self) -> bool:
-        """Real weight in the room, not a rubber stamp: enough Prestige and enough credits to get
-        someone to finance your own project."""
-        return (
-            self.state.actor.standing["prestige"] >= DIRECTOR_UNLOCK_PRESTIGE
-            and self.state.actor.credits >= DIRECTOR_UNLOCK_MIN_CREDITS
-        )
+        """Directing is reachable at any point — no Prestige/credits gate. Whether you actually
+        get films made and how good they are comes entirely from your own DirectorAttributes
+        (vision/command/craft/taste/efficiency, director/attributes.py) once you're in the chair,
+        an independent stat block that never reads your acting Standing at all — there's no
+        acting-side threshold to walk through first, only the director-side numbers you actually
+        earn by directing. Kept as a method (not just always-True inline) so a future real gate —
+        e.g. requiring a favour, or a one-time cost — has one call site to change."""
+        return True
 
     def is_directing(self) -> bool:
         return self.state.director is not None
@@ -826,8 +826,6 @@ class Session:
     def become_director(self) -> str:
         if self.state.director is not None:
             return "You're already directing."
-        if not self.directing_unlocked():
-            return "Not yet — you don't have the weight in the room for someone to finance your own film."
         self.state = replace(self.state, director=new_director_state())
         return "You step behind the camera for the first time."
 

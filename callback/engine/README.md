@@ -349,10 +349,16 @@ not bolted on as a side mode:
   star_power feeding indispensability) rather than living in its own silo.
 
 **Directing is a real second career now, fused into this same `Session`/`FullState` rather than a
-separate one** (`simulation/_director.py`). A sufficiently prestigious actor
-(`directing_unlocked()`: real Prestige and enough credits, not a rubber stamp) can cross into
-directing (`become_director()`) — the CLI's "This year: act, or direct?" choice is a genuinely
-distinct menu, not the acting screens repurposed:
+separate one** (`simulation/_director.py`). `become_director()` is reachable from year one —
+**not** gated behind acting Prestige/credits (an earlier pass gated it behind
+Prestige≥55 + 5 credits, which turned out to be structurally unreachable: brute-forcing every
+scene-position allocation within a typical contrast budget tops spotlight out around 40, and
+`delta_prestige` needs spotlight past 54 just to stop bleeding — a real, well-played actor could
+never clear the bar). Once directing, your films' quality comes entirely from a real, independent
+stat block, `director/attributes.py`'s `DirectorAttributes` (vision/command/craft/taste/
+efficiency) — it never reads the actor's own Standing at all, so there's no acting-side
+prerequisite to satisfy; the two tracks are genuinely parallel, not sequential. The CLI's "This
+year: act, or direct?" choice is a genuinely distinct menu, not the acting screens repurposed:
 
 - **Development hell is real**, not a single roll: `director/development.py`'s `DevProject`
   (momentum, budget ask, an attached star) advances one action a year — rewrite, attach a star,
