@@ -25,6 +25,12 @@ from callback.engine.world.genre_cycle import genre_demand as world_genre_demand
 BUZZ_RANK = {"nothing you've heard": 0, "quiet": 1, "some heat": 2, "real buzz": 3, "the talk of the town": 4}
 GENRES = ["drama", "thriller", "horror", "comedy", "scifi", "action", "period", "romance", "musical", "family"]
 
+# How many extra generate_more_listings() batches franchise_maximizer is willing to burn on a year
+# with no continuing-franchise offer on the board, matching _full_data_report.py's "opportunist"
+# tendency's OPPORTUNIST_SCAN_BATCHES precedent (Session.generate_more_listings() has no cap of its
+# own — this is purely how hard this one policy is willing to look, not an engine limit).
+FRANCHISE_SCAN_BATCHES = 10
+
 
 def prestige_chaser(seed: int, years: int = 60, visited: Counter | None = None) -> dict:
     """Buzz-driven picks, both tracks (actor + director) — the "chase the acclaim" archetype.
@@ -90,10 +96,15 @@ def prestige_chaser(seed: int, years: int = 60, visited: Counter | None = None) 
                 visited["rating.actor.release_as_shot"] += 1
             session.request_marketing_push()
             visited["marketing_push.actor"] += 1
+            # Pitfall 5 — a series project has no release-strategy/box-office-bonus branch at all
+            # (_choose_release_series ignores `strategy` entirely); only tally the requested/
+            # resolved release IDs for a real film-shaped project.
+            is_series_year = session.is_series()
             strategy = "wide" if best["budget_millions"] >= 60.0 else "limited"
             result = session.choose_release(strategy)
-            visited[f"release.actor.request.{strategy}"] += 1
-            visited[f"release.actor.resolved.{result['release_label'].lower().replace(' ', '_')}"] += 1
+            if not is_series_year:
+                visited[f"release.actor.request.{strategy}"] += 1
+                visited[f"release.actor.resolved.{result['release_label'].lower().replace(' ', '_')}"] += 1
             films_acted.append({
                 "genre": best["genre"], "billing": best["billing"], "studio_tag": best["studio_name"],
                 "is_animation": best.get("is_animation", False), **result,
@@ -210,8 +221,8 @@ def franchise_maximizer(seed: int, years: int = 60, visited: Counter | None = No
         visited = Counter()
 
     session = Session(seed=seed)
-    session.start("family_money", "franchise")
-    visited["character_creation.background.family_money"] += 1
+    session.start("conservatory", "franchise")
+    visited["character_creation.background.conservatory"] += 1
 
     held_franchise_ids: set[str] = set()
     signed_deal = False
@@ -222,16 +233,31 @@ def franchise_maximizer(seed: int, years: int = 60, visited: Counter | None = No
     for year in range(years):
         board = session.offer_board()
         available = [o for o in board if o["available"]]
+        continuing = next((o for o in available if o.get("franchise_id") in held_franchise_ids), None)
+        if continuing is None:
+            # No offer on the board continues a franchise already held — scan deeper (like
+            # _full_data_report.py's "opportunist" tendency) rather than settle for the first
+            # handful, both to find a real shot at continuity and, failing that, the best-buzz
+            # lead/supporting role available: real Standing growth is what eventually unlocks
+            # multi_picture_deal_available()'s MULTI_PICTURE_MIN_STANDING gate.
+            for _ in range(FRANCHISE_SCAN_BATCHES):
+                board = board + session.generate_more_listings()
+                visited["offer_board.generate_more_listings"] += 1
+                available = [o for o in board if o["available"]]
+                continuing = next((o for o in available if o.get("franchise_id") in held_franchise_ids), None)
+                if continuing is not None:
+                    break
         best = None
         if available:
-            continuing = next((o for o in available if o.get("franchise_id") in held_franchise_ids), None)
             if continuing is not None:
                 best = continuing
             else:
                 def fallback_score(o):
                     has_franchise = 1.0 if o.get("franchise_id") is not None else 0.0
-                    billing_payoff = {"lead": 3.0, "supporting": 2.0, "bit": 1.0, "extra": 0.0}.get(o["billing"], 0.0)
-                    return (has_franchise * 100.0) + billing_payoff * 10.0 + o["budget_millions"]
+                    buzz = BUZZ_RANK.get(o.get("buzz_band"), 0)
+                    demand = world_genre_demand(session.state.genre_heat, o["genre"])
+                    billing_payoff = {"lead": 1.0, "supporting": 0.6, "bit": 0.2, "extra": 0.0}.get(o["billing"], 0.0)
+                    return has_franchise * 1000.0 + (buzz * 30.0 + demand * 0.5) * billing_payoff
                 best = max(available, key=fallback_score)
 
         if best is not None:
@@ -254,44 +280,54 @@ def franchise_maximizer(seed: int, years: int = 60, visited: Counter | None = No
                 visited["multi_picture_deal.break"] += 1
                 broke_deal = True
 
+            # A lost holdout (recast/write-out) sets Session._role to None — "no project this
+            # year," the same real outcome a declined offer produces. Everything from choose_deal
+            # onward assumes a live role, so a failed holdout must skip straight to end_year() the
+            # same way the "no offer accepted" branch below does.
+            proceeded = True
             if session.holdout_available():
-                session.request_holdout()
+                holdout_result = session.request_holdout()
                 visited["franchise.holdout.request"] += 1
+                proceeded = holdout_result["proceeds"]
 
-            for f in session.spinoff_options():
-                session.launch_spinoff(f["franchise_id"])
-                visited["franchise.spinoff.actor_launch"] += 1
-                break
+            if proceeded:
+                for f in session.spinoff_options():
+                    session.launch_spinoff(f["franchise_id"])
+                    visited["franchise.spinoff.actor_launch"] += 1
+                    break
 
-            bonus_type = "first_dollar_gross" if session.box_office_bonus_available("first_dollar_gross") else "net_points"
-            visited[f"deal.box_office_bonus.{bonus_type}"] += 1
-            want_merch = session.merchandising_available()
-            if want_merch:
-                visited["deal.merchandising"] += 1
-            session.choose_deal(want_approvals=True, want_box_office_bonus=True, bonus_type=bonus_type, want_merchandising=want_merch)
-            visited["deal.approvals"] += 1
-            # Coverage Gap Inventory item 5's "dialect" half — "research" is indie_purist's job in
-            # a later plan; not duplicated here.
-            session.choose_prep("dialect")
-            visited["prep.dialect"] += 1
-            for episode in session.episode_labels():
-                for scene_choice in SCENE_POSITIONS:
-                    session.play_scene(scene_choice)
-                    for dial, position in scene_choice.items():
-                        visited[f"scene_position.{position}"] += 1
-            if session.rating_cut_available():
-                session.choose_rating_stance("release_as_shot")
-                visited["rating.actor.release_as_shot"] += 1
-            session.request_marketing_push()
-            visited["marketing_push.actor"] += 1
-            strategy = "wide" if best["budget_millions"] >= 50.0 else "limited"
-            result = session.choose_release(strategy)
-            visited[f"release.actor.request.{strategy}"] += 1
-            visited[f"release.actor.resolved.{result['release_label'].lower().replace(' ', '_')}"] += 1
-            films_acted.append({
-                "genre": best["genre"], "billing": best["billing"], "studio_tag": best["studio_name"],
-                "franchise_id": best.get("franchise_id"), **result,
-            })
+                bonus_type = "first_dollar_gross" if session.box_office_bonus_available("first_dollar_gross") else "net_points"
+                visited[f"deal.box_office_bonus.{bonus_type}"] += 1
+                want_merch = session.merchandising_available()
+                if want_merch:
+                    visited["deal.merchandising"] += 1
+                session.choose_deal(want_approvals=True, want_box_office_bonus=True, bonus_type=bonus_type, want_merchandising=want_merch)
+                visited["deal.approvals"] += 1
+                # Coverage Gap Inventory item 5's "dialect" half — "research" is indie_purist's job
+                # in a later plan; not duplicated here.
+                session.choose_prep("dialect")
+                visited["prep.dialect"] += 1
+                for episode in session.episode_labels():
+                    for scene_choice in SCENE_POSITIONS:
+                        session.play_scene(scene_choice)
+                        for dial, position in scene_choice.items():
+                            visited[f"scene_position.{position}"] += 1
+                if session.rating_cut_available():
+                    session.choose_rating_stance("release_as_shot")
+                    visited["rating.actor.release_as_shot"] += 1
+                session.request_marketing_push()
+                visited["marketing_push.actor"] += 1
+                # Pitfall 5 — see prestige_chaser's identical guard above.
+                is_series_year = session.is_series()
+                strategy = "wide" if best["budget_millions"] >= 50.0 else "limited"
+                result = session.choose_release(strategy)
+                if not is_series_year:
+                    visited[f"release.actor.request.{strategy}"] += 1
+                    visited[f"release.actor.resolved.{result['release_label'].lower().replace(' ', '_')}"] += 1
+                films_acted.append({
+                    "genre": best["genre"], "billing": best["billing"], "studio_tag": best["studio_name"],
+                    "franchise_id": best.get("franchise_id"), **result,
+                })
         else:
             session.decline_board()
             visited["offer_board.decline"] += 1
