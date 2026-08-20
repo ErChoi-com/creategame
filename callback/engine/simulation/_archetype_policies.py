@@ -19,9 +19,26 @@ from collections import Counter
 
 from callback.engine.director import casting, development as director_development, shoot_style
 from callback.engine.simulation._release_labels import RELEASE_LABELS
-from callback.engine.simulation._sim_policy_shared import SCENE_POSITIONS
+from callback.engine.simulation._sim_policy_shared import CONTRAST_SCENE_POSITIONS, SCENE_POSITIONS
 from callback.engine.simulation.session import Session
 from callback.engine.world.genre_cycle import genre_demand as world_genre_demand
+
+
+def _prefer_self_release(bids):
+    """indie_purist's festival bid selector — creative control over the payout, matching a real
+    "keep it and release it ourselves" indie strategy rather than chasing the biggest guarantee."""
+    for b in bids:
+        if getattr(b, "self_release", False):
+            return b
+    return max(bids, key=lambda b: b.payout_millions)
+
+
+def _prefer_self_distribute(bids):
+    """indie_purist's streaming bid selector — the analogous self-distribute choice."""
+    for b in bids:
+        if getattr(b, "self_distribute", False):
+            return b
+    return max(bids, key=lambda b: b.payout_millions)
 
 BUZZ_RANK = {"nothing you've heard": 0, "quiet": 1, "some heat": 2, "real buzz": 3, "the talk of the town": 4}
 GENRES = ["drama", "thriller", "horror", "comedy", "scifi", "action", "period", "romance", "musical", "family"]
@@ -357,4 +374,249 @@ def franchise_maximizer(seed: int, years: int = 60, visited: Counter | None = No
         "franchise_status": session.franchise_status(),
         "held_franchise_ids": sorted(held_franchise_ids),
         "multi_picture_deal_signed": signed_deal,
+    }
+
+
+def indie_purist(seed: int, years: int = 60, visited: Counter | None = None) -> dict:
+    """Craft-over-money, acting-only — chases buzz/genre-fit without a billing floor (indie roles
+    are frequently supporting/bit), stays deliberately craft-safe on scene positions (the shared
+    SCENE_POSITIONS default IS the differentiator, not indifference — see comment below), and
+    exercises self-release/self-distribute control over festival/streaming money (Coverage Gap
+    Inventory items 5's `research` half, 7's festival/streaming requests, 8's custom bid
+    selectors)."""
+    if visited is None:
+        visited = Counter()
+
+    session = Session(seed=seed)
+    session.start("conservatory", "work")
+    visited["character_creation.background.conservatory"] += 1
+
+    films_acted = []
+    prep_tick = 0
+
+    for _year in range(years):
+        board = session.offer_board()
+        available = [o for o in board if o["available"]]
+        best = None
+        if available:
+            def score(o):
+                buzz = BUZZ_RANK.get(o.get("buzz_band"), 0) * 20.0
+                demand = world_genre_demand(session.state.genre_heat, o["genre"])
+                return buzz + demand
+            best = max(available, key=score)
+
+        if best is not None:
+            session.accept(best["index"])
+            visited["offer_board.accept"] += 1
+            session.choose_deal(want_approvals=False)
+            visited["deal.approvals"] += 1
+            # Alternates research/dialect — Coverage Gap Inventory item 5's `research` half.
+            prep_choice = "research" if prep_tick % 2 == 0 else "dialect"
+            prep_tick += 1
+            session.choose_prep(prep_choice)
+            visited[f"prep.{prep_choice}"] += 1
+            if session.script_notes_available():
+                session.choose_script_note("ambiguity")
+                visited["script_note.actor.ambiguity"] += 1
+            for episode in session.episode_labels():
+                # Deliberate: reuse the shared craft-safe default rather than inventing a new
+                # "sameness" tuple. indie_purist's differentiator IS staying craft-safe — a future
+                # reader should not "fix" this into something else.
+                for scene_choice in SCENE_POSITIONS:
+                    session.play_scene(scene_choice)
+                    for dial, position in scene_choice.items():
+                        visited[f"scene_position.{position}"] += 1
+            is_series_year = session.is_series()
+            if not is_series_year:
+                if best["budget_millions"] < 30.0:
+                    strategy = "festival"
+                    result = session.choose_release(strategy, festival_bid_selector=_prefer_self_release)
+                    visited["release.actor.festival_bid_selector"] += 1
+                else:
+                    strategy = "streaming"
+                    result = session.choose_release(strategy, streaming_bid_selector=_prefer_self_distribute)
+                    visited["release.actor.streaming_bid_selector"] += 1
+                visited[f"release.actor.request.{strategy}"] += 1
+                visited[f"release.actor.resolved.{_RELEASE_LABEL_TO_STRATEGY.get(result['release_label'], 'unknown')}"] += 1
+            else:
+                result = session.choose_release("festival")
+            films_acted.append({
+                "genre": best["genre"], "billing": best["billing"], "studio_tag": best["studio_name"],
+                **result,
+            })
+        else:
+            session.decline_board()
+            visited["offer_board.decline"] += 1
+
+        session.end_year()
+        if session.state.life.money.net_worth < 0.0:
+            session.cut_lifestyle_floor(session.state.life.money.lifestyle_floor * 0.5)
+            visited["life.lifestyle_floor.cut"] += 1
+        if session.is_over():
+            break
+
+    return {
+        "seed": seed, "archetype": "indie_purist", "age": session.age(),
+        "acting_credits": len(films_acted),
+        "agent_tier": session.leverage_status()["agent_tier"],
+        "net_worth": round(session.state.life.money.net_worth, 1),
+        "actor_standing": {k: round(session.state.actor.standing[k], 1) for k in ("heat", "prestige", "affection", "notoriety")},
+        "films_acted": films_acted,
+    }
+
+
+def risk_averse(seed: int, years: int = 60, visited: Counter | None = None) -> dict:
+    """Safe, steady, in-demand moderate-budget roles — no approval fights, a net_points bonus
+    (the less volatile of the two bonus types) when available, always the lower-variance `limited`
+    release. Signature move: requests the rating cut whenever `rating_cut_available()` fires
+    (Coverage Gap Inventory item 3 — the one deliberate-player-choice rating cut no existing
+    report script ever exercises)."""
+    if visited is None:
+        visited = Counter()
+
+    session = Session(seed=seed)
+    session.start("conservatory", "work")
+    visited["character_creation.background.conservatory"] += 1
+
+    films_acted = []
+
+    for _year in range(years):
+        board = session.offer_board()
+        available = [o for o in board if o["available"]]
+        best = None
+        if available:
+            def score(o):
+                demand = world_genre_demand(session.state.genre_heat, o["genre"])
+                billing_payoff = {"lead": 0.6, "supporting": 1.0, "bit": 0.4, "extra": 0.0}.get(o["billing"], 0.0)
+                budget_fit = 1.0 - abs(o["budget_millions"] - 40.0) / 100.0
+                return demand * billing_payoff + budget_fit
+            candidate = max(available, key=score)
+            if candidate["billing"] != "extra":
+                best = candidate
+
+        if best is not None:
+            session.accept(best["index"])
+            visited["offer_board.accept"] += 1
+            bonus_type = "net_points"
+            want_box_office = session.box_office_bonus_available(bonus_type)
+            if want_box_office:
+                visited[f"deal.box_office_bonus.{bonus_type}"] += 1
+            session.choose_deal(want_approvals=False, want_box_office_bonus=want_box_office, bonus_type=bonus_type)
+            visited["deal.approvals"] += 1
+            session.choose_prep("table_work")
+            visited["prep.table_work"] += 1
+            # A risk-averse actor doesn't fight for approvals, so this rarely fires — but when it
+            # does (e.g. a franchise/guaranteed-listing path), push for clarity, not ambiguity.
+            if session.script_notes_available():
+                session.choose_script_note("clarity")
+                visited["script_note.actor.clarity"] += 1
+            for episode in session.episode_labels():
+                for scene_choice in SCENE_POSITIONS:
+                    session.play_scene(scene_choice)
+                    for dial, position in scene_choice.items():
+                        visited[f"scene_position.{position}"] += 1
+            if session.rating_cut_available():
+                session.choose_rating_stance("cut")
+                visited["rating.actor.cut"] += 1
+            is_series_year = session.is_series()
+            result = session.choose_release("limited")
+            if not is_series_year:
+                visited["release.actor.request.limited"] += 1
+                visited[f"release.actor.resolved.{_RELEASE_LABEL_TO_STRATEGY.get(result['release_label'], 'unknown')}"] += 1
+            films_acted.append({
+                "genre": best["genre"], "billing": best["billing"], "studio_tag": best["studio_name"],
+                **result,
+            })
+        else:
+            session.decline_board()
+            visited["offer_board.decline"] += 1
+
+        session.end_year()
+        if session.state.life.money.net_worth < 0.0:
+            session.cut_lifestyle_floor(session.state.life.money.lifestyle_floor * 0.5)
+            visited["life.lifestyle_floor.cut"] += 1
+        if session.is_over():
+            break
+
+    return {
+        "seed": seed, "archetype": "risk_averse", "age": session.age(),
+        "acting_credits": len(films_acted),
+        "agent_tier": session.leverage_status()["agent_tier"],
+        "net_worth": round(session.state.life.money.net_worth, 1),
+        "actor_standing": {k: round(session.state.actor.standing[k], 1) for k in ("heat", "prestige", "affection", "notoriety")},
+        "films_acted": films_acted,
+    }
+
+
+def gambler(seed: int, years: int = 60, visited: Counter | None = None) -> dict:
+    """Extreme-swing scene positions (CONTRAST_SCENE_POSITIONS), the `discovered` background
+    (Coverage Gap Inventory item 1), upstaging the costar (item 4), biggest-budget picks regardless
+    of buzz (mirrors `_full_data_report.py`'s own gambler tendency), and one in four accepted
+    projects requests `shelved` as a deliberate long-shot (item 7 — the request is what closes the
+    coverage gate per decision-map.md's own requested-vs-resolved rule; no studio's
+    preferred_release is ever `shelved`, so this rarely if ever actually resolves that way, which
+    is the point)."""
+    if visited is None:
+        visited = Counter()
+
+    session = Session(seed=seed)
+    session.start("discovered", "run")
+    visited["character_creation.background.discovered"] += 1
+
+    films_acted = []
+    tick = 0
+
+    for _year in range(years):
+        board = session.offer_board()
+        available = [o for o in board if o["available"] and o["billing"] != "extra"]
+        best = max(available, key=lambda o: o["budget_millions"]) if available else None
+
+        if best is not None:
+            session.accept(best["index"])
+            visited["offer_board.accept"] += 1
+            session.choose_deal(want_approvals=False)
+            visited["deal.approvals"] += 1
+            session.choose_prep("physical_transformation")
+            visited["prep.physical_transformation"] += 1
+            costars = session.costar_options()
+            if costars:
+                session.choose_orientation(costars[0]["id"], "upstage")
+            else:
+                session.choose_orientation(None, "upstage")
+            visited["costar.orientation.upstage"] += 1
+            for episode in session.episode_labels():
+                for scene_choice in CONTRAST_SCENE_POSITIONS:
+                    session.play_scene(scene_choice)
+                    for dial, position in scene_choice.items():
+                        visited[f"scene_position.{position}"] += 1
+            is_series_year = session.is_series()
+            tick += 1
+            strategy = "shelved" if tick % 4 == 0 else "wide"
+            result = session.choose_release(strategy)
+            if not is_series_year:
+                visited[f"release.actor.request.{strategy}"] += 1
+                visited[f"release.actor.resolved.{_RELEASE_LABEL_TO_STRATEGY.get(result['release_label'], 'unknown')}"] += 1
+            films_acted.append({
+                "genre": best["genre"], "billing": best["billing"], "studio_tag": best["studio_name"],
+                **result,
+            })
+        else:
+            session.decline_board()
+            visited["offer_board.decline"] += 1
+
+        session.end_year()
+        if session.state.life.money.net_worth < 0.0:
+            session.cut_lifestyle_floor(session.state.life.money.lifestyle_floor * 0.5)
+            visited["life.lifestyle_floor.cut"] += 1
+        if session.is_over():
+            break
+
+    return {
+        "seed": seed, "archetype": "gambler", "age": session.age(),
+        "background": "discovered",
+        "acting_credits": len(films_acted),
+        "agent_tier": session.leverage_status()["agent_tier"],
+        "net_worth": round(session.state.life.money.net_worth, 1),
+        "actor_standing": {k: round(session.state.actor.standing[k], 1) for k in ("heat", "prestige", "affection", "notoriety")},
+        "films_acted": films_acted,
     }

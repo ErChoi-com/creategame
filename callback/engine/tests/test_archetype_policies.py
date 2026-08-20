@@ -5,7 +5,10 @@ from __future__ import annotations
 import unittest
 from collections import Counter
 
-from callback.engine.simulation._archetype_policies import franchise_maximizer, prestige_chaser
+from callback.engine.simulation._archetype_policies import (
+    franchise_maximizer, gambler, indie_purist, prestige_chaser, risk_averse,
+)
+from callback.engine.simulation._sim_policy_shared import CONTRAST_SCENE_POSITIONS
 
 
 class TestPrestigeChaser(unittest.TestCase):
@@ -72,6 +75,63 @@ class TestFranchiseMaximizer(unittest.TestCase):
                 reached_deal = True
                 break
         self.assertTrue(reached_deal, "expected at least one of seeds [3, 7, 21] to sign a multi-picture deal within 40 years")
+
+
+class TestIndiePurist(unittest.TestCase):
+    def test_runs_to_completion_without_raising(self):
+        result = indie_purist(seed=5, years=30)
+        self.assertIsInstance(result, dict)
+        self.assertGreater(result["age"], 22)
+
+    def test_uses_custom_bid_selector(self):
+        visited: Counter = Counter()
+        indie_purist(seed=5, years=40, visited=visited)
+        self.assertGreater(
+            visited["release.actor.festival_bid_selector"] + visited["release.actor.streaming_bid_selector"], 0,
+        )
+
+
+class TestRiskAverse(unittest.TestCase):
+    def test_runs_to_completion_without_raising(self):
+        result = risk_averse(seed=8, years=30)
+        self.assertIsInstance(result, dict)
+        self.assertGreater(result["age"], 22)
+
+    def test_requests_rating_cut_when_available(self):
+        # rating_cut_available() is a narrow near-boundary gate — a wide years window makes this
+        # reliable at a fixed seed; if it ever flakes, widen years further rather than dropping
+        # the assertion.
+        visited: Counter = Counter()
+        risk_averse(seed=8, years=50, visited=visited)
+        self.assertGreater(visited["rating.actor.cut"], 0)
+
+    def test_rating_cut_stance_constant_is_correct(self):
+        from callback.engine.simulation.session import Session
+        keys = {k for k, _ in Session.rating_cut_options()}
+        self.assertIn("cut", keys)
+
+
+class TestGambler(unittest.TestCase):
+    def test_runs_to_completion_without_raising(self):
+        result = gambler(seed=9, years=30)
+        self.assertIsInstance(result, dict)
+        self.assertGreater(result["age"], 22)
+
+    def test_uses_discovered_background(self):
+        visited: Counter = Counter()
+        result = gambler(seed=9, years=30, visited=visited)
+        self.assertEqual(result["background"], "discovered")
+        self.assertEqual(visited["character_creation.background.discovered"], 1)
+
+    def test_contrast_scene_positions_shape(self):
+        self.assertEqual(len(CONTRAST_SCENE_POSITIONS), 3)
+        expected_keys = {"energy", "volume", "warmth", "speed"}
+        all_positions = set()
+        for scene in CONTRAST_SCENE_POSITIONS:
+            self.assertEqual(set(scene.keys()), expected_keys)
+            all_positions.update(scene.values())
+        self.assertIn("beyond", all_positions)
+        self.assertIn("against", all_positions)
 
 
 if __name__ == "__main__":

@@ -24,3 +24,16 @@ SCENE_POSITIONS = (
     {"energy": "beneath", "volume": "beneath", "warmth": "beneath", "speed": "beneath"},
     {"energy": "with", "volume": "with", "warmth": "with", "speed": "with"},
 )
+
+# Phase 1 (Playtest & Balance Pass) — the `gambler` archetype's deliberate extreme-swing choice,
+# not a bug and not the v20 flat-WITH mistake above: setup goes all `"beyond"` (push past the
+# film, real risk of landmark divergence), the turn goes all `"against"` (fight the film at its
+# own emotional peak, the highest-variance play available), resolution mixes `"beyond"`/`"against"`
+# across the four dials. Real Prestige/Notices risk accepted on purpose — this is what "gambler"
+# means in scene-position terms, closing Coverage Gap Inventory item 6 (`beyond`/`against` never
+# exercised by any existing report script).
+CONTRAST_SCENE_POSITIONS = (
+    {"energy": "beyond", "volume": "beyond", "warmth": "beyond", "speed": "beyond"},
+    {"energy": "against", "volume": "against", "warmth": "against", "speed": "against"},
+    {"energy": "beyond", "volume": "against", "warmth": "beyond", "speed": "against"},
+)
