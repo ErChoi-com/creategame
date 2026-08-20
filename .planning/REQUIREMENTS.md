@@ -18,8 +18,8 @@ Requirements for this milestone. Each maps to roadmap phases.
 
 ### Automated Sweeps
 
-- [ ] **SWEEP-01**: Automated playthroughs run at volume (many seeds per policy) across the full policy set and produce outcome statistics (career length, income, prestige/heat/affection trajectories, obituary quality, franchise outcomes)
-- [ ] **SWEEP-02**: Sweep output flags stuck/dead-end states (a run that gets stranded with no meaningful further options) distinctly from normal career endings
+- [x] **SWEEP-01**: Automated playthroughs run at volume (many seeds per policy) across the full policy set and produce outcome statistics (career length, income, prestige/heat/affection trajectories, obituary quality, franchise outcomes)
+- [x] **SWEEP-02**: Sweep output flags stuck/dead-end states (a run that gets stranded with no meaningful further options) distinctly from normal career endings
 
 ### Balance Analysis
 
@@ -77,8 +77,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | MAP-01 | Phase 1 | Complete |
 | POLICY-01 | Phase 1 | Complete |
 | POLICY-02 | Phase 1 | Complete |
-| SWEEP-01 | Phase 2 | Pending |
-| SWEEP-02 | Phase 2 | Pending |
+| SWEEP-01 | Phase 2 | Complete |
+| SWEEP-02 | Phase 2 | Complete |
 | ANLZ-01 | Phase 3 | Pending |
 | ANLZ-02 | Phase 3 | Pending |
 | ANLZ-03 | Phase 3 | Pending |
