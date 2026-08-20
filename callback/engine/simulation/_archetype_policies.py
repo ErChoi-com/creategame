@@ -234,6 +234,7 @@ def prestige_chaser(seed: int, years: int = 60, visited: Counter | None = None) 
     d = session.director_status()
     return {
         "seed": seed, "archetype": "prestige_chaser", "age": session.age(),
+        "obituary": session.obituary_summary(),
         "acting_credits": len(films_acted), "director_credits": d["credits"],
         "director_standing": d["standing"], "agent_tier": session.leverage_status()["agent_tier"],
         "net_worth": round(session.state.life.money.net_worth, 1),
@@ -375,6 +376,7 @@ def franchise_maximizer(seed: int, years: int = 60, visited: Counter | None = No
 
     return {
         "seed": seed, "archetype": "franchise_maximizer", "age": session.age(),
+        "obituary": session.obituary_summary(),
         "acting_credits": len(films_acted),
         "agent_tier": session.leverage_status()["agent_tier"],
         "net_worth": round(session.state.life.money.net_worth, 1),
@@ -466,6 +468,7 @@ def indie_purist(seed: int, years: int = 60, visited: Counter | None = None) -> 
 
     return {
         "seed": seed, "archetype": "indie_purist", "age": session.age(),
+        "obituary": session.obituary_summary(),
         "acting_credits": len(films_acted),
         "agent_tier": session.leverage_status()["agent_tier"],
         "net_worth": round(session.state.life.money.net_worth, 1),
@@ -549,6 +552,7 @@ def risk_averse(seed: int, years: int = 60, visited: Counter | None = None) -> d
 
     return {
         "seed": seed, "archetype": "risk_averse", "age": session.age(),
+        "obituary": session.obituary_summary(),
         "acting_credits": len(films_acted),
         "agent_tier": session.leverage_status()["agent_tier"],
         "net_worth": round(session.state.life.money.net_worth, 1),
@@ -622,6 +626,7 @@ def gambler(seed: int, years: int = 60, visited: Counter | None = None) -> dict:
 
     return {
         "seed": seed, "archetype": "gambler", "age": session.age(),
+        "obituary": session.obituary_summary(),
         "background": "discovered",
         "acting_credits": len(films_acted),
         "agent_tier": session.leverage_status()["agent_tier"],
@@ -914,6 +919,7 @@ def director_track(seed: int, years: int = 60, visited: Counter | None = None) -
         "net_worth": round(session.state.life.money.net_worth, 1),
         "own_franchise_id": own_franchise_id,
         "reboot_pitched": reboot_pitched,
+        "obituary": session.obituary_summary(),
     }
 
 
@@ -1010,6 +1016,7 @@ def family_first(seed: int, years: int = 60, visited: Counter | None = None) -> 
 
     return {
         "seed": seed, "archetype": "family_first", "age": session.age(),
+        "obituary": session.obituary_summary(),
         "acting_credits": len(films_acted),
         "agent_tier": session.leverage_status()["agent_tier"],
         "net_worth": round(session.state.life.money.net_worth, 1),
@@ -1091,6 +1098,7 @@ def burnout_avoider(seed: int, years: int = 60, visited: Counter | None = None) 
 
     return {
         "seed": seed, "archetype": "burnout_avoider", "age": session.age(),
+        "obituary": session.obituary_summary(),
         "acting_credits": len(films_acted),
         "agent_tier": session.leverage_status()["agent_tier"],
         "net_worth": round(session.state.life.money.net_worth, 1),
