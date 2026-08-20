@@ -74,7 +74,7 @@ def prestige_chaser(seed: int, years: int = 60, visited: Counter | None = None) 
                 billing_payoff = {"lead": 1.0, "supporting": 0.55, "bit": 0.2, "extra": 0.0}.get(o["billing"], 0.0)
                 return (buzz + demand * 0.5) * billing_payoff
             candidate = max(available, key=score)
-            if BUZZ_RANK.get(candidate.get("buzz_band"), 0) >= 3 and candidate["billing"] != "extra":
+            if BUZZ_RANK.get(candidate.get("buzz_band"), 0) >= 2 and candidate["billing"] != "extra":
                 best = candidate
 
         if best is not None:

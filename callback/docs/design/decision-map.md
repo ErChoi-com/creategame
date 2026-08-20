@@ -45,12 +45,7 @@ Two things worth knowing before reading "covered" off a coverage report:
 
 ## Script notes
 
-| ID | Decision Point | Options | Source (module/function) | Design section |
-|---|---|---|---|---|
-| `script_note.actor.clarity` | Script note (requires script approval) | Push for clarity — audiences follow it, critics call it obvious | `core/script_notes.py` via `Session.choose_script_note("clarity")` (`session.py:952-962`) | design/part-05-the-work.md §5.15 |
-| `script_note.actor.ambiguity` | Script note | Push for ambiguity — critics lean in, audiences find it cold | `core/script_notes.py` via `Session.choose_script_note("ambiguity")` (`session.py:952-962`) | design/part-05-the-work.md §5.15 |
-| `script_note.actor.your_part` | Script note | Push for your part — you read better, the script reads worse | `core/script_notes.py` via `Session.choose_script_note("your_part")` (`session.py:952-962`) | design/part-05-the-work.md §5.15 |
-| `script_note.actor.whole_film` | Script note | Push for the whole film — nothing in it for you, but it gets better | `core/script_notes.py` via `Session.choose_script_note("whole_film")` (`session.py:952-962`) | design/part-05-the-work.md §5.15 |
+**Actor-side script notes (`clarity`, `ambiguity`, `your_part`, `whole_film`) are intentionally NOT cataloged as required coverage IDs — see the Flagged Balance Finding after the Awards section below.** All four route through the identical `Session.script_notes_available()` gate (`"script" in self._approvals`, `session.py:949-950`), which is only ever true when `deal.approvals`' `want_approvals` request was actually *granted* — gated on `APPROVAL_STANDING_THRESHOLD = 65.0` weighted Standing, a bar this phase's research found effectively unreachable through simulated play. Per this phase's CONTEXT.md exclusion rule and the `ambition` precedent above: investigated and confirmed currently-unreachable, not forgotten. `core/script_notes.py` via `Session.choose_script_note(key)` (`session.py:952-962`), design/part-05-the-work.md §5.15, for reference if a future phase reopens this gate.
 
 ## Rating stance
 
@@ -146,6 +141,8 @@ Two things worth knowing before reading "covered" off a coverage report:
 | `awards.director.campaign` | Director awards campaign (DIRECTOR is the only category — reuses the actor track's BuzzScore formulas on director inputs) | boolean call, gated on `director_awards_campaign_available()` | `awards/awards.py` via `Session.run_director_awards_campaign()` (`session.py:1452-1489`) | design/part-04-the-actor.md §4.11 (reused for the director track, per `run_director_awards_campaign`'s own docstring) |
 
 **Known pre-existing bug, not fixed by this phase:** `simulation/_quality_report.py:213` calls `session.run_awards_campaign(spend_millions=2.0)` without the required `category` argument — `Session.run_awards_campaign`'s signature (`session.py:1373`) has no default for `category`, so this call would raise `TypeError` the first time `awards_campaign_available()` returns `True` in a `_quality_report.py` run. This is a bug in a script this phase does not modify (`_quality_report.py` is a superseded, one-off report script per its own docstring). Every new archetype in this phase calls `run_awards_campaign` with an explicit `category` argument to avoid repeating it.
+
+**Flagged balance finding — Approvals threshold, not fixed by this phase:** `APPROVAL_STANDING_THRESHOLD = 65.0` (`leverage/approvals.py:14`) gates script/costar approval negotiation on a weighted Standing score (`0.4·heat + 0.3·prestige + 0.3·affection`). A 59-seed × 60-year sweep of `prestige_chaser` — an archetype built specifically to chase Standing — never crossed a weighted score of ~18, roughly a quarter of the threshold (see `test_archetype_policies.py::TestPrestigeChaser::test_script_note_your_part_is_currently_unreachable_finding`, a passing test that documents the finding rather than force-passing it with a lucky-seed search). This is why the four actor-side script-note IDs are excluded from the catalog above rather than listed as required coverage. Phase 3's balance analysis should treat "elite Standing tiers are effectively unreachable through normal play" as a first-class candidate finding; Phase 4 decides whether `APPROVAL_STANDING_THRESHOLD`, or the Standing gain/decay curve feeding it (`actor/standing.py`), is the correct lever.
 
 ## Leverage — agent tier / scarcity
 
