@@ -16,7 +16,16 @@ METER_NAMES = ("heat", "prestige", "affection", "notoriety")
 
 # §4.3 baseline yearly decay — Prestige/Affection/Notoriety are fixed; Heat's is billing-aware
 # (HEAT_KEEP below) so it isn't listed here.
-PRESTIGE_DECAY = 0.985
+# v11 (Playtest & Balance Pass, Phase 4, round 2) — 0.985 -> 0.992. The coefficient bump above
+# (round 1) raised per-worked-year gain but a 60-year sweep showed even prestige_chaser's measured
+# equilibrium gain (g, empirically ~0.40/worked-year post-round-1) implies, via the decay-
+# equilibrium identity P* = w*g/(1-decay) with a realistic work rate w~0.37, that closing the
+# remaining gap to the design doc's elite-tier gates would need an ~5x further coefficient jump —
+# too large a swing to justify on this pass's evidence (see 03-FINDINGS.md, 04-CHANGELOG.md).
+# Softening decay instead scales the SAME equilibrium linearly and predictably, without touching
+# the shape of what makes a project actually earn Prestige. Still real, non-trivial decay (0.8%/yr
+# instead of 1.5%/yr) — "still needs tending," not free, per the comment below.
+PRESTIGE_DECAY = 0.992
 # Affection had no billing-aware keep rate the way Heat does, and no base gain per film the way
 # Heat's HEAT_BASE gives it either — delta_affection is pure signed audience-score-vs-centre with
 # nothing to offset a "steady" (average) film, so 0.96 (4%/yr) meant it could barely ever
