@@ -15,7 +15,7 @@ This milestone runs the Callback engine through a systematic playtest-and-tune p
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Decision Space & Playtest Policy Coverage** - Catalog every reachable decision point and build scripted policies that collectively exercise all of them
+- [x] **Phase 1: Decision Space & Playtest Policy Coverage** - Catalog every reachable decision point and build scripted policies that collectively exercise all of them
 - [ ] **Phase 2: Automated Sweep Infrastructure** - Run the full policy set at volume across seeds, producing outcome stats and distinct dead-end flagging
 - [ ] **Phase 3: Balance Analysis** - Analyze sweep data for dominant strategies, dead ends, and low-variance outcome clusters
 - [ ] **Phase 4: Research-Informed Tuning** - Fix identified imbalances in the engine, informed by comparable-game research, with tests and design docs kept in sync
@@ -34,13 +34,13 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. At least 8 distinct scripted playtest policies exist representing different archetypes/goals (e.g. prestige-chaser, franchise-maximizer, indie-purist, risk-averse, gambler, director-track, family-first, burnout-avoider), built by extending the existing `_full_data_report.py` / `_quality_report.py` / `_smart_report.py` / `_sim_policy_shared.py` infrastructure rather than a parallel harness.
   3. Cross-referencing the policy set against the decision map shows every cataloged option is reachable by at least one policy — zero decision points go untested by the policy set.
 
-**Plans**: 0/5 plans executed
+**Plans**: 5/5 plans executed
 
-- [ ] 01-01-PLAN.md — decision-map.md catalog + coverage tool + prestige_chaser/franchise_maximizer archetypes (tracer)
-- [ ] 01-02-PLAN.md — indie_purist, risk_averse, gambler archetypes (acting-lane coverage)
-- [ ] 01-03-PLAN.md — director_track archetype (all director-only coverage gaps)
-- [ ] 01-04-PLAN.md — family_first, burnout_avoider archetypes (completes the 8-archetype minimum)
-- [ ] 01-05-PLAN.md — full coverage-check run, gap closure, zero-gap gate test
+- [x] 01-01-PLAN.md — decision-map.md catalog + coverage tool + prestige_chaser/franchise_maximizer archetypes (tracer)
+- [x] 01-02-PLAN.md — indie_purist, risk_averse, gambler archetypes (acting-lane coverage)
+- [x] 01-03-PLAN.md — director_track archetype (all director-only coverage gaps)
+- [x] 01-04-PLAN.md — family_first, burnout_avoider archetypes (completes the 8-archetype minimum)
+- [x] 01-05-PLAN.md — full coverage-check run, gap closure, zero-gap gate test
 
 ### Phase 2: Automated Sweep Infrastructure
 
@@ -106,7 +106,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Decision Space & Playtest Policy Coverage | 0/5 | Planned    |  |
+| 1. Decision Space & Playtest Policy Coverage | 5/5 | Complete | 2026-08-20 |
 | 2. Automated Sweep Infrastructure | 0/TBD | Not started | - |
 | 3. Balance Analysis | 0/TBD | Not started | - |
 | 4. Research-Informed Tuning | 0/TBD | Not started | - |

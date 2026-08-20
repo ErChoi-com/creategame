@@ -9,12 +9,12 @@ Requirements for this milestone. Each maps to roadmap phases.
 
 ### Decision Map
 
-- [ ] **MAP-01**: A reference document catalogs every distinct gameplay option/decision point reachable in the engine — background/ambition choices, offer/prep/scene decisions, leverage plays, franchise/adaptation decisions, director-mode choices, life/relationship choices — as the ground truth for what "the full decision space" is
+- [x] **MAP-01**: A reference document catalogs every distinct gameplay option/decision point reachable in the engine — background/ambition choices, offer/prep/scene decisions, leverage plays, franchise/adaptation decisions, director-mode choices, life/relationship choices — as the ground truth for what "the full decision space" is
 
 ### Playtest Policies
 
-- [ ] **POLICY-01**: Scripted decision policies exist for a wide variety of player archetypes/goals (e.g. prestige-chaser, franchise-maximizer, indie-purist, risk-averse, gambler, director-track, family-first, burnout-avoider), extending the existing `_full_data_report.py`/`_quality_report.py`/`_smart_report.py`/`_sim_policy_shared.py` infrastructure
-- [ ] **POLICY-02**: Policies collectively exercise every option cataloged in MAP-01 at least once across the policy set — no gameplay option goes untested
+- [x] **POLICY-01**: Scripted decision policies exist for a wide variety of player archetypes/goals (e.g. prestige-chaser, franchise-maximizer, indie-purist, risk-averse, gambler, director-track, family-first, burnout-avoider), extending the existing `_full_data_report.py`/`_quality_report.py`/`_smart_report.py`/`_sim_policy_shared.py` infrastructure
+- [x] **POLICY-02**: Policies collectively exercise every option cataloged in MAP-01 at least once across the policy set — no gameplay option goes untested
 
 ### Automated Sweeps
 
@@ -74,9 +74,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| MAP-01 | Phase 1 | Pending |
-| POLICY-01 | Phase 1 | Pending |
-| POLICY-02 | Phase 1 | Pending |
+| MAP-01 | Phase 1 | Complete |
+| POLICY-01 | Phase 1 | Complete |
+| POLICY-02 | Phase 1 | Complete |
 | SWEEP-01 | Phase 2 | Pending |
 | SWEEP-02 | Phase 2 | Pending |
 | ANLZ-01 | Phase 3 | Pending |
