@@ -38,7 +38,7 @@ Requirements for this milestone. Each maps to roadmap phases.
 
 ### Verification Loop
 
-- [ ] **VRFY-01**: After each round of tuning changes, the sweep (SWEEP-01/02) and analysis (ANLZ-01/02/03) re-run to confirm the targeted imbalance is resolved and no new one was introduced
+- [x] **VRFY-01**: After each round of tuning changes, the sweep (SWEEP-01/02) and analysis (ANLZ-01/02/03) re-run to confirm the targeted imbalance is resolved and no new one was introduced
 
 ### Research
 
@@ -46,7 +46,7 @@ Requirements for this milestone. Each maps to roadmap phases.
 
 ### Reporting
 
-- [ ] **RPRT-01**: A findings/changes report documents what was found broken or boring, what changed, why, and which design-doc sections were touched
+- [x] **RPRT-01**: A findings/changes report documents what was found broken or boring, what changed, why, and which design-doc sections were touched
 
 ## v2 Requirements
 
@@ -86,8 +86,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TUNE-02 | Phase 4 | Complete |
 | TEST-01 | Phase 4 | Complete |
 | RSCH-01 | Phase 4 | Complete |
-| VRFY-01 | Phase 5 | Pending |
-| RPRT-01 | Phase 5 | Pending |
+| VRFY-01 | Phase 5 | Complete |
+| RPRT-01 | Phase 5 | Complete |
 
 **Coverage:**
 - v1 requirements: 14 total
