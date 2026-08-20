@@ -78,6 +78,7 @@ def prestige_chaser(seed: int, years: int = 60, visited: Counter | None = None) 
     visited["director.become_director"] += 1
 
     award_campaign_count = 0
+    categories_hit = set()
     films_acted = []
     films_directed = []
     genre_i = 0
@@ -148,7 +149,12 @@ def prestige_chaser(seed: int, years: int = 60, visited: Counter | None = None) 
         if session.awards_campaign_available():
             categories = session.available_award_categories()
             if categories:
-                category = categories[award_campaign_count % len(categories)]
+                # Prefer a category not yet campaigned this run — pure round-robin against an
+                # always-available category like ensemble dilutes narrow-window ones
+                # (breakthrough, lead_comedy) out of ever landing over a realistic run length.
+                unhit = [c for c in categories if c not in categories_hit]
+                category = unhit[0] if unhit else categories[award_campaign_count % len(categories)]
+                categories_hit.add(category)
                 attempt_fraud = award_campaign_count % 3 == 0
                 session.run_awards_campaign(category=category, spend_millions=2.0, attempt_category_fraud=attempt_fraud)
                 visited[f"awards.actor.category.{category}"] += 1
@@ -668,6 +674,9 @@ def director_track(seed: int, years: int = 60, visited: Counter | None = None) -
     script_note_clarity_done = False
     script_note_ambiguity_done = False
     adaptation_licensing_done = False
+    adaptation_novel_done = False
+    attach_star_genre_fit_done = False
+    attach_star_studio_favorite_done = False
     release_done = {"festival": False, "streaming": False, "shelved": False}
 
     casting_cycle = list(casting.CASTING_CHOICES)
@@ -689,6 +698,7 @@ def director_track(seed: int, years: int = 60, visited: Counter | None = None) -
     def pitch(status, year):
         nonlocal genre_i, project_count, own_franchise_id, own_franchise_index, own_franchise_last_pitch_year
         nonlocal own_franchise_sequel_pitches, recast_done, write_out_done, adaptation_licensing_done
+        nonlocal adaptation_novel_done
         tier = _BUDGET_TIER_CYCLE[project_count % len(_BUDGET_TIER_CYCLE)]
         self_financed = project_count % 5 == 0 and project_count > 0
 
@@ -701,7 +711,7 @@ def director_track(seed: int, years: int = 60, visited: Counter | None = None) -
             if session.start_directing_project(genre, tier, self_financed=self_financed, new_franchise=True):
                 own_franchise_index = len(status["projects"])  # about-to-be-appended slot
                 project_count += 1
-                visited[f"director.budget_tier.{tier}"] += 1
+                visited[f"director.project.budget_tier.{tier}"] += 1
                 if self_financed:
                     visited["director.project.self_financed"] += 1
                 visited["director.project.new_franchise"] += 1
@@ -721,7 +731,7 @@ def director_track(seed: int, years: int = 60, visited: Counter | None = None) -
                     project_count += 1
                     own_franchise_sequel_pitches += 1
                     own_franchise_last_pitch_year = year
-                    visited[f"director.budget_tier.{tier}"] += 1
+                    visited[f"director.project.budget_tier.{tier}"] += 1
                     visited["director.project.franchise_sequel_pitch"] += 1
                     if cast_decision == "recast":
                         recast_done = True
@@ -737,16 +747,24 @@ def director_track(seed: int, years: int = 60, visited: Counter | None = None) -
         genre = genres[genre_i % len(genres)]
         genre_i += 1
         if project_count % 2 == 1:
-            source = _ADAPTATION_SOURCE_CYCLE[project_count % len(_ADAPTATION_SOURCE_CYCLE)]
-            session.choose_adaptation_source_type(source)
-            visited[f"director.adaptation.source_type.{source}"] += 1
+            if not adaptation_novel_done:
+                # "novel" is the implicit default every existing script relies on without ever
+                # calling choose_adaptation_source_type at all — an explicit request here is what
+                # actually tallies decision-map.md's own row for it.
+                session.choose_adaptation_source_type("novel")
+                visited["director.adaptation.source_type.novel"] += 1
+                adaptation_novel_done = True
+            else:
+                source = _ADAPTATION_SOURCE_CYCLE[project_count % len(_ADAPTATION_SOURCE_CYCLE)]
+                session.choose_adaptation_source_type(source)
+                visited[f"director.adaptation.source_type.{source}"] += 1
             if not adaptation_licensing_done:
                 session.choose_adaptation_licensing_fraction(0.8)
                 visited["director.adaptation.licensing_fraction"] += 1
                 adaptation_licensing_done = True
         if session.start_directing_project(genre, tier, self_financed=self_financed):
             project_count += 1
-            visited[f"director.budget_tier.{tier}"] += 1
+            visited[f"director.project.budget_tier.{tier}"] += 1
             if self_financed:
                 visited["director.project.self_financed"] += 1
             _set_casting_and_style()
@@ -845,6 +863,18 @@ def director_track(seed: int, years: int = 60, visited: Counter | None = None) -
                 visited["director.script_note.ambiguity"] += 1
                 script_note_ambiguity_done = True
                 action = "rewrite"
+            elif not attach_star_genre_fit_done:
+                target = session.attach_star_target_options()[0]
+                session.choose_attach_star_target(target["id"], "genre_fit")
+                visited["director.attach_star.type.genre_fit"] += 1
+                attach_star_genre_fit_done = True
+                action = "attach_star"
+            elif not attach_star_studio_favorite_done:
+                target = session.attach_star_target_options()[0]
+                session.choose_attach_star_target(target["id"], "studio_favorite")
+                visited["director.attach_star.type.studio_favorite"] += 1
+                attach_star_studio_favorite_done = True
+                action = "attach_star"
             else:
                 cycle = ["rewrite", "cut_budget", "call_in_favour", "option_adaptation", "new_financier", "take_to_market"]
                 action = cycle[tick % len(cycle)]
@@ -906,8 +936,16 @@ def family_first(seed: int, years: int = 60, visited: Counter | None = None) -> 
 
     films_acted = []
     verb_tick = 0
+    orientation_tick = 0
+    prep_tick = 0
+    agent_tier_tried = False
 
     for _year in range(years):
+        if not agent_tier_tried:
+            session.try_advance_agent_tier()
+            visited["leverage.agent_tier.advance"] += 1
+            agent_tier_tried = True
+
         board = session.offer_board()
         available = [o for o in board if o["available"]]
         best = None
@@ -926,8 +964,17 @@ def family_first(seed: int, years: int = 60, visited: Counter | None = None) -> 
             want_box_office = session.box_office_bonus_available("net_points")
             session.choose_deal(want_approvals=False, want_box_office_bonus=want_box_office, bonus_type="net_points")
             visited["deal.approvals"] += 1
-            session.choose_prep("table_work")
-            visited["prep.table_work"] += 1
+            # Alternates table_work/live_it — Coverage Gap Inventory's `live_it` never used.
+            prep_choice = "table_work" if prep_tick % 2 == 0 else "live_it"
+            prep_tick += 1
+            session.choose_prep(prep_choice)
+            visited[f"prep.{prep_choice}"] += 1
+            costars = session.costar_options()
+            if costars:
+                orientation = "neutral" if orientation_tick % 2 == 0 else "generous"
+                orientation_tick += 1
+                session.choose_orientation(costars[0]["id"], orientation)
+                visited[f"costar.orientation.{orientation}"] += 1
             for episode in session.episode_labels():
                 for scene_choice in SCENE_POSITIONS:
                     session.play_scene(scene_choice)

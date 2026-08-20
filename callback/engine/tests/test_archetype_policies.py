@@ -145,7 +145,7 @@ class TestDirectorTrack(unittest.TestCase):
 
     def test_covers_budget_tiers_and_dev_actions(self):
         needed = [
-            "director.budget_tier.mid", "director.budget_tier.tentpole",
+            "director.project.budget_tier.mid", "director.project.budget_tier.tentpole",
             "director.project.self_financed", "director.deal.backend_push",
             "director.script_note.clarity", "director.script_note.ambiguity",
             "director.dev_action.self_finance", "director.dev_action.drawer",

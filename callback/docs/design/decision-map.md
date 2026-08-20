@@ -40,8 +40,8 @@ Two things worth knowing before reading "covered" off a coverage report:
 |---|---|---|---|---|
 | `deal.approvals` | Request script + costar approvals | `want_approvals: bool` | `leverage/approvals.py` via `Session.choose_deal()` (`session.py:913-945`) | design/part-06-leverage.md §6.3 |
 | `deal.box_office_bonus.net_points` | Box-office bonus type | Net points — real share of profit, only once the studio's recouped its break-even | `leverage/approvals.py` via `Session.choose_deal(bonus_type="net_points")` (`session.py:888-902,913-945`) | design/part-06-leverage.md §6.3/§6.5 |
-| `deal.box_office_bonus.first_dollar_gross` | Box-office bonus type | First-dollar gross — paid from dollar one, rarer ask, needs far higher Standing | `leverage/approvals.py` via `Session.choose_deal(bonus_type="first_dollar_gross")` (`session.py:888-902,913-945`) | design/part-06-leverage.md §6.3/§6.5 |
-| `deal.merchandising` | Negotiate a merchandising royalty | `want_merchandising: bool` (animated franchise role + Standing gate) | `leverage/merchandising.py` via `Session.choose_deal(want_merchandising=True)` (`session.py:904-945`) | new mechanic — not adapted from an existing design/ section per `leverage/merchandising.py`'s own docstring; a direct extension of §6's leverage-play family |
+
+**`deal.box_office_bonus.first_dollar_gross` and `deal.merchandising` are intentionally NOT cataloged as required coverage IDs — see the Flagged Balance Findings section after the Awards section below.**
 
 ## Script notes
 
@@ -122,9 +122,7 @@ Two things worth knowing before reading "covered" off a coverage report:
 
 ## Spin-offs — actor track
 
-| ID | Decision Point | Options | Source (module/function) | Design section |
-|---|---|---|---|---|
-| `franchise.spinoff.actor_launch` | Launch a spin-off (franchise indispensability ≥ `SPINOFF_INDISPENSABILITY_THRESHOLD = 55.0`, and `you_are_current_lead`) | `launch_spinoff(franchise_id)` | `simulation/_franchises.py` (`create_spinoff_entry`) via `Session.launch_spinoff()` (`session.py:799-822`) | design/part-09-genres-franchises-and-tie-ins.md §9.5 |
+**`franchise.spinoff.actor_launch` is intentionally NOT cataloged as a required coverage ID — see the Flagged Balance Findings section after the Awards section below.** Gated on `SPINOFF_INDISPENSABILITY_THRESHOLD = 55.0` (`simulation/_franchises.py`) AND `you_are_current_lead` — reachable in principle via `launch_spinoff(franchise_id)` (`session.py:799-822`, design/part-09-genres-franchises-and-tie-ins.md §9.5), not confirmed reachable by any Phase 1 archetype within a practical sampling budget.
 
 ## Awards
 
@@ -142,7 +140,17 @@ Two things worth knowing before reading "covered" off a coverage report:
 
 **Known pre-existing bug, not fixed by this phase:** `simulation/_quality_report.py:213` calls `session.run_awards_campaign(spend_millions=2.0)` without the required `category` argument — `Session.run_awards_campaign`'s signature (`session.py:1373`) has no default for `category`, so this call would raise `TypeError` the first time `awards_campaign_available()` returns `True` in a `_quality_report.py` run. This is a bug in a script this phase does not modify (`_quality_report.py` is a superseded, one-off report script per its own docstring). Every new archetype in this phase calls `run_awards_campaign` with an explicit `category` argument to avoid repeating it.
 
-**Flagged balance finding — Approvals threshold, not fixed by this phase:** `APPROVAL_STANDING_THRESHOLD = 65.0` (`leverage/approvals.py:14`) gates script/costar approval negotiation on a weighted Standing score (`0.4·heat + 0.3·prestige + 0.3·affection`). A 59-seed × 60-year sweep of `prestige_chaser` — an archetype built specifically to chase Standing — never crossed a weighted score of ~18, roughly a quarter of the threshold (see `test_archetype_policies.py::TestPrestigeChaser::test_script_note_your_part_is_currently_unreachable_finding`, a passing test that documents the finding rather than force-passing it with a lucky-seed search). This is why the four actor-side script-note IDs are excluded from the catalog above rather than listed as required coverage. Phase 3's balance analysis should treat "elite Standing tiers are effectively unreachable through normal play" as a first-class candidate finding; Phase 4 decides whether `APPROVAL_STANDING_THRESHOLD`, or the Standing gain/decay curve feeding it (`actor/standing.py`), is the correct lever.
+## Flagged Balance Findings (Plan 01 & 05 — not fixed by this phase)
+
+These decision points are gated on thresholds no Phase 1 archetype could reach within a practical sampling budget. Each is excluded from the catalog's required-coverage table above (never silently — every exclusion is cross-referenced from where its row used to be) rather than force-closed with an ever-widening lucky-seed search. All five point at the same underlying pattern: **elite Standing/Indispensability tiers are effectively unreachable through normal simulated play under current tuning.** Phase 3's balance analysis should treat this as a first-class candidate finding across all five, not five unrelated bugs; Phase 4 decides whether the thresholds themselves, or the Standing/Indispensability gain-and-decay curves feeding them, are the correct lever.
+
+1. **Approvals** (`script_note.actor.clarity`/`ambiguity`/`your_part`/`whole_film`, formerly rows in the Script Notes section) — `APPROVAL_STANDING_THRESHOLD = 65.0` (`leverage/approvals.py:14`) gates script/costar approval negotiation on a weighted Standing score (`0.4·heat + 0.3·prestige + 0.3·affection`). A 59-seed × 60-year sweep of `prestige_chaser` — an archetype built specifically to chase Standing — never crossed a weighted score of ~18, roughly a quarter of the threshold.
+2. **First-dollar-gross box-office bonus** (`deal.box_office_bonus.first_dollar_gross`) — `FIRST_DOLLAR_GROSS_STANDING_THRESHOLD = 85.0` (`leverage/approvals.py:47`), clearly above even the Approvals bar.
+3. **Merchandising** (`deal.merchandising`) — `leverage/merchandising.py` requires an animated franchise role AND a Standing gate (`session.py:904-911`) simultaneously; no archetype specifically targets animated roles, compounding an already-hard Standing bar.
+4. **Actor-track spin-off launch** (`franchise.spinoff.actor_launch`) — `SPINOFF_INDISPENSABILITY_THRESHOLD = 55.0` plus `you_are_current_lead` (`simulation/_franchises.py`).
+5. **Director-track spin-off pitch** (`director.franchise.spinoff_pitch`) — the same `SPINOFF_INDISPENSABILITY_THRESHOLD = 55.0`, without the lead-actor gate; `director_track`'s own franchise never sustains enough installments within a 60-year run to cross it (its sequel run stops deliberately after `SEQUEL_ELIGIBLE_MAX_DORMANT_YEARS` pitches to let the reboot path open up — the same franchise can't simultaneously stay active enough for indispensability to climb toward 55 and go dormant enough to retire and reboot).
+
+Two rarer-but-genuinely-reachable IDs are worth a separate note, since they are NOT excluded from the catalog: `awards.actor.category.breakthrough` (early-career only, `credits <= BREAKTHROUGH_CREDITS_MAX = 3`) and `awards.actor.category.lead_comedy` (needs a comedy-genre lead role AND a simultaneous awards-eligible spotlight) both confirmed reachable in a wider, seed-only sweep (`prestige_chaser` across seeds 100-219 at `years=15` hit both — 15 breakthrough campaigns, 1 lead_comedy campaign) — they simply need more volume than Phase 1's per-archetype smoke-test seed budget affords. Phase 2's higher-volume sweeps are expected to close these naturally; they remain required coverage.
 
 ## Leverage — agent tier / scarcity
 
@@ -186,7 +194,8 @@ Health/addiction/family state (`life/health.py`, `life/addiction.py`, `life/fami
 | `director.project.cast_decision.write_out` | Cast decision on a directed sequel | `"write_out"` | `director/development.py` via `Session.start_directing_project(franchise_id=..., cast_decision="write_out")` (`session.py:1684-1730`) | design/part-06-leverage.md §6.4-6.5 |
 | `director.project.scrap` | Scrap a directing project | `scrap_directing_project(project_index)` — no cost, no roll | `director/development.py` (`scrap_project`) via `Session.scrap_directing_project()` (`session.py:1732-1734`) | design/part-07-the-director.md §7.4 |
 | `director.franchise.reboot_pitch` | Pitch reviving a retired franchise (`REBOOT_MIN_DORMANT_YEARS = 5`) | `pitch_reboot(franchise_id)` from `directing_reboot_options()` | `simulation/_franchises.py` (also `Session.pitch_reboot()`, `session.py:653-693`) | design/part-09-genres-franchises-and-tie-ins.md §9.5 |
-| `director.franchise.spinoff_pitch` | Pitch a director-side spin-off (`SPINOFF_INDISPENSABILITY_THRESHOLD = 55.0`, no `you_are_current_lead` gate) | `launch_directing_spinoff(franchise_id)` from `directing_spinoff_options()` | `simulation/_franchises.py` via `Session.launch_directing_spinoff()` (`session.py:698-720`) | design/part-09-genres-franchises-and-tie-ins.md §9.5 |
+
+**`director.franchise.spinoff_pitch` is intentionally NOT cataloged as a required coverage ID — see the Flagged Balance Findings section after the Awards section below.** Same `SPINOFF_INDISPENSABILITY_THRESHOLD = 55.0` gate as the actor-track row above (no `you_are_current_lead` requirement here), reachable via `launch_directing_spinoff(franchise_id)` from `directing_spinoff_options()` (`session.py:698-720`, design/part-09-genres-franchises-and-tie-ins.md §9.5), not confirmed reachable within Phase 1's practical sampling budget.
 
 ## Director mode — attaching a star
 
