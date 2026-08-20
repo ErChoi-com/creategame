@@ -92,6 +92,11 @@ class TestDirectorPrestigeUsesAudienceScoreNotDoubledCritic(unittest.TestCase):
         # only applies once advance_shoots_and_resolve wraps it, so the film is self-financed here
         # purely to make the greenlight itself unconditional and land in one call.
         state = new_director_state()
+        # Headroom above the meter's 0.0 floor: the deliberately-extreme reception fixture below
+        # (critic 80 / audience 20) produces a large negative prestige delta by design (to prove
+        # audience_score, not film_critic_score, drives it) — starting prestige needs enough
+        # margin that the delta itself is what's being measured, not Meter's own clamp(lo=0.0).
+        state.standing.add("prestige", 60.0)
         state = start_development(state, "drama", 30.0, random.Random(1), self_financed=True)
         state, shooting_info = apply_dev_action_and_advance(
             state, 0, "rewrite", genre_demand=55.0, rng=random.Random(2), available_money=1_000_000.0,

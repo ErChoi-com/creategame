@@ -33,18 +33,36 @@ NOTORIETY_DECAY = 0.84
 HEAT_KEEP = {"idle": 0.80, "bit": 0.865, "supporting": 0.888, "lead": 0.925}
 
 # ΔHeat constants.
-HEAT_BASE = 7.9  # working at all is worth something
+# v11 (Playtest & Balance Pass, Phase 4) — HEAT_BASE nudged 7.9 -> 8.6. A maximally-engaged naive
+# policy (accept every available lead/supporting offer, every year) peaked at Heat 79.5 across a
+# 59-seed sweep, landing 0/59 above the design doc's own §14.9 validated target ("careers reaching
+# Heat > 80 at any point": ~18%, n=3,000). This is the minimal nudge that puts the achievable
+# ceiling back above 80 without materially changing the shape of the curve below it — see
+# design/part-14-tuning-targets.md §14.9 and .planning/phases/03-balance-analysis/03-FINDINGS.md.
+HEAT_BASE = 8.6  # working at all is worth something
 HEAT_ROI_COEF = 9.0
 HEAT_ROI_CENTRE = 0.90  # below the median outcome
 HEAT_AUD_COEF = 0.20
 HEAT_AUD_CENTRE = 52.0
 
 # ΔPrestige / ΔAffection constants.
-PRESTIGE_CRITIC_COEF = 0.11
+# v11 (Playtest & Balance Pass, Phase 4) — PRESTIGE_CRITIC_COEF/PRESTIGE_SPOTLIGHT_COEF/
+# AFFECTION_AUD_COEF raised ~35-40%. The *_CENTRE constants sit almost exactly at the engine's own
+# population-mean critic/spotlight/audience scores (measured: critic mean 55.3 vs CENTRE 57,
+# spotlight mean 56.7 vs CENTRE 54), so average, non-optimizing play nets each delta to
+# approximately zero by construction — correct, that's the design intent (§4.3: earned, not free).
+# The bug this fixes is downstream: even Phase 1's `prestige_chaser` archetype, built specifically
+# to maximize critic score and spotlight, only reached a mean *ending* Prestige of ~11-15 across a
+# 20-seed sweep at years=60 — far short of ever mattering to Approvals/first-dollar-gross gates.
+# The original coefficients made *deliberately optimized* play grow so slowly that a genuinely
+# above-average career still couldn't climb meaningfully within a realistic career length. Raising
+# the coefficients (not the centres) keeps average play flat while making the reward for real
+# quality-chasing actually compound — see 03-FINDINGS.md.
+PRESTIGE_CRITIC_COEF = 0.15
 PRESTIGE_CRITIC_CENTRE = 57.0
-PRESTIGE_SPOTLIGHT_COEF = 0.26
+PRESTIGE_SPOTLIGHT_COEF = 0.35
 PRESTIGE_SPOTLIGHT_CENTRE = 54.0
-AFFECTION_AUD_COEF = 0.10
+AFFECTION_AUD_COEF = 0.14
 AFFECTION_AUD_CENTRE = 55.0
 
 # Recognition — the bridge out of bit parts, deliberately not Standing (§4.3).

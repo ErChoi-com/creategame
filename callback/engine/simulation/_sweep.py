@@ -123,13 +123,21 @@ def run_policy_sweep(archetype: str, seeds: range, years: int = 60, sample_traje
     )
 
 
-def run_full_sweep(seeds_per_policy: int = 50, years: int = 60, seed_start: int = 1000) -> dict[str, PolicyStats]:
+def run_full_sweep(
+    seeds_per_policy: int = 50, years: int = 60, seed_start: int = 1000, sample_trajectory: bool = False,
+) -> dict[str, PolicyStats]:
     """Runs every archetype in ARCHETYPE_NAMES (Phase 1's completed 8-archetype set) across
     `seeds_per_policy` seeds each, in one invocation. `seed_start` deliberately sits well above
     Phase 1's own hand-picked seeds (1-41ish) so a sweep never accidentally re-tests only the
-    seeds Phase 1's smoke tests already know behave a certain way."""
+    seeds Phase 1's smoke tests already know behave a certain way.
+
+    `sample_trajectory` defaults to False: each trajectory checkpoint re-runs an archetype from
+    seed 1 up to that checkpoint's year (years are not resumable mid-run), so sampling at 4
+    checkpoints costs ~2.5x a single full run for just those seeds — real, avoidable overhead for
+    a stat most sweep invocations (dead-end/dominance/net-worth checks) never read. Pass
+    sample_trajectory=True explicitly when trajectory data is actually wanted."""
     return {
-        name: run_policy_sweep(name, range(seed_start, seed_start + seeds_per_policy), years=years)
+        name: run_policy_sweep(name, range(seed_start, seed_start + seeds_per_policy), years=years, sample_trajectory=sample_trajectory)
         for name in ARCHETYPE_NAMES
     }
 
