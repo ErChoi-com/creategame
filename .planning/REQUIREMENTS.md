@@ -74,26 +74,26 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| MAP-01 | TBD | Pending |
-| POLICY-01 | TBD | Pending |
-| POLICY-02 | TBD | Pending |
-| SWEEP-01 | TBD | Pending |
-| SWEEP-02 | TBD | Pending |
-| ANLZ-01 | TBD | Pending |
-| ANLZ-02 | TBD | Pending |
-| ANLZ-03 | TBD | Pending |
-| TUNE-01 | TBD | Pending |
-| TUNE-02 | TBD | Pending |
-| TEST-01 | TBD | Pending |
-| VRFY-01 | TBD | Pending |
-| RSCH-01 | TBD | Pending |
-| RPRT-01 | TBD | Pending |
+| MAP-01 | Phase 1 | Pending |
+| POLICY-01 | Phase 1 | Pending |
+| POLICY-02 | Phase 1 | Pending |
+| SWEEP-01 | Phase 2 | Pending |
+| SWEEP-02 | Phase 2 | Pending |
+| ANLZ-01 | Phase 3 | Pending |
+| ANLZ-02 | Phase 3 | Pending |
+| ANLZ-03 | Phase 3 | Pending |
+| TUNE-01 | Phase 4 | Pending |
+| TUNE-02 | Phase 4 | Pending |
+| TEST-01 | Phase 4 | Pending |
+| RSCH-01 | Phase 4 | Pending |
+| VRFY-01 | Phase 5 | Pending |
+| RPRT-01 | Phase 5 | Pending |
 
 **Coverage:**
 - v1 requirements: 14 total
-- Mapped to phases: 0 (roadmap not yet created)
-- Unmapped: 14 ⚠️ (expected — filled in by roadmap creation)
+- Mapped to phases: 14 (100%)
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-08-20*
-*Last updated: 2026-08-20 after initial definition*
+*Last updated: 2026-08-20 after roadmap creation*
