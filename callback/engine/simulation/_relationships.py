@@ -72,6 +72,27 @@ def director_skill_bonus_from_trust(relations: dict, npc_id: str | None) -> floa
     return DIRECTOR_TRUST_SKILL_COEF * (rel.trust - TRUST_DEFAULT)
 
 
+# v16 — pick_studio() (actor/studios.py) picks uniformly among budget-fitting studios with no
+# memory at all, which meant a studio's trust in you almost never actually compounded across a
+# directing career: burn studio A on a bad schedule overrun, and the next project's financing was
+# just as likely to land on a totally fresh studio B at neutral trust as it was to land back on A.
+# This is the real reason bad-Efficiency directors weren't visibly worse off career-long even
+# though the per-project schedule_trust_penalty (director/development.py) was firing correctly —
+# the trust it built up almost never got a chance to matter to WHO calls you next. Kept as a mild,
+# linear weight (not the steep asymmetric curve director_quarters_efficiency_multiplier uses) —
+# this should make burned studios a bit warier and eager ones a bit likelier, not create a hard
+# blacklist; a director should still be able to find SOME financing after a bad run.
+FINANCING_STUDIO_TRUST_WEIGHT_LO = 0.3   # at trust 0 — still a real, if unlikely, chance
+FINANCING_STUDIO_TRUST_WEIGHT_HI = 2.0   # at trust 100 — twice as likely to be the one who calls
+
+
+def financing_studio_weight(trust: float) -> float:
+    frac = (trust - TRUST_DEFAULT) / TRUST_DEFAULT
+    if frac >= 0:
+        return 1.0 + (FINANCING_STUDIO_TRUST_WEIGHT_HI - 1.0) * frac
+    return 1.0 + (1.0 - FINANCING_STUDIO_TRUST_WEIGHT_LO) * frac
+
+
 def trust_band(trust: float) -> str:
     if trust >= 75.0:
         return "they trust you"

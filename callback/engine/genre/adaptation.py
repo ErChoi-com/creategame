@@ -21,10 +21,22 @@ ADAPTATION_CRITIC_RISK = -5.0
 # How often a freshly-sampled, non-franchise role turns out to be an adaptation of something.
 ADAPTATION_CHANCE = 0.12
 
+# §4.4 v17 — "adaptation" used to be binary: the same +10 audience bonus and -5 critic risk
+# whether the source was an obscure short story or a genuine bestseller. Real popularity now
+# scales both — a beloved property brings a much bigger built-in audience, but also a much bigger
+# fidelity risk if the film doesn't deliver; an obscure one barely moves either.
+SOURCE_POPULARITY_TIERS = ("obscure", "known", "beloved")
+SOURCE_POPULARITY_WEIGHTS = (0.45, 0.40, 0.15)  # most adaptations are of something modest, not a phenomenon
+SOURCE_POPULARITY_MULTIPLIER = {"obscure": 0.4, "known": 1.0, "beloved": 2.0}
 
-def adaptation_audience_bonus(source_material: str | None) -> float:
-    return ADAPTATION_AUDIENCE_BONUS if source_material else 0.0
+
+def adaptation_audience_bonus(source_material: str | None, popularity: str | None = None) -> float:
+    if not source_material:
+        return 0.0
+    return ADAPTATION_AUDIENCE_BONUS * SOURCE_POPULARITY_MULTIPLIER.get(popularity, 1.0)
 
 
-def adaptation_critic_risk(source_material: str | None) -> float:
-    return ADAPTATION_CRITIC_RISK if source_material else 0.0
+def adaptation_critic_risk(source_material: str | None, popularity: str | None = None) -> float:
+    if not source_material:
+        return 0.0
+    return ADAPTATION_CRITIC_RISK * SOURCE_POPULARITY_MULTIPLIER.get(popularity, 1.0)

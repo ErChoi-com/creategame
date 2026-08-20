@@ -40,6 +40,25 @@ GENRE_DIAL_WEIGHTS: dict[str, dict[str, tuple[float, float]]] = {
                 "intensity": (0.0, 0.0), "clarity": (0.0, 0.0), "texture": (0.0, 0.0)},
     "family": {"pace": (0.0, 0.0), "colour": (0.12, 0.10), "scale": (0.0, 0.0),
                "intensity": (-0.08, -0.06), "clarity": (0.10, 0.08), "texture": (0.0, 0.0)},
+    # v19 — five new primary genres (design/part-09 §9.1's table extended, redone from scratch
+    # this pass alongside the secondary-genre/hybrid system in genre/hybrids.py — a film picking
+    # a secondary genre reads BOTH rows below, averaged, so every new genre needs to stand on its
+    # own the same way the original ten do): fantasy reads like scifi's world-building cousin
+    # (scale/texture over clarity); crime reads like a grittier thriller (clarity costs critic
+    # more, texture pays it back); superhero reads like action turned up (scale/intensity
+    # dominant, harder critic cost); war leans on intensity/texture with a heavy critic reward for
+    # clarity (the "prestige machine" read from §9.1's table); western is a slower, wide-open
+    # cousin of action (scale over pace, texture-heavy, less critic-punishing).
+    "fantasy": {"pace": (0.0, 0.0), "colour": (0.12, 0.05), "scale": (0.18, -0.06),
+                "intensity": (0.05, -0.02), "clarity": (-0.06, 0.04), "texture": (0.10, 0.06)},
+    "crime": {"pace": (0.08, 0.06), "colour": (-0.06, 0.04), "scale": (0.0, 0.0),
+              "intensity": (0.08, 0.02), "clarity": (0.10, -0.16), "texture": (0.06, 0.08)},
+    "superhero": {"pace": (0.10, -0.04), "colour": (0.08, -0.06), "scale": (0.24, -0.12),
+                  "intensity": (0.14, -0.06), "clarity": (0.0, 0.0), "texture": (0.0, 0.0)},
+    "war": {"pace": (-0.05, 0.0), "colour": (-0.10, 0.02), "scale": (0.10, 0.0),
+            "intensity": (0.18, 0.10), "clarity": (0.06, 0.14), "texture": (0.14, 0.10)},
+    "western": {"pace": (-0.10, 0.02), "colour": (0.04, 0.02), "scale": (0.14, 0.0),
+                "intensity": (0.06, -0.02), "clarity": (0.0, 0.0), "texture": (0.16, 0.08)},
 }
 
 # Canonical "coherent" palette vector per genre, used by coherence() below.
@@ -54,6 +73,11 @@ CANONICAL_ARCHETYPES: dict[str, dict[str, float]] = {
     "period": {"pace": -20, "colour": 15, "scale": 25, "intensity": -5, "clarity": -5, "texture": -5},
     "musical": {"pace": 25, "colour": 30, "scale": 15, "intensity": 0, "clarity": 15, "texture": 20},
     "family": {"pace": 5, "colour": 20, "scale": 5, "intensity": -20, "clarity": 20, "texture": 5},
+    "fantasy": {"pace": 10, "colour": 25, "scale": 35, "intensity": 10, "clarity": -15, "texture": 25},
+    "crime": {"pace": 5, "colour": -15, "scale": -5, "intensity": 15, "clarity": -20, "texture": 20},
+    "superhero": {"pace": 25, "colour": 15, "scale": 40, "intensity": 25, "clarity": 10, "texture": 15},
+    "war": {"pace": -10, "colour": -20, "scale": 20, "intensity": 30, "clarity": 15, "texture": 30},
+    "western": {"pace": -15, "colour": 5, "scale": 25, "intensity": 5, "clarity": 0, "texture": 35},
 }
 
 COHERENCE_DISTANCE_COEF = 2.2

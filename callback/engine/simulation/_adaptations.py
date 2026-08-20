@@ -9,7 +9,9 @@ import random
 from dataclasses import replace
 
 from callback.engine.actor.offers import Role
-from callback.engine.genre.adaptation import ADAPTATION_CHANCE, SOURCE_MATERIAL_TYPES
+from callback.engine.genre.adaptation import (
+    ADAPTATION_CHANCE, SOURCE_MATERIAL_TYPES, SOURCE_POPULARITY_TIERS, SOURCE_POPULARITY_WEIGHTS,
+)
 
 
 def maybe_attach_adaptation(role: Role, rng: random.Random) -> Role:
@@ -19,5 +21,6 @@ def maybe_attach_adaptation(role: Role, rng: random.Random) -> Role:
     if role.franchise_id or role.source_material:
         return role
     if rng.random() < ADAPTATION_CHANCE:
-        return replace(role, source_material=rng.choice(SOURCE_MATERIAL_TYPES))
+        popularity = rng.choices(SOURCE_POPULARITY_TIERS, weights=SOURCE_POPULARITY_WEIGHTS)[0]
+        return replace(role, source_material=rng.choice(SOURCE_MATERIAL_TYPES), source_material_popularity=popularity)
     return role

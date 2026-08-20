@@ -1,6 +1,6 @@
 # CALLBACK
 ### A design document for a deep film-industry life simulator
-*v9 — the actor spine built, verified end to end, and folded back in*
+*v10 — the director's own pipeline widened from one dice roll to a real, staged production*
 
 **What's in it:** the Director as a full parallel career (Part 7), the Studio /
 business layer (Part 8), genres as real economies plus the franchise and
@@ -123,6 +123,86 @@ softened scandal noise, an early private read on the trades); and a Legacy/loss 
 §6.2's "favours die with people" into something with real, bounded weight when a Loyal or Ally
 NPC's own simulated career ends. Cross-referenced back from §4.12.
 
+**v10 gives §7.4–7.7 a real production, not one function call standing in for casting, the shoot,
+and the edit.** The engine build that followed v9's actor spine surfaced a specific gap: a director's
+greenlight resolved straight into a finished film with no visibility into any of it, while §7.5-7.7
+already specified casting-as-gatekeeper, shoot style, and the final-cut fight as their own real
+decisions. v10 makes that true — the three now happen in sequence, once, on the same turn a
+greenlight actually lands (already rare by §7.4's own verified pipeline table, so this doesn't touch
+the decision budget on average). Alongside it: two new development actions that reuse existing
+systems instead of inventing new ones (a Rolodex favour, an adaptation option off §9.4); "Attach a
+star" itself generalized to read whoever you actually target's real Rolodex relationship state
+(§10.0) instead of being one flat action — a loyal ally attaches as a favour, a rival can be poached
+at a real social cost, a stranger is the classic cold approach, folding what an earlier draft had as
+a separate "poach a rival" row into the action it was really always a variant of; real per-quarter
+development events read off §10.0's background industry so two years at identical momentum don't
+feel identical; an explicit one-reshoot cap on a contested edit; and §7.12 — a director's first
+Limited/Festival hit can now earn a wider release, gated on the film's own already-resolved
+reception and resolved through the same studio-influence curve every other request in this design
+already uses. **§0.1's Decision Test governed every addition**: several plausible new dev-action
+rows were folded into existing actions' own outcomes instead of added as new rows, and an earlier
+three-tier expansion ladder with its own fatigue curve was cut back to one earned ask once it was
+clear the later tiers were retries, not real choices.
+Nothing here changes an already-verified formula (`greenlight_probability`, momentum decay, the
+Overage% roll) — it's new stages built around them and a small number of genuinely new,
+non-overlapping decisions inside them.
+
+**A critical pass then found and fixed two real bugs the first draft introduced**, not just
+opportunities to add more: "Option an adaptation" scaled its momentum off Taste, which directly
+contradicts §7.2's own titled rule (*Taste is information, not power*) — refactored to scale off
+licensing spend instead. And the new per-quarter development events were described as firing
+"every quarter" right next to §7.4's own v3-to-v4 lesson about not doing exactly that — clarified
+explicitly that they resolve silently and land in the one yearly report already there, never a
+second prompt stream. The pass also closed a real structural seam between §7.4's "attach a star"
+and §7.5's Casting that an earlier draft left unresolved (a star attached in development now
+occupies the lead slot at Casting automatically, rather than the two stages silently disagreeing
+about who's cast), fixed a terminology drift (`Bankability` vs. the formula's own
+`AttachedStarBankability`), and named — rather than silently carried — the fact that none of v10's
+new numbers have been through the simulation-verification pass the rest of this Part holds itself
+to. **§7.13, new**, mechanizes something the document had only ever narrated: the "sellout
+decision" §7.10's own career-shape diagram names but never computed. A studio can now make a real
+hire offer, gated on Standing/genre fit/GenreHeat — with the genre-fit term specifically built to
+respect §7.8's own non-monotonic Legibility rule (narrows general access, sharpens one genre's fit)
+rather than naively rewarding fame, an attribute-role check applied here the same way it caught the
+Taste bug above.
+
+**A build pass added Animation as a real, orthogonal track, and found a second dead mechanic
+while doing it.** §4.9's own ageism curve (`role_volume_multiplier` — how much offer volume a
+lane gets at a given age, read off the dot-density table that section has always specified) was
+fully written in the engine and never actually called anywhere; wired in for the first time here,
+alongside the fix it was built to justify: Animation stops being modeled as a genre (the exact
+"odd fit" this index already flagged above) and becomes a real, independent flag on a role,
+composing with genre and with the film/series split (§5.18) the same way those two already
+compose with each other. It buys real, distinct mechanics, not a reskinned live-action role: the
+age-mismatch penalty §4.4 already specifies is heavily reduced (the audience never sees who's
+speaking), an animated opening is priced off genre/franchise demand rather than any one voice
+performer's own draw, and §5.19's rating read gets its own animation offset, additive with the
+genre baseline already there. And because the ageism curve is real now, an aging actor closed out
+of a lane it gates can land in animation instead by construction, not flavor text — "your face
+aged out of leads, but nobody hears your face" is now a mechanical throughline, not a line of prose.
+
+**§9.7's merchandising section gained the engine it always specified**, plus one idea it named but
+never mechanized. The fee-vs-points trade §9.7 already called "available to any actor or director
+on any film" is built — the engine's first genuinely ongoing income stream, paying every year off a
+character's own current Indispensability rather than once at resolution, deliberately isolated in
+its own module (`leverage/merchandising.py`) so it stays testable and extendable without touching
+the deal code around it. And the "keep a franchise alive through its dormancy so the reboot lands
+harder" strategy §9.7 already named is now a real mechanism (`resolve_reboots`), not just the
+justification for a different strategy (novelizations) — see §9.7's own build note for exactly
+what's built versus what's still just this section (a royalty buyout, renegotiating a stale share,
+a morals-clause suspension, and an obituary line all remain deliberately unbuilt, written up in
+place instead).
+
+**Part 16, new, is a plan — not yet built — for letting a player delegate specific,
+named categories of decision to the team the fiction already surrounds them with**
+(an agent, a producer), without turning any of it into a settings
+menu or making delegation the strictly correct move. It reuses §6.6's existing agent
+tiers as the gate on what can be handed off, keeps the small set of decisions
+Part 0 fought hardest to protect (accept/decline, the Deal fork, the Turn, Ambition
+choices) permanently off the table, and prices every delegated pick with a real
+safety-for-ceiling trade so going hands-off is a choice, not an upgrade. See Part 16
+for the full plan, including the risk table and the engine sketch.
+
 **Part 0 is the editing pass.** It states the rules every system has to pass and lists what came
 out: the decision load per in-game year drops from ~55 to ~15 without removing a mechanic. Read it first.
 
@@ -160,3 +240,4 @@ removes the career ladder: start as anything, add anything at any age, hold ever
 13. [PART 13 — BUILD PLAN](part-13-build-plan.md)
 14. [PART 14 — TUNING TARGETS](part-14-tuning-targets.md)
 15. [PART 15 — RISKS](part-15-risks.md)
+16. [PART 16 — THE TEAM: DELEGATED DECISIONS](part-16-the-team.md)

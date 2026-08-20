@@ -30,6 +30,18 @@ class TestAdaptationBonusAndRisk(unittest.TestCase):
         self.assertGreater(adaptation_audience_bonus("novel"), 0.0)
         self.assertLess(adaptation_critic_risk("novel"), 0.0)
 
+    def test_popularity_scales_both_the_bonus_and_the_risk(self):
+        obscure_bonus = adaptation_audience_bonus("novel", "obscure")
+        beloved_bonus = adaptation_audience_bonus("novel", "beloved")
+        self.assertLess(obscure_bonus, beloved_bonus)
+        obscure_risk = adaptation_critic_risk("novel", "obscure")
+        beloved_risk = adaptation_critic_risk("novel", "beloved")
+        self.assertGreater(obscure_risk, beloved_risk)  # risk is negative — beloved is more negative
+
+    def test_unknown_popularity_falls_back_to_the_original_flat_value(self):
+        self.assertEqual(adaptation_audience_bonus("novel", None), adaptation_audience_bonus("novel"))
+        self.assertEqual(adaptation_critic_risk("novel", None), adaptation_critic_risk("novel"))
+
 
 class TestMaybeAttachAdaptation(unittest.TestCase):
     def test_can_attach_to_an_original_role(self):
@@ -52,6 +64,14 @@ class TestMaybeAttachAdaptation(unittest.TestCase):
         already = _role(source_material="comic")
         role = maybe_attach_adaptation(already, rng)
         self.assertEqual(role.source_material, "comic")
+
+    def test_attaching_always_sets_a_real_popularity_tier(self):
+        from callback.engine.genre.adaptation import SOURCE_POPULARITY_TIERS
+        rng = random.Random(4)
+        for _ in range(200):
+            role = maybe_attach_adaptation(_role(), rng)
+            if role.source_material is not None:
+                self.assertIn(role.source_material_popularity, SOURCE_POPULARITY_TIERS)
 
 
 if __name__ == "__main__":

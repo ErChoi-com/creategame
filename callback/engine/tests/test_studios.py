@@ -7,7 +7,12 @@ import random
 import unittest
 
 from callback.engine.actor.reception import BREAK_EVEN_MARKETING_SHARE, RIGHTS_SHARE, resolve_reception
-from callback.engine.actor.release import STREAMING_BUYOUT_MULTIPLIER, STREAMING, apply_release_strategy
+from callback.engine.actor.release import (
+    FESTIVAL_ACQUISITION_BASE_MULTIPLIER,
+    STREAMING_BUYOUT_MULTIPLIER,
+    STREAMING,
+    apply_release_strategy,
+)
 from callback.engine.actor.studios import (
     DIRECTOR_INFLUENCE_CEILING,
     DIRECTOR_INFLUENCE_FLOOR,
@@ -20,9 +25,11 @@ from callback.engine.actor.studios import (
     decide_marketing_spend,
     decide_release_strategy,
     director_influence_on_studio_decision,
+    festival_bidders,
     marketing_share_for,
     pick_studio,
     quality_adjusted_bids,
+    quality_adjusted_festival_bids,
     streaming_bidders,
 )
 
@@ -97,6 +104,50 @@ class TestMarketingAffectsReception(unittest.TestCase):
         ).opening)
 
 
+class TestAnimationOpeningMix(unittest.TestCase):
+    def test_star_power_matters_less_for_an_animated_opening(self):
+        rng_a, rng_b = random.Random(20), random.Random(20)
+        low_star = resolve_reception(
+            script_quality=60, director_skill=60, craft_contribution=60, genre="family",
+            role_budget_millions=40, director_prestige=50, staleness_penalty=0,
+            cast_star_power=10, genre_demand=55, rng=rng_a, is_animation=True,
+        )
+        high_star = resolve_reception(
+            script_quality=60, director_skill=60, craft_contribution=60, genre="family",
+            role_budget_millions=40, director_prestige=50, staleness_penalty=0,
+            cast_star_power=90, genre_demand=55, rng=rng_b, is_animation=True,
+        )
+        animated_gap = high_star.opening - low_star.opening
+
+        rng_c, rng_d = random.Random(20), random.Random(20)
+        live_low = resolve_reception(
+            script_quality=60, director_skill=60, craft_contribution=60, genre="family",
+            role_budget_millions=40, director_prestige=50, staleness_penalty=0,
+            cast_star_power=10, genre_demand=55, rng=rng_c, is_animation=False,
+        )
+        live_high = resolve_reception(
+            script_quality=60, director_skill=60, craft_contribution=60, genre="family",
+            role_budget_millions=40, director_prestige=50, staleness_penalty=0,
+            cast_star_power=90, genre_demand=55, rng=rng_d, is_animation=False,
+        )
+        live_gap = live_high.opening - live_low.opening
+        self.assertLess(animated_gap, live_gap)
+
+    def test_default_is_animation_matches_prior_unparameterized_behavior(self):
+        rng_a, rng_b = random.Random(21), random.Random(21)
+        base = resolve_reception(
+            script_quality=60, director_skill=60, craft_contribution=60, genre="drama",
+            role_budget_millions=30, director_prestige=50, staleness_penalty=0,
+            cast_star_power=50, genre_demand=55, rng=rng_a,
+        )
+        explicit = resolve_reception(
+            script_quality=60, director_skill=60, craft_contribution=60, genre="drama",
+            role_budget_millions=30, director_prestige=50, staleness_penalty=0,
+            cast_star_power=50, genre_demand=55, rng=rng_b, is_animation=False,
+        )
+        self.assertAlmostEqual(base.opening, explicit.opening)
+
+
 class TestStreamerBuyoutBonus(unittest.TestCase):
     def test_streamer_studio_bonus_multiplier_beats_flat_preset(self):
         rng = random.Random(3)
@@ -165,6 +216,85 @@ class TestQualityAdjustedBids(unittest.TestCase):
         mediocre = quality_adjusted_bids(30.0, "mid_major", 50.0, 50.0, rng_a)
         great = quality_adjusted_bids(30.0, "mid_major", 95.0, 95.0, rng_b)
         self.assertGreater(max(b.payout_millions for b in great), max(b.payout_millions for b in mediocre))
+
+    def test_a_protected_franchise_draws_a_thinner_outside_pool_at_the_same_quality(self):
+        unprotected_count = sum(
+            len(quality_adjusted_bids(30.0, "mid_major", 60.0, 60.0, random.Random(i))) for i in range(50)
+        )
+        protected_count = sum(
+            len(quality_adjusted_bids(30.0, "mid_major", 60.0, 60.0, random.Random(i), franchise_protectiveness=100.0))
+            for i in range(50)
+        )
+        self.assertLess(protected_count, unprotected_count)
+
+    def test_default_protectiveness_matches_the_original_unparameterized_behavior(self):
+        rng_a, rng_b = random.Random(4), random.Random(4)
+        base = quality_adjusted_bids(30.0, "mid_major", 55.0, 55.0, rng_a)
+        explicit = quality_adjusted_bids(30.0, "mid_major", 55.0, 55.0, rng_b, franchise_protectiveness=0.0)
+        self.assertEqual([b.studio_id for b in base], [b.studio_id for b in explicit])
+
+
+class TestFestivalBidders(unittest.TestCase):
+    def test_financing_studio_is_always_in_the_pool(self):
+        bidders = festival_bidders(8.0, "prestige")
+        self.assertIn(STUDIOS["prestige"], bidders)
+
+    def test_none_financing_studio_id_is_tolerated_for_a_self_financed_project(self):
+        bidders = festival_bidders(3.0, None)
+        self.assertTrue(bidders)  # still a real outside pool, just no financing entry forced in
+
+    def test_bidders_are_deterministic_no_rng_needed(self):
+        first = festival_bidders(8.0, "indie")
+        second = festival_bidders(8.0, "indie")
+        self.assertEqual([s.id for s in first], [s.id for s in second])
+
+    def test_blockbuster_machine_is_out_of_its_lane_on_a_tiny_festival_budget(self):
+        bidders = festival_bidders(2.0, "indie")
+        self.assertNotIn(STUDIOS["blockbuster"], bidders)
+
+
+class TestQualityAdjustedFestivalBids(unittest.TestCase):
+    def test_an_awful_film_draws_fewer_outside_bidders_than_a_great_one(self):
+        awful_count = sum(
+            len(quality_adjusted_festival_bids(8.0, "indie", 10.0, 10.0, random.Random(i))) for i in range(50)
+        )
+        great_count = sum(
+            len(quality_adjusted_festival_bids(8.0, "indie", 90.0, 90.0, random.Random(i))) for i in range(50)
+        )
+        self.assertLess(awful_count, great_count)
+
+    def test_an_awful_film_can_draw_zero_outside_bidders(self):
+        # financing studio's own guaranteed offer remains — but nobody else bites.
+        bids = quality_adjusted_festival_bids(8.0, "indie", 2.0, 2.0, random.Random(7))
+        non_financing = [b for b in bids if b.studio_id != "indie"]
+        self.assertEqual(non_financing, [])
+
+    def test_financing_studio_offer_is_always_present_regardless_of_quality(self):
+        bids = quality_adjusted_festival_bids(8.0, "indie", 0.0, 0.0, random.Random(1))
+        self.assertTrue(any(b.studio_id == "indie" for b in bids))
+
+    def test_none_financing_studio_id_omits_the_financing_side_offer(self):
+        # A genuinely independent, never-studio-attached self-financed project — no financing
+        # identity to draw a guaranteed offer from, only outside bids.
+        bids = quality_adjusted_festival_bids(8.0, None, 90.0, 90.0, random.Random(1))
+        self.assertTrue(all(not b.self_release for b in bids))
+
+    def test_a_great_film_earns_more_than_a_mediocre_one_from_the_same_bidder_pool(self):
+        rng_a, rng_b = random.Random(9), random.Random(9)
+        mediocre = quality_adjusted_festival_bids(8.0, "indie", 50.0, 50.0, rng_a)
+        great = quality_adjusted_festival_bids(8.0, "indie", 95.0, 95.0, rng_b)
+        self.assertGreater(max(b.payout_millions for b in great), max(b.payout_millions for b in mediocre))
+
+    def test_no_bid_here_is_ever_flagged_self_release(self):
+        # release.py's own festival_sale_resolver adds the self_release option separately, using
+        # the real reception numbers this module never sees.
+        bids = quality_adjusted_festival_bids(8.0, "indie", 80.0, 80.0, random.Random(2))
+        self.assertTrue(all(not b.self_release for b in bids))
+
+    def test_festival_acquisition_multiplier_is_below_the_streaming_buyout_floor(self):
+        # a theatrical acquisition guarantee is a smaller commitment than a streamer's full-budget-
+        # plus-margin buyout — selling at a festival should be a real, not strictly dominant, choice.
+        self.assertLess(FESTIVAL_ACQUISITION_BASE_MULTIPLIER, STREAMING_BUYOUT_MULTIPLIER)
 
 
 class TestReleaseDecision(unittest.TestCase):

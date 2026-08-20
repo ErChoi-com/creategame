@@ -26,10 +26,16 @@ class LifeState:
         return self.addiction.insurable
 
 
-def advance_year(state: LifeState, rng: random.Random, gross_income_millions: float, worked_this_year: bool, age: int = 30) -> tuple[LifeState, dict[str, float]]:
+def advance_year(
+    state: LifeState, rng: random.Random, gross_income_millions: float, worked_this_year: bool, age: int = 30,
+    windfall_income_millions: float = 0.0,
+) -> tuple[LifeState, dict[str, float]]:
     """One year of the life layer. Returns (new_state, standing_deltas) — deltas from addiction
     progression (resilience/notoriety/affection) that the caller applies to the actor's own
-    Standing/attributes, since LifeState doesn't hold those itself."""
+    Standing/attributes, since LifeState doesn't hold those itself.
+
+    windfall_income_millions: a one-time payout (a box-office bonus) — see money.apply_year's own
+    docstring for why this is kept separate from gross_income_millions rather than pre-summed."""
     health = state.health if worked_this_year else after_idle_year(state.health)
 
     if state.addiction.stage == "recovery":
@@ -38,7 +44,7 @@ def advance_year(state: LifeState, rng: random.Random, gross_income_millions: fl
     else:
         addiction, deltas = advance_addiction(state.addiction, rng)
 
-    money = apply_money_year(state.money, gross_income_millions, rng)
+    money = apply_money_year(state.money, gross_income_millions, rng, windfall_income_millions=windfall_income_millions)
     family = maybe_generate_caretaking(state.family, age, rng)
 
     return replace(state, health=health, addiction=addiction, money=money, family=family), deltas

@@ -69,6 +69,23 @@ class FranchiseEntry:
     last_installment_year: int = -999
     prior_holdouts: int = 0
     last_director_npc_id: str | None = None
+    peak_indispensability: float = 0.0  # the character's own career-best — tracked continuously,
+    # not just at retirement, since it's the real "how beloved did this ever get" read a reboot
+    # roll needs (current indispensability is nearly always near the release floor by the time a
+    # franchise actually retires, so it can't answer that question on its own).
+    retired_year: int | None = None  # set only once this entry moves into the retired archive
+    # (simulation._franchises.decay_dormant_franchises) — None for anything still active.
+    you_are_current_lead: bool = True  # flips False on an exit (apply_exit below); a franchise
+    # doesn't end just because the player leaves it — the studio owns the property, not the actor
+    # (the same "protects the property, not the individual" framing studio_protectiveness already
+    # names), so it keeps being cast, sequeled, and rebooted without them.
+    exit_type: str | None = None  # "recast" or "written_out" — None while still active. See
+    # resolve_exit_type below: which one happens isn't a single mechanic, it's two genuinely
+    # different outcomes with different consequences.
+    exit_year: int | None = None  # None unless you_are_current_lead is False
+    audience_score_at_exit: float | None = None  # a frozen snapshot of prior_audience_score the
+    # moment you left — franchise_status() diffs this against the live prior_audience_score so the
+    # player can see, in real numbers, whether it did better or worse without them.
 
 
 def maybe_attach_franchise(role: Role, franchises: dict, current_year: int, rng: random.Random) -> Role:
@@ -78,6 +95,8 @@ def maybe_attach_franchise(role: Role, franchises: dict, current_year: int, rng:
     eligible = [
         f for f in franchises.values()
         if current_year - f.last_installment_year <= SEQUEL_ELIGIBLE_MAX_DORMANT_YEARS
+        and f.you_are_current_lead  # recast franchises keep going (advance_franchises_without_you
+        # below), just never as a role offered back to the person who was replaced.
     ]
     # Each eligible franchise gets its own independent roll, in shuffled order (so with several
     # open franchises it isn't always the same one checked first) — a beloved hit and a franchise
@@ -142,28 +161,274 @@ def update_franchise_after_project(
         prior, installments_starred=new_installments, character_id=new_character_id,
         indispensability=new_indispensability, prior_audience_score=audience_score,
         last_installment_year=current_year, last_director_npc_id=requested_director_npc_id,
+        peak_indispensability=max(prior.peak_indispensability, new_indispensability),
     )
     return {**franchises, role.franchise_id: updated}
 
 
-def decay_dormant_franchises(franchises: dict, current_year: int) -> dict:
-    """§6.4's v9 fix, honored here too: decay runs unconditionally every dormant year, and a
-    property that crosses the release floor drops out of tracking entirely rather than sticking
-    around forever at a near-zero value."""
-    result = {}
+def decay_dormant_franchises(franchises: dict, current_year: int) -> tuple[dict, dict]:
+    """§6.4's v9 fix, honored here too: decay runs unconditionally every dormant year. A property
+    that crosses the release floor no longer just vanishes, though — it moves into a second
+    returned dict (newly retired this year) rather than being discarded outright, so reboot_
+    probability() below has something real to roll against later. Returns (active, newly_retired)."""
+    active = {}
+    newly_retired = {}
     for franchise_id, f in franchises.items():
         if f.last_installment_year == current_year:
-            result[franchise_id] = f  # touched this year — already fresh, nothing to decay
+            active[franchise_id] = f  # touched this year — already fresh, nothing to decay
             continue
         new_value, released = decay_dormant(f.indispensability)
         if released:
+            newly_retired[franchise_id] = replace(f, indispensability=new_value, retired_year=current_year)
             continue
-        result[franchise_id] = replace(f, indispensability=new_value)
-    return result
+        active[franchise_id] = replace(f, indispensability=new_value)
+    return active, newly_retired
+
+
+# The positive mirror of decay_dormant_franchises's own one-way "fades to nothing" arc — a
+# retired property doesn't just vanish from the industry's memory. A real, small, per-year chance
+# of a reboot: an anniversary re-release, a streaming-era revival, a straight remake — the same
+# real-world shape actual dormant IP coming back has. Nobody reboots something that only just
+# ended (REBOOT_MIN_DORMANT_YEARS), and a franchise that peaked higher is more likely to come back
+# than one that was always a footnote.
+REBOOT_MIN_DORMANT_YEARS = 5
+REBOOT_CHANCE_BASE = 0.02
+REBOOT_PEAK_COEF = 0.0025
+REBOOT_CHANCE_CEILING = 0.20
+# A reboot doesn't hand back full peak value — a real, partial second life, the same "seeded off
+# the parent's own real number, not starting cold" logic create_spinoff_entry already uses.
+REBOOT_REVIVAL_INDISPENSABILITY_SHARE = 0.55
+
+
+def reboot_probability(years_dormant: int, peak_indispensability: float) -> float:
+    if years_dormant < REBOOT_MIN_DORMANT_YEARS:
+        return 0.0
+    return clamp(REBOOT_CHANCE_BASE + REBOOT_PEAK_COEF * peak_indispensability, 0.0, REBOOT_CHANCE_CEILING)
+
+
+def resolve_reboots(retired: dict, current_year: int, rng: random.Random) -> tuple[dict, dict]:
+    """Rolls each retired franchise's own independent reboot chance. Returns (still_retired,
+    revived) — the caller merges revived back into the active franchises dict; a revived entry's
+    last_installment_year is stamped to now, so it's immediately eligible for maybe_attach_
+    franchise's own sequel roll next time a role is sampled — a real "they're bringing your old
+    franchise back" offer, not just a number moving in the background.
+
+    A reboot always sets you_are_current_lead back to True, whether or not you were still the lead
+    when it retired — the real-world "legacy sequel" shape (the original cast returning for an
+    anniversary/reunion installment after years of someone else carrying it, or nobody at all) is
+    exactly the same event as an ordinary reboot here, not a second mechanic. exit_type/exit_year/
+    audience_score_at_exit clear along with it — the comparison was against the years you were
+    gone; now that you're back, there's nothing left to compare."""
+    still_retired = {}
+    revived = {}
+    for franchise_id, f in retired.items():
+        years_dormant = current_year - (f.retired_year if f.retired_year is not None else current_year)
+        if rng.random() < reboot_probability(years_dormant, f.peak_indispensability):
+            revived[franchise_id] = replace(
+                f,
+                indispensability=f.peak_indispensability * REBOOT_REVIVAL_INDISPENSABILITY_SHARE,
+                last_installment_year=current_year,
+                retired_year=None,
+                you_are_current_lead=True,
+                exit_type=None,
+                exit_year=None,
+                audience_score_at_exit=None,
+            )
+        else:
+            still_retired[franchise_id] = f
+    return still_retired, revived
+
+
+# The recast-continuation mechanic: losing a role (a lost holdout, or the studio proceeding on a
+# sequel you declined) doesn't delete the franchise — it keeps existing, keeps getting sequeled,
+# and can keep being rebooted (including, per resolve_reboots above, back to you) exactly like any
+# other property. Only the front door — maybe_attach_franchise, gated on you_are_current_lead above
+# — actually changes for the player: you stop being offered a part in it.
+#
+# "Losing the part" isn't one outcome, though — a franchise can either recast the character (someone
+# else plays you) or write the character out and lean on the rest of the ensemble instead, and those
+# are genuinely different beats, not two names for the same thing. character_id (character_
+# identification) is already exactly the right signal for which is plausible: it's the one number
+# this engine tracks that measures how much the audience treats THIS character as inseparable from
+# the franchise, independent of the property's overall indispensability (installments/star power/
+# contractual hold) — a Bond-shaped character has to be recast to continue; a more replaceable one
+# inside a real ensemble can just be quietly written around.
+WRITEOUT_BASE = 0.55
+WRITEOUT_CHARACTER_ID_COEF = 0.008
+WRITEOUT_CHARACTER_ID_NOISE_SD = 8.0  # cast chemistry, timing, tone of the exit — real variance a
+# single character_id reading can't capture; the same character never resolves identically twice.
+
+
+def written_out_probability(character_id: float, rng: random.Random) -> float:
+    jittered = character_id + rng.gauss(0.0, WRITEOUT_CHARACTER_ID_NOISE_SD)
+    return clamp(WRITEOUT_BASE - WRITEOUT_CHARACTER_ID_COEF * max(0.0, jittered), 0.0, 1.0)
+
+
+def resolve_exit_type(franchise: "FranchiseEntry", rng: random.Random) -> str:
+    return "written_out" if rng.random() < written_out_probability(franchise.character_id, rng) else "recast"
+
+
+# Recast: a fresh face reads as a real, if modest, dip in reception — audiences notice a recast even
+# in a well-loved franchise, just less so than in a fragile one. Never a fixed number off protective-
+# ness alone — real per-event noise on top, the same "never lands on the same number twice" shape
+# leverage.merchandising.negotiated_merch_share already uses for a negotiated position.
+RECAST_AUDIENCE_PENALTY_BASE = 8.0
+RECAST_PROTECTIVENESS_SHIELD_COEF = 0.06  # studio_protectiveness() shields against it — the same
+# "the property is bigger than any one performer" reading that makes a brand-driven franchise barely
+# notice a recast, while an actor-driven one takes the fuller hit.
+RECAST_AUDIENCE_PENALTY_FLOOR = 1.0  # even the most brand-proof franchise feels something
+RECAST_AUDIENCE_PENALTY_CEILING = 14.0
+RECAST_AUDIENCE_PENALTY_NOISE_SD = 2.5
+
+# Written out: no jarring replacement to react to, so the range sits near zero rather than being
+# pulled one direction by a shield term — some send-offs land as a bold, well-received swerve, most
+# land flat, a few land badly. Wider than the recast range, not narrower: there's no protectiveness-
+# style force keeping it in a lane.
+WRITEOUT_AUDIENCE_DELTA_LOW = -4.0
+WRITEOUT_AUDIENCE_DELTA_HIGH = 3.0
+
+
+def recast_audience_penalty(protectiveness: float, rng: random.Random) -> float:
+    return clamp(
+        RECAST_AUDIENCE_PENALTY_BASE + rng.gauss(0.0, RECAST_AUDIENCE_PENALTY_NOISE_SD)
+        - RECAST_PROTECTIVENESS_SHIELD_COEF * protectiveness,
+        RECAST_AUDIENCE_PENALTY_FLOOR, RECAST_AUDIENCE_PENALTY_CEILING,
+    )
+
+
+def writeout_audience_delta(rng: random.Random) -> float:
+    return rng.uniform(WRITEOUT_AUDIENCE_DELTA_LOW, WRITEOUT_AUDIENCE_DELTA_HIGH)
+
+
+def apply_exit(franchise: "FranchiseEntry", current_year: int, rng: random.Random) -> FranchiseEntry:
+    """The single place a franchise actually loses its player-lead — called from both trigger
+    points (a lost Indispensability holdout, and the studio proceeding on a declined sequel without
+    you). Rolls which of the two real outcomes happens (resolve_exit_type) and snapshots the
+    audience score at the moment of the split, so franchise_status() has a real before/after to
+    show either way."""
+    exit_type = resolve_exit_type(franchise, rng)
+    if exit_type == "recast":
+        delta = -recast_audience_penalty(studio_protectiveness(franchise), rng)
+    else:
+        delta = writeout_audience_delta(rng)
+    return replace(
+        franchise,
+        you_are_current_lead=False,
+        exit_type=exit_type,
+        exit_year=current_year,
+        audience_score_at_exit=franchise.prior_audience_score,
+        prior_audience_score=clamp(franchise.prior_audience_score + delta, 0.0, 100.0),
+    )
+
+
+# Once you're gone, the franchise keeps moving off-screen either way — the studio doesn't need your
+# participation to greenlight, shoot, and release its own sequels. Reuses sequel_probability (the
+# same greenlight odds any installment rolls against) rather than a second gate, and a mild random
+# walk in place of a full off-screen shoot resolution: no new actor or storyline is modeled, just
+# whether audiences kept showing up. The two exit types get their own drift width, not a shared one
+# — a recast continuation is genuinely noisier (audiences adjusting to someone new in the part) than
+# a written-out one (the property's own trend was never disrupted, just redirected).
+WITHOUT_YOU_AUDIENCE_DRIFT_SD_RECAST = 6.0
+WITHOUT_YOU_AUDIENCE_DRIFT_SD_WRITTEN_OUT = 3.0
+WITHOUT_YOU_AUDIENCE_PULL_TO_CENTRE = 0.10  # a small regression toward average each installment —
+# absent whatever made the original casting work, an off-screen franchise drifts toward ordinary
+# rather than sustaining a hit's own momentum indefinitely.
+WITHOUT_YOU_INDISPENSABILITY_FADE = 0.95  # neither outcome quite recaptures what the original had
+
+
+def advance_franchises_without_you(franchises: dict, current_year: int, rng: random.Random) -> dict:
+    """Called once a year (simulation.full_career.advance_between_years) against whatever's still
+    active after this year's decay/reboot pass. Only touches entries with you_are_current_lead
+    False; every franchise the player still leads is entirely unaffected — those already advance
+    through the player's own accept_and_play."""
+    updated = dict(franchises)
+    for franchise_id, f in franchises.items():
+        if f.you_are_current_lead:
+            continue
+        if current_year - f.last_installment_year > SEQUEL_ELIGIBLE_MAX_DORMANT_YEARS:
+            continue  # too stale for a quiet off-screen sequel — decay_dormant_franchises and a
+            # real reboot roll are what bring a franchise back from here, not this function
+        if rng.random() >= sequel_probability(f.prior_audience_score, f.indispensability):
+            continue
+        drift_sd = (
+            WITHOUT_YOU_AUDIENCE_DRIFT_SD_WRITTEN_OUT if f.exit_type == "written_out"
+            else WITHOUT_YOU_AUDIENCE_DRIFT_SD_RECAST
+        )
+        drifted = f.prior_audience_score + rng.gauss(0.0, drift_sd)
+        new_audience = clamp(
+            drifted + WITHOUT_YOU_AUDIENCE_PULL_TO_CENTRE * (SEQUEL_BONUS_AUDIENCE_CENTRE - drifted),
+            0.0, 100.0,
+        )
+        updated[franchise_id] = replace(
+            f, installments_starred=f.installments_starred + 1, prior_audience_score=new_audience,
+            indispensability=f.indispensability * WITHOUT_YOU_INDISPENSABILITY_FADE,
+            last_installment_year=current_year,
+        )
+    return updated
+
+
+# The studio proceeding on a sequel you declined, rather than just letting the franchise go
+# dormant — reuses studio_protectiveness the same way the holdout's own recast pull already does:
+# a franchise the studio has built real, sustained protectiveness around is one they're more
+# willing to carry on without you, not less. This only decides WHETHER they proceed; apply_exit's
+# own resolve_exit_type decides the separate question of HOW (recast vs written out).
+DECLINE_CONTINUATION_CHANCE_BASE = 0.5
+DECLINE_CONTINUATION_PROTECTIVENESS_COEF = 0.005
+
+# How big a public story losing the part becomes — scaled by franchise size (min(installments, 8)),
+# but the per-installment weight itself is drawn from a range, not fixed: an exit from a small
+# franchise occasionally becomes a bigger deal than expected (a cult favorite), and a big one
+# occasionally passes quietly. A written-out exit reads as a story choice, not a public replacement,
+# so it draws from a much smaller range — some grumbling is still possible, just rarely real news.
+EXIT_NOTORIETY_COEF_RANGE_RECAST = (0.3, 0.8)
+EXIT_NOTORIETY_COEF_RANGE_WRITTEN_OUT = (0.0, 0.15)
+
+
+def decline_continuation_probability(protectiveness: float) -> float:
+    return clamp(
+        DECLINE_CONTINUATION_CHANCE_BASE + DECLINE_CONTINUATION_PROTECTIVENESS_COEF * protectiveness, 0.0, 1.0,
+    )
+
+
+def exit_notoriety_delta(exit_type: str, installments_starred: int, rng: random.Random) -> float:
+    lo, hi = EXIT_NOTORIETY_COEF_RANGE_RECAST if exit_type == "recast" else EXIT_NOTORIETY_COEF_RANGE_WRITTEN_OUT
+    return rng.uniform(lo, hi) * min(installments_starred, 8)
+
+
+# The same written-out discount applied to a lost holdout's own notoriety hit (leverage.
+# indispensability.resolve_holdout's HOLDOUT_FAILURE_NOTORIETY) — that number is about the failed
+# negotiation itself, not franchise size, so it isn't rebuilt here, just softened when the studio's
+# actual response turns out to be a quiet write-out rather than a visible recast.
+WRITEOUT_HOLDOUT_NOTORIETY_DISCOUNT = 0.2
+
+
+# A studio protecting a proven property, not a modeled character — deliberately independent of
+# Indispensability (leverage/indispensability.py), which answers "how hard is *this actor* to
+# replace." This answers "how much does the studio value *the property itself*, regardless of who's
+# in it" — built entirely off track record already tracked here (installments_starred, prior_
+# audience_score), no per-actor read at all. A single hit installment doesn't max this out; it
+# takes a real, sustained run to earn full protectiveness, same as an actual long-running franchise.
+PROTECTIVENESS_INSTALLMENT_COEF = 9.0
+PROTECTIVENESS_INSTALLMENT_CAP = 8
+PROTECTIVENESS_AUDIENCE_COEF = 0.7
+
+
+def studio_protectiveness(franchise: "FranchiseEntry") -> float:
+    """How hard the studio holds onto this property once it's proven itself — pulls two real
+    levers, both scaled from this one number: it makes the studio LESS willing to give up
+    ownership of the property to anyone (leverage.indispensability's streaming-buyout floor), and
+    MORE willing to let go of any one person attached to it, including its own star
+    (leverage.indispensability.resolve_holdout's recast pull) — the studio protects the property,
+    not the individual."""
+    installment_term = PROTECTIVENESS_INSTALLMENT_COEF * min(franchise.installments_starred, PROTECTIVENESS_INSTALLMENT_CAP)
+    audience_term = PROTECTIVENESS_AUDIENCE_COEF * max(0.0, franchise.prior_audience_score - 50.0)
+    return clamp(installment_term + audience_term, 0.0, 100.0)
 
 
 def spinoff_available(franchise: "FranchiseEntry") -> bool:
-    return franchise.indispensability >= SPINOFF_INDISPENSABILITY_THRESHOLD
+    # A character you've been recast out of isn't yours to pitch a new property off of anymore —
+    # that standing belongs to whoever's playing the part now (nobody, mechanically), not you.
+    return franchise.you_are_current_lead and franchise.indispensability >= SPINOFF_INDISPENSABILITY_THRESHOLD
 
 
 def create_spinoff_entry(parent: "FranchiseEntry", new_franchise_id: str, current_year: int) -> FranchiseEntry:

@@ -564,10 +564,11 @@ still only clear once by luck.
   documented readings, not undisclosed exact `design/` constants (§5.3 publishes target
   correlations, not the weight table itself). `verify.py creative` reports honestly against that
   gap rather than faking a pass.
-- **Directing doesn't touch franchises or release strategy yet.** A directed film is always a
-  Wide release and never participates in the sequel system (`simulation/_franchises.py`) — real,
-  bounded follow-ups, not attempted in this pass (see "What's here now" for what directing does
-  cover).
+- **Directing still doesn't touch franchises.** A directed film never participates in the sequel
+  system (`simulation/_franchises.py`) — a real, bounded follow-up, not attempted in this pass.
+  (Release strategy is *not* a gap — a directed film's own release request has been real since an
+  earlier pass, and v10 gave it a real rating and a real Limited/Festival expansion path too; see
+  "What's here now" below for both.)
 - **The full multi-offer calendar/deal-negotiation UI** isn't built — one project a year, not
   overlapping offers or the full fee/billing/options/pay-or-play deal space (only the
   approvals-for-fee trade is wired up).
@@ -580,3 +581,104 @@ still only clear once by luck.
   formula), international industries (§10.5), tech eras (§10.6), censorship (§10.7), and
   merchandise/tie-ins (§9.7–9.9)** are not implemented — genuinely out of scope for this pass
   rather than simplified.
+
+## v10 — the director's own greenlight stopped being one silent function call
+
+`design/part-07-the-director.md` §7.5–§7.7 always specified casting, the shoot, and the edit as
+three of the director career's own real decisions; the engine collapsed all three into one call
+(`_resolve_directed_film()`) that sampled `cast_star_power`/`craft_contribution`/the edit blind, with
+no player input between a greenlight and a finished film. v10 makes that real:
+
+- **Casting (`director/casting.py`)** — five real choices (the bankable star wrong for the part,
+  the right actor with no heat, a discovery, your roster, the difficult genius), each a real trade
+  on `cast_star_power`/fit/`chaos`, plus §7.5's own budget-unlock formula
+  (`max_budget_from_bankability`). The pre-existing `evaluate_candidate()` (a thin wrapper around
+  `actor.offers.utility()`, "you run the utility function from the other side") stays exactly as it
+  was — this is additive, not a rewrite of what was already there.
+- **The shoot's style (`director/shoot_style.py`, new)** — five named approaches, each a real
+  `craft_contribution` delta, plus the real `Overage%` roll (`0.35·ambition + 0.40·chaos −
+  0.006·Efficiency`) that can cost a project its final cut this film or raise the next one's
+  `Difficulty`.
+- **The edit (`director/edit.py`, expanded)** — `has_final_cut()` (Prestige>70, two consecutive
+  profitable films, or an explicit fee-cut trade — the last one newly wired up via
+  `request_final_cut_fee_cut()`), and a real "studio/you/contested" resolution
+  (`resolve_edit()`) — contested reshoots at most once, a real cap, not an open loop.
+- **"Attach a star" is now one action with a real range, not a flat number** — reads whoever you
+  actually target's real Rolodex relationship state (`Session.attach_star_target_options()`/
+  `choose_attach_star_target()`); a Rival poach costs real Notoriety, scaled by how established the
+  rivalry already is. Two more real dev actions: `call_in_favour` (spends a real Leverage favour
+  instead of money) and `option_adaptation` (reuses `genre/adaptation.py`'s existing audience-bonus/
+  critic-risk trade from the director's own side).
+- **Momentum is a word, not a float, to the player** — `director/development.py`'s
+  `momentum_band()` ("dead"/"fading"/"building"/"real heat"/"can't-miss"), same treatment the
+  actor's Indispensability already gets. The CLI used to print the raw number directly; that was a
+  real §15 violation, fixed alongside everything else here, not left as a known gap.
+- **Development has real per-quarter events**, not just the one action you took — reads real
+  `GenreHeat`, and a "rival attachment scare" only enters the pool at all if a tracked Rolodex Rival
+  actually exists. Bounded inside the existing action-delta range on purpose (`EVENT_MOMENTUM_LO`/
+  `_HI`), never the dominant term.
+- **A directed film gets a real content rating (§5.19)** — it never had one before v10. No full
+  six-dial `Palette` is generated for a directed project (out of scope this pass), so the director's
+  own Vision stands in for Intensity's real driver, with real noise — a named simplification, not a
+  silent one.
+- **Platform expansion (`Session.platform_expansion_available()`/`request_platform_expansion()`)** —
+  a director's Limited/Festival film that actually landed (critic ≥ "warm" or audience ≥ "a real
+  draw", and for Festival, actually sold) can earn one real, capped push for a wider release. Gated
+  on the same `director_influence_on_studio_decision()` curve every other studio ask in this engine
+  uses, plus a small rating-band dampener that reads which studio's financing the ask
+  (`effective_rating_ceiling`'s own idea, read from the other direction). One ask, not a ladder.
+- **Director-for-hire (`Session.check_for_hire_offer()`/`accept_hire_offer()`)** — the studio can
+  come to you. Mechanizes what `design/part-07` §7.10's own career-shape diagram always narrated
+  ("the sellout decision") but never computed. Skips development hell outright
+  (`DevProject.guaranteed_greenlight`); reads real Standing and real `GenreHeat`. The genre-fit term
+  is a flat, honest placeholder until Signature/Legibility (§7.8) is actually built — a naive
+  "more fame, more offers" version was checked against §7.8's own non-monotonic rule during design
+  and explicitly rejected; a neutral placeholder is the honest stand-in, not a silent guess.
+
+**A real mistake made and caught during this pass, worth naming rather than quietly fixing**: an
+early draft of `director/casting.py` used `Write` and overwrote a pre-existing, committed module
+(the `evaluate_candidate()` wrapper above) instead of extending it. Caught by the test suite
+(`test_director.py` failed to import), recovered from git history, and merged rather than left
+clobbered — a reminder to check whether a file already exists before writing one in a codebase this
+size, not just at the start of a session.
+
+**Known gaps in this pass, same discipline as everything else above**: none of v10's new numbers
+(the Bankability-scaled ranges, the event-probability formula, the rating dampener, the hire-offer
+probability) have been through the simulation-verification pass §7.4's own pipeline table already
+went through — see `design/part-07` §7.4/§7.12/§7.13's own "verification status" notes. The Casting/
+Shoot/Edit choices are set once at `start_directing_project()` time (the same pattern the existing
+script-note/release/marketing-push pending fields already use), not re-prompted at the exact moment
+a greenlight lands mid-resolution — greenlight timing isn't knowable in advance, so this was the
+correct seam, not a shortcut. Signature/Legibility (§7.8) and the Unit (§7.9) remain unbuilt.
+
+## v15 — the slate: working more than one directed project at once
+
+Diagnosing "why so few films get made" (instrumenting `PackageStrength` vs `Difficulty` directly
+across a live career) found a second, structural bottleneck sitting on top of §7.4's own
+intentionally-bleak newcomer baseline: one stalled project occupied a director's *entire* yearly
+action for 20+ years at a stretch, with nothing else able to happen in parallel. `design/part-07`
+§7.14 is the mechanic; `simulation/_director.py` is the implementation:
+
+- `DirectorState.slate: tuple[ShelvedProject, ...]` — a real backlog, capacity-gated by
+  `slate_capacity(standing_score)` (1 project at newcomer Standing, up to 4 at the top band). The
+  yearly action still only ever touches one project (§0.2's decision budget is untouched); the new
+  decision is triage — which project gets this year's attention.
+- `start_development()` shelves a second/third/fourth project into the slate rather than displacing
+  the active one, once capacity allows. `switch_active_project()` (free, no roll) and
+  `scrap_project()` (free, permanently drops a slot) are the two ways a slate entry stops sitting
+  still. `accept_hire_offer()` displaces the active project into the slate the same way a
+  focus-switch does, rather than silently discarding it.
+- `age_slate()` runs every year alongside the active project's own attachment-aging: a shelved
+  project's momentum is frozen (no event roll, no `Difficulty` check while parked), but anyone
+  already attached to it keeps aging and risking dropout — the same attrition the active roster
+  already models, read off a paused project instead of a live one.
+- Session: `director_status()` now reports `slate_capacity`/`projects_in_play`/`can_start_new_project`/
+  `slate` (list of shelved-project summaries); `start_directing_project()` returns `False` rather
+  than silently doing nothing when the slate's already full; `switch_active_directing_project()` /
+  `scrap_directing_project()` are the two new player-facing actions. `cli.py`'s `directing_block()`
+  prints the slate and offers switch/scrap/pitch-a-second-project prompts.
+
+**Known gap**: unverified against simulation, same caveat as the rest of v10/v13 — see §7.14's own
+note. `_director_report.py`'s comparison (single-track baseline vs a real triaging slate policy) is
+the first empirical read on whether this meaningfully raises films-per-career, or whether the
+underlying `PackageStrength`/`Difficulty` gap dominates regardless of how many projects are in play.

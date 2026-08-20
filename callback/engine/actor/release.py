@@ -36,6 +36,15 @@ FESTIVAL_STAR_CENTRE = 40.0
 # §8.3's streamer-buyout preset: "Budget plus 20% guaranteed, no backend, no theatrical."
 STREAMING_BUYOUT_MULTIPLIER = 1.20
 
+# A festival-acquisition sale is a genuine distribution guarantee, not a streamer's full-budget-
+# plus-margin buyout — the buyer is committing to P&A spend and a real box-office bet on a small
+# film, not covering the whole production. Calibrated below STREAMING_BUYOUT_MULTIPLIER's own floor
+# so selling at a festival is a real, sometimes-worse-than-self-releasing tradeoff, not a strictly
+# dominant option — see actor/studios.py's quality_adjusted_festival_bids for the competing-offer
+# resolution built on top of this base (this module never imports studios.py — see apply_release_
+# strategy's festival_sale_resolver param for how that bidding gets wired in from outside instead).
+FESTIVAL_ACQUISITION_BASE_MULTIPLIER = 0.55
+
 SHELVED_ROI = -1.0  # a total loss on the budget — "the film didn't come out"
 
 
@@ -71,6 +80,7 @@ def apply_release_strategy(
     marketing_share: float | None = None,
     rights_share: float | None = None,
     streaming_multiplier: float = STREAMING_BUYOUT_MULTIPLIER,
+    festival_sale_resolver=None,
 ) -> ReceptionResult:
     """Takes an already-resolved (wide-release-shaped) ReceptionResult — quality scores untouched
     — and adjusts only Gross/ROI for the chosen release strategy. Additive: doesn't change
@@ -79,7 +89,17 @@ def apply_release_strategy(
     marketing_share/rights_share: the producing studio's own money terms (actor/studios.py),
     defaulting to this module's flat constants when a caller doesn't have a studio to hand.
     streaming_multiplier: a studio's own streamer-buyout multiplier, defaulting to the flat
-    §8.3 preset (STREAMING_BUYOUT_MULTIPLIER) when not given."""
+    §8.3 preset (STREAMING_BUYOUT_MULTIPLIER) when not given.
+    festival_sale_resolver: (reception, marketing_share, rights_share) -> ReceptionResult, called
+    only once a festival submission actually clears festival_acquisition_probability's own gate —
+    an unsold submission never reaches it. This module can't build the real competing-distributor
+    bid pool itself (actor/studios.py imports FROM here, so importing it back would be circular);
+    the caller (simulation.career.resolve_release_schedule) builds the resolver externally, using
+    studios.quality_adjusted_festival_bids for outside offers plus the financing side's own real
+    self-release LIMITED numbers, and hands back whichever the chosen bid implies. None (every
+    caller that doesn't care who buys it — verify.py, tests, simulation._director's own festival
+    path) falls back to the old behavior: acquired always means a LIMITED release at the financing
+    side's own terms, no sale price of its own."""
     m_share = marketing_share if marketing_share is not None else BREAK_EVEN_MARKETING_SHARE
     r_share = rights_share if rights_share is not None else RIGHTS_SHARE
 
@@ -99,6 +119,8 @@ def apply_release_strategy(
         if rng.random() >= p_acquired:
             # §10.3 — unsold: no distributor ever bought it, so no theatrical marketing was ever spent.
             return replace(reception, gross=0.0, marketing=0.0, roi=0.0)
+        if festival_sale_resolver is not None:
+            return festival_sale_resolver(reception, m_share, r_share)
         return apply_release_strategy(
             reception, LIMITED, rng, cast_star_power, marketing_share=m_share, rights_share=r_share,
         )  # acquired -> a platform release

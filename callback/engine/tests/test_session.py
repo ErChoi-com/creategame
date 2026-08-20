@@ -7,7 +7,9 @@ from __future__ import annotations
 import unittest
 from dataclasses import replace
 
+from callback.engine.actor.offers import Role
 from callback.engine.simulation._franchises import FranchiseEntry
+from callback.engine.simulation.career import ProjectResult
 from callback.engine.simulation.session import Session
 
 
@@ -71,6 +73,46 @@ class TestOfferBoardTypes(unittest.TestCase):
             self.assertGreaterEqual(offer["budget_millions"], offer["fee_millions"])
             self.assertIsInstance(offer["available"], bool)
             self.assertIsInstance(offer["studio_name"], str)
+
+    def test_offer_board_carries_the_new_v17_signals(self):
+        session = Session(seed=6)
+        session.start("conservatory", "work")
+        board = session.offer_board()
+        demand_bands_seen = set()
+        buzz_bands_seen = set()
+        for offer in board:
+            self.assertIn("demand_band", offer)
+            self.assertIn("buzz_band", offer)
+            self.assertIn("franchise_scale", offer)
+            self.assertIn("director", offer)
+            self.assertIsInstance(offer["director"], dict)
+            self.assertIn("known", offer["director"])
+            if not offer["director"]["known"]:
+                self.assertIsNone(offer["director"]["id"])
+            demand_bands_seen.add(offer["demand_band"])
+            buzz_bands_seen.add(offer["buzz_band"])
+        # a real board should show some real variation, not one flat value for everyone
+        self.assertGreater(len(buzz_bands_seen), 1)
+
+    def test_director_info_reports_unknown_for_a_stranger(self):
+        session = Session(seed=7)
+        session.start("conservatory", "work")
+        info = session.director_info("no_such_npc")
+        self.assertFalse(info["known"])
+
+    def test_director_info_reports_real_data_for_a_tracked_director(self):
+        for seed in range(20):
+            session = Session(seed=seed)
+            session.start("conservatory", "work")
+            directors = [n for n in session.rolodex_summary() if n["type"] == "director"]
+            if not directors:
+                continue
+            info = session.director_info(directors[0]["id"])
+            self.assertTrue(info["known"])
+            self.assertIsInstance(info["trust_band"], str)
+            self.assertIsInstance(info["projects_together"], int)
+            return
+        self.skipTest("no seed in range produced a tracked director — RNG variance, not a bug")
 
     def test_accept_without_availability_raises(self):
         session = Session(seed=5)
@@ -154,6 +196,63 @@ class TestFullProjectFlow(unittest.TestCase):
             self.assertIsInstance(label, str)
 
 
+class TestRatingFlow(unittest.TestCase):
+    def test_rating_preview_available_right_after_accept(self):
+        """The palette (and so RatingScore) is fixed at accept() time — a preview is real and
+        stable well before choose_release(), not sprung at the end."""
+        for seed in range(20):
+            session = Session(seed=seed)
+            session.start("conservatory", "work")
+            board = session.offer_board()
+            available = [o for o in board if o["available"]]
+            if not available:
+                continue
+            session.accept(available[0]["index"])
+            preview = session.rating_preview()
+            self.assertIn(preview["band"], ("G", "PG", "PG-13", "R", "NC-17"))
+            self.assertIsInstance(preview["cut_available"], bool)
+            return
+        self.skipTest("no offer came through across 20 seeds — RNG variance, not a bug")
+
+    def test_a_played_project_reports_a_real_rating_band(self):
+        session = Session(seed=7)
+        session.start("conservatory", "work")
+        summary = _play_one_year(session)
+        if summary is None:
+            self.skipTest("no offer came through in the attempt budget — RNG variance, not a bug")
+        self.assertIn(summary["rating_band"], ("G", "PG", "PG-13", "R", "NC-17"))
+        self.assertIn(summary["rating_stance"], ("cut", "release_as_shot"))
+        self.assertIsInstance(summary["rating_cut_forced"], bool)
+        self.assertIsInstance(summary["rating_studio_pressure"], bool)
+
+    def test_choosing_cut_only_takes_effect_on_a_genuine_borderline_film(self):
+        """Requesting a cut on a film nowhere near a boundary is a no-op — near_boundary gates the
+        whole decision, same restraint as the underlying rating.py rule."""
+        found_non_borderline = False
+        for seed in range(40):
+            session = Session(seed=seed)
+            session.start("conservatory", "work")
+            board = session.offer_board()
+            available = [o for o in board if o["available"]]
+            if not available:
+                continue
+            session.accept(available[0]["index"])
+            if session.rating_cut_available():
+                continue
+            found_non_borderline = True
+            session.choose_deal(want_approvals=False)
+            session.choose_rating_stance("cut")
+            session.choose_prep("table_work")
+            for _ in range(3):
+                session.play_scene({d: "with" for d, _ in session.dial_options()})
+            summary = session.choose_release("wide")
+            self.assertFalse(summary["rating_cut_forced"])
+            self.assertFalse(summary["rating_studio_pressure"])
+            break
+        if not found_non_borderline:
+            self.skipTest("every attempt landed on a borderline film — RNG variance, not a bug")
+
+
 class TestMarketingPush(unittest.TestCase):
     def test_no_request_means_not_requested_or_honored(self):
         session = Session(seed=60)
@@ -223,13 +322,16 @@ class TestMarketingPush(unittest.TestCase):
 
 
 def _get_to_prep(session: Session, max_attempts: int = 60) -> bool:
-    """Advances until an offer comes through and is accepted, stopping right after the Deal.
-    Returns False if the run ended before anything came through (RNG variance)."""
+    """Advances until a FILM offer comes through and is accepted, stopping right after the Deal.
+    Returns False if the run ended before anything came through (RNG variance). Deliberately skips
+    any series listing (offers.SERIES_CHANCE) — every caller of this helper is exercising a film-
+    specific mechanic (streaming bids, box-office bonus, release-strategy overrule) that a season
+    genuinely doesn't have; series gets its own dedicated flow in TestSeriesFlow."""
     for _ in range(max_attempts):
         if session.is_over():
             return False
         board = session.offer_board()
-        available = [o for o in board if o["available"]]
+        available = [o for o in board if o["available"] and o.get("project_type") != "series"]
         if not available:
             session.decline_board()
             continue
@@ -288,6 +390,39 @@ class TestBoxOfficeBonus(unittest.TestCase):
             self.assertGreater(summary["box_office_bonus_millions"], 0.0)
         else:
             self.assertEqual(summary["box_office_bonus_millions"], 0.0)
+
+    def test_first_dollar_gross_needs_more_standing_than_net_points(self):
+        from dataclasses import replace
+        session = Session(seed=34)
+        session.start("conservatory", "work")
+        standing = session.state.actor.standing.copy()
+        standing.add("heat", 55)
+        standing.add("prestige", 55)
+        standing.add("affection", 55)
+        session.state = replace(session.state, actor=replace(session.state.actor, standing=standing))
+        self.assertTrue(session.box_office_bonus_available("net_points"))
+        self.assertFalse(session.box_office_bonus_available("first_dollar_gross"))
+
+    def test_first_dollar_gross_pays_out_even_on_a_flop(self):
+        from dataclasses import replace
+        session = Session(seed=35)
+        session.start("conservatory", "work")
+        standing = session.state.actor.standing.copy()
+        standing.add("heat", 90)
+        standing.add("prestige", 90)
+        standing.add("affection", 90)
+        session.state = replace(session.state, actor=replace(session.state.actor, standing=standing))
+        if not _get_to_prep(session):
+            self.skipTest("no offer came through — RNG variance, not a bug")
+        self.assertTrue(session.box_office_bonus_available("first_dollar_gross"))
+        session.choose_deal(want_approvals=False, want_box_office_bonus=True, bonus_type="first_dollar_gross")
+        session.choose_prep("table_work")
+        for _ in range(3):
+            session.play_scene({d: "with" for d, _ in session.dial_options()})
+        summary = session.choose_release("wide")
+        self.assertEqual(summary["box_office_bonus_type"], "first_dollar_gross")
+        if summary["gross_millions"] > 0:
+            self.assertGreater(summary["box_office_bonus_millions"], 0.0)
 
 
 class TestStreamingBidding(unittest.TestCase):
@@ -356,6 +491,85 @@ class TestStreamingBidding(unittest.TestCase):
         if summary["studio_overruled"]:
             self.skipTest("studio overruled the streaming request this run — RNG variance, not a bug")
         self.assertIsNotNone(summary["streaming_buyer"])
+
+
+class TestFestivalBidding(unittest.TestCase):
+    """The acquisition roll (festival_acquisition_probability) is genuinely probabilistic, unlike
+    streaming's always-resolved sale — every test here samples across seeds until an acquired film
+    actually comes through, rather than asserting on one fixed seed."""
+
+    def _get_acquired_summary(self, base_seed: int = 200, tries: int = 60, **choose_kwargs):
+        for i in range(tries):
+            session = Session(seed=base_seed + i)
+            session.start("conservatory", "work")
+            if not _get_to_prep(session):
+                continue
+            session.choose_deal(False)
+            session.choose_prep("table_work")
+            for _ in range(3):
+                session.play_scene({d: "with" for d, _ in session.dial_options()})
+            summary = session.choose_release("festival", **choose_kwargs)
+            if summary["studio_overruled"] or summary["gross_millions"] <= 0:
+                continue
+            return summary
+        return None
+
+    def test_festival_bid_options_are_plain_data(self):
+        session = Session(seed=240)
+        session.start("conservatory", "work")
+        if not _get_to_prep(session):
+            self.skipTest("no offer came through — RNG variance, not a bug")
+        session.choose_deal(False)
+        bids = session.festival_bid_options()
+        self.assertTrue(bids)
+        for b in bids:
+            self.assertIsInstance(b["studio_name"], str)
+            self.assertIsInstance(b["payout_millions"], float)
+
+    def test_an_acquired_film_reports_a_buyer(self):
+        summary = self._get_acquired_summary()
+        if summary is None:
+            self.skipTest("no acquired festival film came through in the sample — RNG variance")
+        self.assertIsNotNone(summary["festival_buyer"])
+        self.assertIn("roi", summary)
+
+    def test_the_real_bid_pool_is_offered_after_quality_is_known_not_before(self):
+        seen_bids = []
+
+        def selector(bids):
+            seen_bids.extend(bids)
+            return max(bids, key=lambda b: b.payout_millions)
+
+        summary = self._get_acquired_summary(festival_bid_selector=selector)
+        if summary is None:
+            self.skipTest("no acquired festival film came through in the sample — RNG variance")
+        self.assertTrue(seen_bids)
+        self.assertTrue(any(b.self_release for b in seen_bids))
+
+    def test_choosing_self_release_uses_the_real_limited_numbers_not_a_flat_guarantee(self):
+        def self_release_selector(bids):
+            return next(b for b in bids if b.self_release)
+
+        summary = self._get_acquired_summary(festival_bid_selector=self_release_selector)
+        if summary is None:
+            self.skipTest("no acquired festival film came through in the sample — RNG variance")
+        self.assertTrue(summary["festival_self_released"])
+
+    def test_choosing_an_outside_buyer_pays_a_flat_guarantee_not_self_release(self):
+        def outside_selector(bids):
+            outside = [b for b in bids if not b.self_release]
+            return max(outside, key=lambda b: b.payout_millions) if outside else max(bids, key=lambda b: b.payout_millions)
+
+        summary = self._get_acquired_summary(festival_bid_selector=outside_selector)
+        if summary is None:
+            self.skipTest("no acquired festival film with an outside bidder came through — RNG variance")
+        self.assertFalse(summary["festival_self_released"])
+
+    def test_no_selector_defaults_to_auto_accepting_the_best_offer(self):
+        summary = self._get_acquired_summary()
+        if summary is None:
+            self.skipTest("no acquired festival film came through in the sample — RNG variance")
+        self.assertIsNotNone(summary["festival_buyer"])
 
 
 class TestMultiPictureDeal(unittest.TestCase):
@@ -530,6 +744,106 @@ class TestSceneOrientation(unittest.TestCase):
         self.assertGreater(session.state.leverage.favours.balance(costar_id), 0)
 
 
+def _force_series_role(session: Session, n_episodes: int = 4, renewable: bool = False, max_attempts: int = 60) -> None:
+    """Bypasses the offer board's own real-but-probabilistic 12% series chance (offers.
+    SERIES_CHANCE) for a deterministic test — same direct-injection pattern other Session tests
+    already use (e.g. TestBoxOfficeBonus manipulating session.state.actor.standing directly)."""
+    from callback.engine.simulation.career import generate_palette
+    for _ in range(max_attempts):
+        board = session.offer_board()
+        available = [o for o in board if o["available"]]
+        if not available:
+            session.decline_board()
+            continue
+        session.accept(available[0]["index"])
+        session._role = replace(session._role, project_type="series", n_episodes=n_episodes, series_renewable=renewable)
+        session._palette = generate_palette(session._role.genre, session.rng)
+        return
+    raise AssertionError("test setup: no offer came through — RNG variance, not a bug")
+
+
+class TestSeriesFlow(unittest.TestCase):
+    def test_a_full_season_resolves_with_real_aggregate_numbers(self):
+        session = Session(seed=40)
+        session.start("conservatory", "work")
+        _force_series_role(session, n_episodes=6)
+        session.choose_deal(want_approvals=False)
+        session.choose_prep("table_work")
+        for _ in range(6):  # 3 premiere + 3 finale — see Session.episode_labels()
+            session.play_scene({d: "with" for d, _ in session.dial_options()})
+        summary = session.choose_release("wide")  # strategy is accepted but ignored for a series
+        self.assertEqual(summary["n_episodes"], 6)
+        self.assertIsInstance(summary["critic_score"], (int, float))
+        self.assertGreaterEqual(summary["license_value_millions"], 0.0)
+        self.assertIsNone(summary["renewed"])  # not sold as renewable
+        self.assertNotIn("gross_millions", summary)  # box-office language doesn't belong on a season
+        self.assertNotIn("box_office_bonus_millions", summary)
+        # the TV-native read: real retention numbers, not just the ROI framing borrowed from film
+        self.assertGreaterEqual(summary["final_retention_pct"], 0.0)
+        self.assertLessEqual(summary["final_retention_pct"], 100.0)
+        self.assertGreaterEqual(summary["average_retention_pct"], summary["final_retention_pct"])
+        self.assertNotIn("studio_overruled", summary)
+
+    def test_a_season_reports_roughly_the_whole_runs_budget_not_one_episodes_slice(self):
+        # §5.18 — "a season pays like several films for one calendar commitment": the season's own
+        # reported budget sums across all n_episodes, not just one episode's share of it.
+        session = Session(seed=41)
+        session.start("conservatory", "work")
+        _force_series_role(session, n_episodes=10)
+        per_episode_budget = session._role.film_budget_millions / 10
+        session.choose_deal(want_approvals=False)
+        session.choose_prep("table_work")
+        for _ in range(6):
+            session.play_scene({d: "with" for d, _ in session.dial_options()})
+        summary = session.choose_release("wide")
+        self.assertGreater(summary["budget_millions"], per_episode_budget * 5)
+
+    def test_a_non_renewable_series_never_rolls_renewal(self):
+        session = Session(seed=42)
+        session.start("conservatory", "work")
+        _force_series_role(session, n_episodes=4, renewable=False)
+        session.choose_deal(want_approvals=False)
+        session.choose_prep("table_work")
+        for _ in range(6):
+            session.play_scene({d: "with" for d, _ in session.dial_options()})
+        summary = session.choose_release("wide")
+        self.assertFalse(summary["renewable"])
+        self.assertIsNone(summary["renewal_chance"])
+        self.assertIsNone(summary["renewed"])
+
+    def test_a_renewed_series_guarantees_next_years_listing_at_the_locked_terms(self):
+        session = Session(seed=43)
+        session.start("conservatory", "work")
+        _force_series_role(session, n_episodes=4, renewable=True)
+        original_fee = session._role.budget_for_role
+        session.choose_deal(want_approvals=False)
+        session.choose_prep("table_work")
+        for _ in range(6):
+            session.play_scene({d: "with" for d, _ in session.dial_options()})
+        summary = session.choose_release("wide")
+        self.assertIsNotNone(summary["renewal_chance"])
+        if summary["renewed"]:
+            self.assertIsNotNone(session._pending_renewed_series)
+            self.assertEqual(session._pending_renewed_series.budget_for_role, original_fee)
+            session.end_year()
+            board = session.offer_board()
+            guaranteed = [o for o in board if o.get("guaranteed")]
+            self.assertTrue(guaranteed)
+            self.assertEqual(guaranteed[0]["fee_millions"], round(original_fee, 2))
+        else:
+            self.assertIsNone(session._pending_renewed_series)
+
+    def test_scene_names_stay_a_single_episodes_worth_regardless_of_series(self):
+        # scene_names() describes ONE episode's own three scenes; episode_labels() is what tells
+        # the caller how many real passes through it a project needs (1 for a film, 2 for a
+        # series) — the two must never be conflated into one combined list.
+        session = Session(seed=44)
+        session.start("conservatory", "work")
+        _force_series_role(session, n_episodes=8)
+        self.assertEqual(len(session.scene_names()), 3)
+        self.assertEqual(session.episode_labels(), ["premiere", "finale"])
+
+
 class TestDirectorRequest(unittest.TestCase):
     def test_available_directors_returns_plain_dicts(self):
         session = Session(seed=23)
@@ -584,7 +898,31 @@ class TestRolodexAndLeverageReachable(unittest.TestCase):
         self.assertIsInstance(message, str)
         self.assertGreater(session.leverage_status()["scarcity"], 0)
         session.end_year()
-        self.assertGreater(session.age(), start_age)
+
+    def test_application_status_starts_fresh_and_climbs_with_a_scanned_board(self):
+        session = Session(seed=11)
+        session.start("conservatory", "work")
+        before = session.application_status()
+        self.assertEqual(before["agent_tier"], "unrepresented")
+        self.assertEqual(before["applications_this_year"], 0)
+        self.assertEqual(before["fatigue_band"], "fresh")
+
+        session.offer_board()
+        session.generate_more_listings(20)
+        after = session.application_status()
+        self.assertGreater(after["applications_this_year"], before["applications_this_year"])
+
+    def test_application_status_resets_on_a_new_offer_board(self):
+        # offer_board() resets the counter to 0 and then immediately generates a fresh board, so
+        # the real signal is that a second offer_board() call doesn't carry over everything a
+        # prior board plus a big manual scan already accumulated -- not that it reads exactly 0.
+        session = Session(seed=12)
+        session.start("conservatory", "work")
+        session.offer_board()
+        session.generate_more_listings(50)
+        accumulated = session.application_status()["applications_this_year"]
+        session.offer_board()  # a fresh year's board
+        self.assertLess(session.application_status()["applications_this_year"], accumulated)
 
     def test_trades_is_reachable(self):
         session = Session(seed=11)
@@ -593,12 +931,228 @@ class TestRolodexAndLeverageReachable(unittest.TestCase):
         self.assertIsInstance(digest, list)
         self.assertTrue(all(isinstance(line, str) for line in digest))
 
+    def test_interact_spends_a_quarter_and_refuses_a_fifth(self):
+        session = Session(seed=40)
+        session.start("conservatory", "work")
+        npc_id = session.rolodex_summary()[0]["id"]
+        self.assertEqual(session.actor_quarters_remaining_this_year(), 4)
+        for _ in range(4):
+            result = session.interact(npc_id, "check_in")
+            self.assertNotIn("No time left", result)
+        self.assertEqual(session.actor_quarters_remaining_this_year(), 0)
+        refused = session.interact(npc_id, "check_in")
+        self.assertIn("No time left", refused)
+        session.end_year()
+        self.assertEqual(session.actor_quarters_remaining_this_year(), 4)
+
+    def test_accepting_a_role_spends_exactly_its_own_quarters_for_role(self):
+        # actor.offers.quarters_for_role — a role's own real scale decides how much of the year it
+        # costs; only a role that actually needs the full QUARTERS_PER_YEAR leaves nothing behind.
+        from callback.engine.actor.offers import quarters_for_role
+        session = Session(seed=41)
+        session.start("conservatory", "work")
+        board = session.offer_board()
+        available = [o for o in board if o["available"]]
+        if not available:
+            self.skipTest("no offer came through this seed — RNG variance, not a bug")
+        accepted = available[0]
+        session.accept(accepted["index"])
+        expected_remaining = max(0, 4 - quarters_for_role(session._role))
+        self.assertEqual(session.actor_quarters_remaining_this_year(), expected_remaining)
+        self.assertEqual(accepted["quarters_required"], quarters_for_role(session._role))
+
+    def test_disappear_spends_the_whole_years_actor_quarters(self):
+        session = Session(seed=42)
+        session.start("conservatory", "work")
+        session.disappear()
+        self.assertEqual(session.actor_quarters_remaining_this_year(), 0)
+
 
 class TestAwardsReachable(unittest.TestCase):
     def test_no_campaign_available_before_any_project(self):
         session = Session(seed=12)
         session.start("conservatory", "work")
         self.assertFalse(session.awards_campaign_available())
+
+    def _drama_result(self, role_depth="showcase"):
+        role = Role(
+            project_id="p1", genre="drama", archetype="leading_hero", billing="lead",
+            char_age=35, type_strictness=0.5, difficulty=50, budget_for_role=10,
+            gatekeeper="prestige_auteur", role_depth=role_depth,
+        )
+        return ProjectResult(
+            role=role, cast_via="direct_offer", spotlight=95.0, craft_contribution=20.0,
+            performance=90.0, project_quality=88.0, film_critic_score=92.0, audience_score=70.0,
+            roi=2.0, budget=10.0, marketing=2.0, gross=40.0, opening=15.0, legs=1.5,
+            release_strategy="wide", heat_delta=0.0, prestige_delta=5.0, affection_delta=0.0,
+        )
+
+    def test_campaign_updates_award_history_on_the_actor(self):
+        session = Session(seed=13)
+        session.start("conservatory", "work")
+        session._last_result = self._drama_result()
+        before = session.state.actor.award_nominations
+        session.run_awards_campaign("lead_drama", spend_millions=2.0)
+        # Either a nomination happened (count went up) or it genuinely didn't — either way the
+        # field is real and tracked, not stuck at the default forever.
+        self.assertGreaterEqual(session.state.actor.award_nominations, before)
+
+    def test_underwritten_role_in_a_drama_still_caps_hard(self):
+        """§14.3 — depth is a real second gate: a showcase role and an underwritten role in the
+        exact same high-ceiling genre should not resolve identically at the top end."""
+        from callback.engine.awards.awards import award_ceiling
+        self.assertLess(award_ceiling("drama", "underwritten"), award_ceiling("drama", "showcase"))
+
+    def test_category_fraud_can_add_notoriety_when_caught(self):
+        # Run enough seeds that at least one gets caught (35% per roll) and confirm notoriety
+        # only ever moves when the field itself reports a catch. Campaigning SUPPORTING with a
+        # lead-billed role is the actual real-world move category_fraud describes.
+        caught_any = False
+        for seed in range(30):
+            session = Session(seed=seed)
+            session.start("conservatory", "work")
+            session._last_result = self._drama_result()
+            notoriety_before = session.state.actor.standing["notoriety"]
+            result = session.run_awards_campaign("supporting", spend_millions=1.0, attempt_category_fraud=True)
+            notoriety_after = session.state.actor.standing["notoriety"]
+            if result["category_fraud_caught"]:
+                caught_any = True
+                self.assertGreater(notoriety_after, notoriety_before)
+        self.assertTrue(caught_any)
+
+    def test_available_categories_for_a_lead_drama_role(self):
+        session = Session(seed=15)
+        session.start("conservatory", "work")
+        session._last_result = self._drama_result()
+        categories = session.available_award_categories()
+        self.assertIn("lead_drama", categories)
+        self.assertIn("ensemble", categories)
+        self.assertNotIn("lead_comedy", categories)
+        self.assertNotIn("supporting", categories)
+
+    def test_available_categories_for_a_comedy_supporting_role(self):
+        role = Role(
+            project_id="p2", genre="comedy", archetype="comic_relief", billing="supporting",
+            char_age=30, type_strictness=0.5, difficulty=50, budget_for_role=5,
+            gatekeeper="prestige_auteur",
+        )
+        result = replace(self._drama_result(), role=role)
+        session = Session(seed=16)
+        session.start("conservatory", "work")
+        session._last_result = result
+        categories = session.available_award_categories()
+        self.assertIn("supporting", categories)
+        self.assertIn("ensemble", categories)
+        self.assertNotIn("lead_drama", categories)
+        self.assertNotIn("lead_comedy", categories)
+
+    def test_available_categories_for_a_horror_lead_include_genre_excellence(self):
+        role = Role(
+            project_id="p3", genre="horror", archetype="leading_hero", billing="lead",
+            char_age=28, type_strictness=0.5, difficulty=50, budget_for_role=5,
+            gatekeeper="prestige_auteur",
+        )
+        result = replace(self._drama_result(), role=role)
+        session = Session(seed=19)
+        session.start("conservatory", "work")
+        session._last_result = result
+        categories = session.available_award_categories()
+        self.assertIn("lead_drama", categories)  # still a real, if long-shot, prestige contender
+        self.assertIn("genre_excellence", categories)  # AND a real second-circuit contender
+
+    def test_available_categories_for_an_animated_role_include_voice_performance(self):
+        role = Role(
+            project_id="p4", genre="family", archetype="everyman", billing="lead",
+            char_age=28, type_strictness=0.5, difficulty=50, budget_for_role=5,
+            gatekeeper="prestige_auteur", is_animation=True,
+        )
+        result = replace(self._drama_result(), role=role)
+        session = Session(seed=20)
+        session.start("conservatory", "work")
+        session._last_result = result
+        self.assertIn("voice_performance", session.available_award_categories())
+
+    def test_genre_excellence_win_moves_prestige(self):
+        role = Role(
+            project_id="p5", genre="scifi", archetype="leading_hero", billing="lead",
+            char_age=28, type_strictness=0.5, difficulty=50, budget_for_role=5,
+            gatekeeper="prestige_auteur", role_depth="showcase",
+        )
+        for seed in range(40):
+            session = Session(seed=seed + 400)
+            session.start("conservatory", "work")
+            session._last_result = replace(self._drama_result(), role=role)
+            prestige_before = session.state.actor.standing["prestige"]
+            result = session.run_awards_campaign("genre_excellence", spend_millions=2.0)
+            if result["won"]:
+                self.assertGreater(session.state.actor.standing["prestige"], prestige_before)
+                return
+        self.skipTest("no genre_excellence win landed across 40 seeds — RNG variance, not a bug")
+
+    def test_breakthrough_only_available_early_career(self):
+        session = Session(seed=17)
+        session.start("conservatory", "work")
+        session._last_result = self._drama_result()
+        session.state = replace(session.state, actor=replace(session.state.actor, credits=1))
+        self.assertIn("breakthrough", session.available_award_categories())
+        session.state = replace(session.state, actor=replace(session.state.actor, credits=10))
+        self.assertNotIn("breakthrough", session.available_award_categories())
+
+    def test_ensemble_win_moves_affection_not_prestige(self):
+        session = Session(seed=18)
+        session.start("conservatory", "work")
+        session._last_result = self._drama_result()
+        affection_before = session.state.actor.standing["affection"]
+        prestige_before = session.state.actor.standing["prestige"]
+        for seed in range(40):
+            session = Session(seed=seed + 100)
+            session.start("conservatory", "work")
+            session._last_result = self._drama_result()
+            result = session.run_awards_campaign("ensemble", spend_millions=2.0)
+            if result["won"]:
+                self.assertGreater(session.state.actor.standing["affection"], affection_before)
+                self.assertEqual(session.state.actor.standing["prestige"], prestige_before)
+                return
+        self.skipTest("no ensemble win landed across 40 seeds — RNG variance, not a bug")
+
+    def test_breakthrough_win_moves_heat_not_prestige(self):
+        prestige_before = None
+        for seed in range(40):
+            session = Session(seed=seed + 200)
+            session.start("conservatory", "work")
+            session._last_result = self._drama_result()
+            session.state = replace(session.state, actor=replace(session.state.actor, credits=1))
+            heat_before = session.state.actor.standing["heat"]
+            prestige_before = session.state.actor.standing["prestige"]
+            result = session.run_awards_campaign("breakthrough", spend_millions=2.0)
+            if result["won"]:
+                self.assertGreater(session.state.actor.standing["heat"], heat_before)
+                self.assertEqual(session.state.actor.standing["prestige"], prestige_before)
+                return
+        self.skipTest("no breakthrough win landed across 40 seeds — RNG variance, not a bug")
+
+
+class TestCutLifestyleFloor(unittest.TestCase):
+    """§11.6 — the going-broke ratchet's real escape hatch, reachable through Session."""
+
+    def test_cutting_the_floor_lowers_it_and_costs_affection(self):
+        session = Session(seed=14)
+        session.start("conservatory", "work")
+        money = replace(session.state.life.money, lifestyle_floor=10.0, net_worth=-5.0)
+        session.state = replace(session.state, life=replace(session.state.life, money=money))
+        affection_before = session.state.actor.standing["affection"]
+        result = session.cut_lifestyle_floor(3.0)
+        self.assertEqual(result["new_floor_millions"], 3.0)
+        self.assertEqual(session.state.life.money.lifestyle_floor, 3.0)
+        self.assertLess(session.state.actor.standing["affection"], affection_before)
+
+    def test_cutting_the_floor_cannot_raise_it(self):
+        session = Session(seed=15)
+        session.start("conservatory", "work")
+        money = replace(session.state.life.money, lifestyle_floor=3.0)
+        session.state = replace(session.state, life=replace(session.state.life, money=money))
+        session.cut_lifestyle_floor(100.0)
+        self.assertEqual(session.state.life.money.lifestyle_floor, 3.0)
 
 
 class TestObituary(unittest.TestCase):

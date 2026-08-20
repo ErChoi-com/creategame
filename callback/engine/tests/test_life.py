@@ -85,6 +85,36 @@ class TestMoney(unittest.TestCase):
         state = apply_year(state, gross_income_millions=0.0, rng=rng)
         self.assertLess(state.net_worth, 10.0)
 
+    def test_a_windfall_still_credits_net_worth_in_full(self):
+        rng = random.Random(5)
+        state = MoneyState()
+        state = apply_year(state, gross_income_millions=0.0, rng=rng, windfall_income_millions=100.0)
+        self.assertGreater(state.net_worth, 0.0)
+
+    def test_a_dry_spell_genuinely_corrects_the_floor_instead_of_oscillating(self):
+        # Regression: peak_annual_income used to never decay, which pinned target_floor at the old
+        # ceiling forever — the floor would decay one year then instantly ratchet back up the next,
+        # alternating between two fixed values rather than ever actually falling.
+        rng = random.Random(7)
+        state = MoneyState()
+        for _ in range(5):
+            state = apply_year(state, gross_income_millions=15.0, rng=rng)
+        floors = []
+        for _ in range(6):
+            state = apply_year(state, gross_income_millions=0.0, rng=rng)
+            floors.append(state.lifestyle_floor)
+        for earlier, later in zip(floors, floors[1:]):
+            self.assertLess(later, earlier)
+
+    def test_a_windfall_barely_moves_the_lifestyle_floor_compared_to_steady_income(self):
+        rng_a, rng_b = random.Random(6), random.Random(6)
+        steady = apply_year(MoneyState(), gross_income_millions=100.0, rng=rng_a)
+        windfall = apply_year(MoneyState(), gross_income_millions=0.0, rng=rng_b, windfall_income_millions=100.0)
+        self.assertLess(windfall.lifestyle_floor, steady.lifestyle_floor)
+        # both still real net worth from the same $100M — the difference is purely how much of it
+        # gets baked into next year's expected spending, not how much money you actually have
+        self.assertGreater(windfall.net_worth, 0.0)
+
 
 class TestObituary(unittest.TestCase):
     def test_generates_from_a_real_career_and_rolodex(self):

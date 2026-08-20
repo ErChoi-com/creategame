@@ -95,6 +95,46 @@ class TestReleaseStrategies(unittest.TestCase):
         outcomes = [apply_release_strategy(r, FESTIVAL, random.Random(s), cast_star_power=5).roi for s in range(50)]
         self.assertIn(0.0, outcomes)
 
+    def test_no_festival_sale_resolver_falls_back_to_the_old_limited_behavior(self):
+        """Regression: a caller that never passes festival_sale_resolver (director mode's own
+        festival path, verify.py, any pre-existing test) must see the exact same outcome as before
+        this feature existed — acquired always means a LIMITED release at the seller's own terms."""
+        r = _reception(film_critic_score=90, audience_score=85)  # a near-certain acquisition
+        without_resolver = apply_release_strategy(r, FESTIVAL, random.Random(11), cast_star_power=70)
+        with_limited = apply_release_strategy(r, LIMITED, random.Random(11), cast_star_power=70)
+        # Both draw from the same rng stream up to the acquisition roll, then diverge only in how
+        # many further rng draws each path makes — comparing shape, not bit-for-bit equality.
+        self.assertGreater(without_resolver.gross, 0.0)
+        self.assertEqual(without_resolver.marketing, with_limited.marketing)
+
+    def test_festival_sale_resolver_is_only_invoked_once_acquired(self):
+        calls = []
+
+        def resolver(reception, m_share, r_share):
+            calls.append((reception, m_share, r_share))
+            return reception
+
+        unsold = _reception(film_critic_score=5, audience_score=5)
+        for seed in range(30):
+            apply_release_strategy(unsold, FESTIVAL, random.Random(seed), cast_star_power=5, festival_sale_resolver=resolver)
+        # A near-guaranteed non-acquisition should leave the resolver untouched most/all of the time.
+        self.assertLess(len(calls), 30)
+
+        acquired = _reception(film_critic_score=95, audience_score=95)
+        calls.clear()
+        apply_release_strategy(acquired, FESTIVAL, random.Random(1), cast_star_power=90, festival_sale_resolver=resolver)
+        self.assertEqual(len(calls), 1)
+
+    def test_festival_sale_resolver_return_value_wins(self):
+        acquired = _reception(film_critic_score=95, audience_score=95, budget=10.0)
+        sold = _reception(budget=10.0, gross=42.0, marketing=0.0, roi=4.2)
+        result = apply_release_strategy(
+            acquired, FESTIVAL, random.Random(1), cast_star_power=90,
+            festival_sale_resolver=lambda reception, m, r: sold,
+        )
+        self.assertEqual(result.gross, 42.0)
+        self.assertEqual(result.roi, 4.2)
+
 
 class TestWeeklyGrossCurve(unittest.TestCase):
     def test_first_week_is_the_opening(self):

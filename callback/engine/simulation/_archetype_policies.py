@@ -18,12 +18,20 @@ from __future__ import annotations
 from collections import Counter
 
 from callback.engine.director import casting, development as director_development, shoot_style
+from callback.engine.simulation._release_labels import RELEASE_LABELS
 from callback.engine.simulation._sim_policy_shared import SCENE_POSITIONS
 from callback.engine.simulation.session import Session
 from callback.engine.world.genre_cycle import genre_demand as world_genre_demand
 
 BUZZ_RANK = {"nothing you've heard": 0, "quiet": 1, "some heat": 2, "real buzz": 3, "the talk of the town": 4}
 GENRES = ["drama", "thriller", "horror", "comedy", "scifi", "action", "period", "romance", "musical", "family"]
+
+# choose_release()'s return dict only reports the resolved release as its player-facing label
+# (result["release_label"]), not the internal strategy key — this reverses _release_labels.py's
+# own RELEASE_LABELS to recover the canonical key ("wide"/"limited"/...) for coverage tallying,
+# so a resolved-outcome ID always matches one of decision-map.md's five concrete
+# release.actor.resolved.* rows rather than a mangled copy of the display string.
+_RELEASE_LABEL_TO_STRATEGY = {label: strategy for strategy, label in RELEASE_LABELS.items()}
 
 # How many extra generate_more_listings() batches franchise_maximizer is willing to burn on a year
 # with no continuing-franchise offer on the board, matching _full_data_report.py's "opportunist"
@@ -104,7 +112,7 @@ def prestige_chaser(seed: int, years: int = 60, visited: Counter | None = None) 
             result = session.choose_release(strategy)
             if not is_series_year:
                 visited[f"release.actor.request.{strategy}"] += 1
-                visited[f"release.actor.resolved.{result['release_label'].lower().replace(' ', '_')}"] += 1
+                visited[f"release.actor.resolved.{_RELEASE_LABEL_TO_STRATEGY.get(result['release_label'], 'unknown')}"] += 1
             films_acted.append({
                 "genre": best["genre"], "billing": best["billing"], "studio_tag": best["studio_name"],
                 "is_animation": best.get("is_animation", False), **result,
@@ -323,7 +331,7 @@ def franchise_maximizer(seed: int, years: int = 60, visited: Counter | None = No
                 result = session.choose_release(strategy)
                 if not is_series_year:
                     visited[f"release.actor.request.{strategy}"] += 1
-                    visited[f"release.actor.resolved.{result['release_label'].lower().replace(' ', '_')}"] += 1
+                    visited[f"release.actor.resolved.{_RELEASE_LABEL_TO_STRATEGY.get(result['release_label'], 'unknown')}"] += 1
                 films_acted.append({
                     "genre": best["genre"], "billing": best["billing"], "studio_tag": best["studio_name"],
                     "franchise_id": best.get("franchise_id"), **result,

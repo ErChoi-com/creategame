@@ -35,6 +35,13 @@ HOLDOUT_RAISE_CAP = 2.40
 HOLDOUT_FAILURE_NOTORIETY = 15.0
 HOLDOUT_REPEAT_PENALTY = -8.0
 
+# simulation._franchises.studio_protectiveness's pull on this same holdout — independent of, and
+# subtracted after, the actor's own indispensability. A studio confident in the property itself
+# doesn't need to keep paying up to keep any one person on it; the stronger the franchise, the less
+# real leverage its own star holds over it. Default 0.0 (a standalone project, or a franchise with
+# no real track record yet) leaves every existing call site's behavior exactly unchanged.
+PROTECTIVENESS_RECAST_COEF = 0.35
+
 
 def character_identification(prior: float, spotlight_this_installment: float, memorability: float) -> float:
     """Grows with installments, with Spotlight in the role, and with the character's memorability.
@@ -81,8 +88,13 @@ class HoldoutResult:
     notoriety_delta: float
 
 
-def resolve_holdout(indispensability_value: float, prior_holdouts: int, rng: random.Random) -> HoldoutResult:
-    effective_indispensability = indispensability_value + HOLDOUT_REPEAT_PENALTY * prior_holdouts
+def resolve_holdout(
+    indispensability_value: float, prior_holdouts: int, rng: random.Random, studio_protectiveness: float = 0.0,
+) -> HoldoutResult:
+    effective_indispensability = (
+        indispensability_value + HOLDOUT_REPEAT_PENALTY * prior_holdouts
+        - PROTECTIVENESS_RECAST_COEF * studio_protectiveness
+    )
     p_pay = HOLDOUT_PAY_CAP * sigmoid(HOLDOUT_PAY_SLOPE * (effective_indispensability - HOLDOUT_PAY_CENTRE))
     they_paid = rng.random() < p_pay
 

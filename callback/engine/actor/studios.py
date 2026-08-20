@@ -12,8 +12,9 @@ from __future__ import annotations
 import random
 from dataclasses import dataclass
 
+from callback.engine.actor.rating import RATING_BAND_ORDER, RATING_CUT, RATING_RELEASE_AS_SHOT, rating_band
 from callback.engine.actor.reception import BREAK_EVEN_MARKETING_SHARE, RIGHTS_SHARE
-from callback.engine.actor.release import STREAMING_BUYOUT_MULTIPLIER
+from callback.engine.actor.release import FESTIVAL_ACQUISITION_BASE_MULTIPLIER, STREAMING_BUYOUT_MULTIPLIER
 from callback.engine.core.util import clamp
 
 # How much a marketing share above/below the 0.45 baseline moves the opening-weekend multiplier.
@@ -34,8 +35,14 @@ class Studio:
     rights_share_delta: float  # added to RIGHTS_SHARE — how much of the gross reaches you at all
     festival_tier_bonus: float  # added to festival_acquisition_probability's sigmoid input
     streaming_multiplier_delta: float  # added to release.py's STREAMING_BUYOUT_MULTIPLIER
+    festival_acquisition_multiplier_delta: float  # added to release.py's FESTIVAL_ACQUISITION_
+    # BASE_MULTIPLIER when this studio bids to BUY festival distribution rights — a distinct axis
+    # from festival_tier_bonus above, which only affects whether a submission gets acquired at all,
+    # never what a buyer actually pays for it.
     budget_range: tuple[float, float]  # $M film budget this studio plausibly finances
     preferred_release: str  # release.py strategy key this studio pushes for by default
+    rating_ceiling: str  # the harshest rating.RATING_BAND_ORDER label this studio is comfortable
+    # financing at full commitment before it starts pushing for a cut — see decide_rating_cut()
 
 
 # §8.2's own tiered curve, ported here (not re-derived) for the one studio whose whole identity
@@ -57,35 +64,40 @@ STUDIOS: dict[str, Studio] = {
         tagline="No marketing budget to speak of — they're betting on festivals and word of mouth.",
         marketing_share=0.20, tiered_marketing=False, rights_share_delta=0.08,
         festival_tier_bonus=0.35, streaming_multiplier_delta=-0.05,
-        budget_range=(0.0, 15.0), preferred_release="festival",
+        festival_acquisition_multiplier_delta=0.20,  # the archetypal festival-acquisitions buyer
+        budget_range=(0.0, 15.0), preferred_release="festival", rating_ceiling="NC-17",
     ),
     "mid_major": Studio(
         id="mid_major", name="A mid-major studio",
         tagline="Standard money, standard playbook — a real theatrical push, nothing extravagant.",
         marketing_share=BREAK_EVEN_MARKETING_SHARE, tiered_marketing=False, rights_share_delta=0.0,
         festival_tier_bonus=0.0, streaming_multiplier_delta=0.0,
-        budget_range=(8.0, 55.0), preferred_release="wide",
+        festival_acquisition_multiplier_delta=0.0,
+        budget_range=(8.0, 55.0), preferred_release="wide", rating_ceiling="R",
     ),
     "prestige": Studio(
         id="prestige", name="A prestige awards house",
         tagline="They spend on campaigns, not trailers — this film is built to be talked about in January.",
         marketing_share=0.50, tiered_marketing=False, rights_share_delta=0.03,
         festival_tier_bonus=0.55, streaming_multiplier_delta=-0.10,
-        budget_range=(12.0, 65.0), preferred_release="limited",
+        festival_acquisition_multiplier_delta=0.10,  # pays well for the right title, not the widest net
+        budget_range=(12.0, 65.0), preferred_release="limited", rating_ceiling="NC-17",
     ),
     "blockbuster": Studio(
         id="blockbuster", name="A blockbuster machine",
         tagline="Marketing scales with the budget — a wall-to-wall campaign, and a much bigger bill.",
         marketing_share=0.0, tiered_marketing=True, rights_share_delta=-0.05,
         festival_tier_bonus=-0.20, streaming_multiplier_delta=0.0,
-        budget_range=(45.0, 300.0), preferred_release="wide",
+        festival_acquisition_multiplier_delta=-0.25,  # not in the small-acquisitions business at all
+        budget_range=(45.0, 300.0), preferred_release="wide", rating_ceiling="PG-13",
     ),
     "streamer": Studio(
         id="streamer", name="A streamer-backed production",
         tagline="Almost no theatrical marketing — the payout is flat and guaranteed either way.",
         marketing_share=0.08, tiered_marketing=False, rights_share_delta=-0.02,
         festival_tier_bonus=-0.10, streaming_multiplier_delta=0.18,
-        budget_range=(15.0, 130.0), preferred_release="streaming",
+        festival_acquisition_multiplier_delta=0.05,  # will scoop up a festival darling, but it's not their lane
+        budget_range=(15.0, 130.0), preferred_release="streaming", rating_ceiling="PG-13",
     ),
 }
 
@@ -231,6 +243,66 @@ def decide_marketing_spend(
     )
 
 
+# The studio's rating tolerance isn't just its own identity — a real tentpole budget pulls the
+# ceiling down regardless of who's financing it (four-quadrant economics beats studio personality),
+# and an open franchise/adaptation tightens it by one more step (real brand stakes, the same
+# built-in-awareness idea MARKETING_FRANCHISE_DISCOUNT already prices in from the spend side).
+RATING_TENTPOLE_BUDGET_THRESHOLD = 100.0  # $M — same tier break _tentpole_marketing_share uses
+RATING_FRANCHISE_CEILING_TIGHTEN = 1  # steps down RATING_BAND_ORDER
+
+
+def effective_rating_ceiling(studio: Studio, film_budget_millions: float, is_franchise_or_adaptation: bool) -> str:
+    idx = RATING_BAND_ORDER.index(studio.rating_ceiling)
+    if film_budget_millions >= RATING_TENTPOLE_BUDGET_THRESHOLD:
+        idx = min(idx, RATING_BAND_ORDER.index("PG-13"))
+    if is_franchise_or_adaptation:
+        idx = max(idx - RATING_FRANCHISE_CEILING_TIGHTEN, 0)
+    return RATING_BAND_ORDER[idx]
+
+
+@dataclass(frozen=True)
+class RatingCutDecision:
+    actual_stance: str  # rating.RATING_CUT or rating.RATING_RELEASE_AS_SHOT — what actually happens
+    studio_wanted_cut: bool  # did the studio's own ceiling get exceeded at all
+    forced: bool  # the studio's preference overrode the requested stance
+    requested_stance: str  # what was asked for, unchanged, for the caller to report against
+
+
+def decide_rating_cut(
+    studio: Studio,
+    score: float,
+    film_budget_millions: float,
+    is_franchise_or_adaptation: bool,
+    requested_stance: str,
+    trust: float,
+    importance: float,
+    rng: random.Random,
+    influence_fn=actor_influence_on_studio_decision,
+) -> RatingCutDecision:
+    """The studio's real pressure on a borderline film's rating — the mirror image of
+    decide_release_strategy(): there, the actor/director requests and the studio grants with
+    probability influence_fn(); here, the studio has the preference (a cut, once its own effective_
+    rating_ceiling is exceeded) and influence_fn() is the probability the creative side's own
+    requested_stance holds anyway. A top-tier star or director can refuse a cut and make it stick;
+    someone with real influence over neither the studio nor the industry gets overruled outright —
+    same curve, same trust-swing, same floor/ceiling actor_influence_on_studio_decision() already
+    uses for every other studio negotiation in this engine, not a second formula.
+
+    Only meaningful for a film already sitting near a band boundary (rating.near_boundary(score)) —
+    the caller enforces that gate; a studio comfortably inside its own ceiling has no preference at
+    all, and requested_stance is simply honored."""
+    ceiling = effective_rating_ceiling(studio, film_budget_millions, is_franchise_or_adaptation)
+    wants_cut = RATING_BAND_ORDER.index(ceiling) < RATING_BAND_ORDER.index(rating_band(score))
+    if not wants_cut:
+        return RatingCutDecision(requested_stance, studio_wanted_cut=False, forced=False, requested_stance=requested_stance)
+
+    influence = influence_fn(trust, importance)
+    creative_side_holds = rng.random() < influence
+    if creative_side_holds:
+        return RatingCutDecision(requested_stance, studio_wanted_cut=True, forced=False, requested_stance=requested_stance)
+    return RatingCutDecision(RATING_CUT, studio_wanted_cut=True, forced=True, requested_stance=requested_stance)
+
+
 def pick_studio(budget_millions: float, rng: random.Random) -> Studio:
     """A film's budget determines who could plausibly be financing it — a $4M film never lands
     at the blockbuster machine, a $200M one never lands at the indie house. Picks uniformly among
@@ -278,6 +350,13 @@ QUALITY_BID_FLOOR = 30.0
 QUALITY_MULTIPLIER_FLOOR = 0.55
 QUALITY_MULTIPLIER_CEILING = 1.45
 
+# simulation._franchises.studio_protectiveness's pull on this same bid floor — a financing studio
+# protecting a proven property doesn't shop it around to competitors as readily; only a genuinely
+# enthusiastic outside buyer clears the raised bar, so a strong franchise draws a thinner outside
+# pool and leans harder toward the financing studio's own (self-distribute or otherwise) terms.
+# Default 0.0 leaves every existing call site's behavior exactly unchanged.
+PROTECTIVENESS_BID_FLOOR_COEF = 0.5
+
 
 def _quality_multiplier(perceived_quality: float) -> float:
     # 50 (an average film) leaves the base streaming multiplier unchanged; better or worse
@@ -300,21 +379,26 @@ def quality_adjusted_bids(
     film_critic_score: float,
     audience_score: float,
     rng: random.Random,
+    franchise_protectiveness: float = 0.0,
 ) -> list[StreamingBid]:
     """The real streaming offers — resolved once the film is actually finished and its quality is
     known, not a budget-only preview. A great film draws more bidders at better terms; an awful one
     draws few or none, since each outside buyer's read on it varies (QUALITY_PERCEPTION_SPREAD)
     instead of everyone agreeing on the same verdict. The financing studio's own offer (its normal
     terms, plus the always-available SELF_DISTRIBUTE_MULTIPLIER "for nothing" option) is unaffected
-    by quality — they already own the film either way."""
+    by quality — they already own the film either way.
+
+    franchise_protectiveness: simulation._franchises.studio_protectiveness(), 0-100 — 0.0 (the
+    default, any standalone film) leaves the bid floor exactly where it's always been."""
     financing = STUDIOS[financing_studio_id]
     quality = (film_critic_score + audience_score) / 2.0
     pool = [s for s in STUDIOS.values() if _can_credibly_bid(s, budget_millions) and s is not financing]
+    bid_floor = QUALITY_BID_FLOOR + PROTECTIVENESS_BID_FLOOR_COEF * franchise_protectiveness
 
     bids: list[StreamingBid] = []
     for studio in pool:
         perceived = clamp(rng.gauss(quality, QUALITY_PERCEPTION_SPREAD), 0.0, 100.0)
-        if perceived < QUALITY_BID_FLOOR:
+        if perceived < bid_floor:
             continue  # this buyer passes on it entirely
         multiplier = (STREAMING_BUYOUT_MULTIPLIER + studio.streaming_multiplier_delta) * _quality_multiplier(perceived)
         bids.append(StreamingBid(
@@ -330,4 +414,76 @@ def quality_adjusted_bids(
         financing.id, financing.name, SELF_DISTRIBUTE_MULTIPLIER,
         round(budget_millions * SELF_DISTRIBUTE_MULTIPLIER, 2), True,
     ))
+    return bids
+
+
+@dataclass(frozen=True)
+class FestivalBid:
+    studio_id: str
+    studio_name: str
+    multiplier: float
+    payout_millions: float
+    self_release: bool  # True: the financing side keeps the film and releases it themselves, at
+    # the real, quality-dependent LIMITED-release numbers — not a flat guarantee like every other
+    # bid here. release.py fills this bid in (see resolve_release_schedule's festival_sale_resolver
+    # in simulation/career.py), since this module never touches a resolved ReceptionResult.
+
+
+def festival_bidders(budget_millions: float, financing_studio_id: str | None) -> list[Studio]:
+    """The pre-sale, budget-only candidate pool for a festival acquisition — same shape and same
+    _can_credibly_bid() gate as streaming_bidders() (buying distribution rights to a finished film
+    is a smaller commitment than financing production, so the pool is wider than pick_studio's own
+    financing range). financing_studio_id may be None for a genuinely independent, never-studio-
+    attached self-financed project (director.development.DevProject.financing_studio_id) — the
+    financing side's own guaranteed offer only appears when a real studio identity exists."""
+    bidders = [s for s in STUDIOS.values() if _can_credibly_bid(s, budget_millions)]
+    financing = STUDIOS.get(financing_studio_id) if financing_studio_id else None
+    if financing is not None and financing not in bidders:
+        bidders = [financing, *bidders]
+    return bidders
+
+
+def quality_adjusted_festival_bids(
+    budget_millions: float,
+    financing_studio_id: str | None,
+    film_critic_score: float,
+    audience_score: float,
+    rng: random.Random,
+    franchise_protectiveness: float = 0.0,
+) -> list[FestivalBid]:
+    """The real acquisition offers — resolved once the film has actually premiered and its quality
+    is known (§10.3's own "all reviews land at once" reveal), same quality-perception/bid-floor
+    mechanism quality_adjusted_bids() already uses for streaming, read against a different (lower,
+    theatrical-guarantee-shaped) base multiplier. Every bid here is a competing DISTRIBUTOR's flat
+    guarantee; the financing side's own option to keep the film and self-release it instead (a real,
+    quality-dependent LIMITED release, not a flat number) is added by the caller (simulation.career.
+    resolve_release_schedule's festival_sale_resolver), which has the actual reception this module
+    never sees.
+
+    financing_studio_id may be None for a genuinely independent, never-studio-attached self-financed
+    project — no financing-side guaranteed offer is added in that case, only outside bids.
+
+    franchise_protectiveness: simulation._franchises.studio_protectiveness() — same bid-floor pull
+    quality_adjusted_bids() already documents. 0.0 for any standalone film."""
+    quality = (film_critic_score + audience_score) / 2.0
+    financing = STUDIOS.get(financing_studio_id) if financing_studio_id else None
+    pool = [s for s in STUDIOS.values() if _can_credibly_bid(s, budget_millions) and s is not financing]
+    bid_floor = QUALITY_BID_FLOOR + PROTECTIVENESS_BID_FLOOR_COEF * franchise_protectiveness
+
+    bids: list[FestivalBid] = []
+    for studio in pool:
+        perceived = clamp(rng.gauss(quality, QUALITY_PERCEPTION_SPREAD), 0.0, 100.0)
+        if perceived < bid_floor:
+            continue  # this buyer passes on it entirely
+        multiplier = (FESTIVAL_ACQUISITION_BASE_MULTIPLIER + studio.festival_acquisition_multiplier_delta) * _quality_multiplier(perceived)
+        bids.append(FestivalBid(
+            studio.id, studio.name, round(multiplier, 2), round(budget_millions * multiplier, 2), False,
+        ))
+
+    if financing is not None:
+        financing_multiplier = FESTIVAL_ACQUISITION_BASE_MULTIPLIER + financing.festival_acquisition_multiplier_delta
+        bids.append(FestivalBid(
+            financing.id, financing.name, round(financing_multiplier, 2),
+            round(budget_millions * financing_multiplier, 2), False,
+        ))
     return bids
