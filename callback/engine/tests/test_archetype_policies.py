@@ -5,9 +5,12 @@ from __future__ import annotations
 import unittest
 from collections import Counter
 
+from callback.engine.simulation import _archetype_policies
 from callback.engine.simulation._archetype_policies import (
-    director_track, franchise_maximizer, gambler, indie_purist, prestige_chaser, risk_averse,
+    burnout_avoider, director_track, family_first, franchise_maximizer, gambler, indie_purist,
+    prestige_chaser, risk_averse,
 )
+from callback.engine.simulation._decision_coverage import ARCHETYPE_NAMES
 from callback.engine.simulation._sim_policy_shared import CONTRAST_SCENE_POSITIONS
 
 
@@ -172,6 +175,41 @@ class TestDirectorTrack(unittest.TestCase):
                 "None of seeds [13, 27, 41] attempted director.franchise.reboot_pitch within 60 "
                 f"years — Plan 05 must widen seed/years sampling for this ID. Last run: {dict(last_visited)}",
             )
+
+
+class TestFamilyFirst(unittest.TestCase):
+    def test_runs_to_completion_without_raising(self):
+        result = family_first(seed=17, years=40)
+        self.assertIsInstance(result, dict)
+        self.assertGreater(result["age"], 22)
+
+    def test_exercises_full_rolodex_interaction_variety(self):
+        visited: Counter = Counter()
+        family_first(seed=17, years=40, visited=visited)
+        self.assertGreater(visited["rolodex.interact.show_up"], 0)
+        self.assertGreater(visited["rolodex.interact.read_agenda"], 0)
+        self.assertGreater(visited["rolodex.interact.vouch"], 0)
+
+
+class TestBurnoutAvoider(unittest.TestCase):
+    def test_runs_to_completion_without_raising(self):
+        result = burnout_avoider(seed=23, years=40)
+        self.assertIsInstance(result, dict)
+        self.assertGreater(result["age"], 32)
+
+    def test_disappears_at_least_once(self):
+        visited: Counter = Counter()
+        result = burnout_avoider(seed=23, years=40, visited=visited)
+        self.assertGreater(visited["leverage.disappear"], 0)
+        self.assertGreater(result["disappear_count"], 0)
+
+
+class TestAllEightArchetypesExist(unittest.TestCase):
+    def test_archetype_names_manifest_is_fully_resolvable(self):
+        self.assertTrue(all(
+            hasattr(_archetype_policies, name) and callable(getattr(_archetype_policies, name))
+            for name in ARCHETYPE_NAMES
+        ))
 
 
 if __name__ == "__main__":

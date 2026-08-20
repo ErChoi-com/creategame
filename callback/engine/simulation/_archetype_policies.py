@@ -885,3 +885,169 @@ def director_track(seed: int, years: int = 60, visited: Counter | None = None) -
         "own_franchise_id": own_franchise_id,
         "reboot_pitched": reboot_pitched,
     }
+
+
+_ROLODEX_VERB_ROTATION = ("check_in", "show_up", "read_agenda", "vouch")
+
+
+def family_first(seed: int, years: int = 60, visited: Counter | None = None) -> dict:
+    """The `family_money` background (Coverage Gap Inventory item 1's last acting-side option) —
+    money's already solved, so this archetype works for craft/relationships, not the paycheck.
+    Real differentiator: whenever a year's board yields nothing worth taking, cycles all four
+    Rolodex interaction verbs (check_in/show_up/read_agenda/vouch) across the year's remaining
+    actor quarters instead of only ever calling check_in (Coverage Gap Inventory item 16 — every
+    existing report script's exclusive pattern)."""
+    if visited is None:
+        visited = Counter()
+
+    session = Session(seed=seed)
+    session.start("family_money", "work")
+    visited["character_creation.background.family_money"] += 1
+
+    films_acted = []
+    verb_tick = 0
+
+    for _year in range(years):
+        board = session.offer_board()
+        available = [o for o in board if o["available"]]
+        best = None
+        if available:
+            def score(o):
+                demand = world_genre_demand(session.state.genre_heat, o["genre"])
+                billing_payoff = {"lead": 0.5, "supporting": 1.0, "bit": 0.6, "extra": 0.1}.get(o["billing"], 0.0)
+                return demand * billing_payoff
+            candidate = max(available, key=score)
+            if candidate["billing"] != "extra":
+                best = candidate
+
+        if best is not None:
+            session.accept(best["index"])
+            visited["offer_board.accept"] += 1
+            want_box_office = session.box_office_bonus_available("net_points")
+            session.choose_deal(want_approvals=False, want_box_office_bonus=want_box_office, bonus_type="net_points")
+            visited["deal.approvals"] += 1
+            session.choose_prep("table_work")
+            visited["prep.table_work"] += 1
+            for episode in session.episode_labels():
+                for scene_choice in SCENE_POSITIONS:
+                    session.play_scene(scene_choice)
+                    for dial, position in scene_choice.items():
+                        visited[f"scene_position.{position}"] += 1
+            is_series_year = session.is_series()
+            result = session.choose_release("limited")
+            if not is_series_year:
+                visited["release.actor.request.limited"] += 1
+                visited[f"release.actor.resolved.{_RELEASE_LABEL_TO_STRATEGY.get(result['release_label'], 'unknown')}"] += 1
+            films_acted.append({
+                "genre": best["genre"], "billing": best["billing"], "studio_tag": best["studio_name"],
+                **result,
+            })
+        else:
+            session.decline_board()
+            visited["offer_board.decline"] += 1
+            tracked = session.rolodex_summary()
+            if tracked:
+                while session.actor_quarters_remaining_this_year() > 0:
+                    verb = _ROLODEX_VERB_ROTATION[verb_tick % len(_ROLODEX_VERB_ROTATION)]
+                    npc = tracked[verb_tick % len(tracked)]
+                    session.interact(npc["id"], verb)
+                    visited[f"rolodex.interact.{verb}"] += 1
+                    verb_tick += 1
+
+        session.end_year()
+        if session.state.life.money.net_worth < 0.0:
+            session.cut_lifestyle_floor(session.state.life.money.lifestyle_floor * 0.5)
+            visited["life.lifestyle_floor.cut"] += 1
+        if session.is_over():
+            break
+
+    return {
+        "seed": seed, "archetype": "family_first", "age": session.age(),
+        "acting_credits": len(films_acted),
+        "agent_tier": session.leverage_status()["agent_tier"],
+        "net_worth": round(session.state.life.money.net_worth, 1),
+        "actor_standing": {k: round(session.state.actor.standing[k], 1) for k in ("heat", "prestige", "affection", "notoriety")},
+        "films_acted": films_acted,
+    }
+
+
+def burnout_avoider(seed: int, years: int = 60, visited: Counter | None = None) -> dict:
+    """The `regional_stage` background (starts at REGIONAL_STAGE_START_AGE=33, not 22 — a
+    naturally shorter simulated career within the same `years` budget, in-character not a bug).
+    Signature move: after 4 consecutive years worked without a break, calls `disappear()` instead
+    of taking that year's offer (Coverage Gap Inventory item 15 — never exercised by any existing
+    report script)."""
+    if visited is None:
+        visited = Counter()
+
+    session = Session(seed=seed)
+    session.start("regional_stage", "work")
+    visited["character_creation.background.regional_stage"] += 1
+
+    films_acted = []
+    years_since_break = 0
+    disappear_count = 0
+
+    for _year in range(years):
+        if years_since_break >= 4 and session.actor_quarters_remaining_this_year() > 0:
+            session.disappear()
+            visited["leverage.disappear"] += 1
+            disappear_count += 1
+            years_since_break = 0
+            session.end_year()
+            if session.is_over():
+                break
+            continue
+
+        board = session.offer_board()
+        available = [o for o in board if o["available"]]
+        best = None
+        if available:
+            def score(o):
+                demand = world_genre_demand(session.state.genre_heat, o["genre"])
+                billing_payoff = {"lead": 1.0, "supporting": 0.8, "bit": 0.5, "extra": 0.1}.get(o["billing"], 0.0)
+                return demand * billing_payoff
+            best = max(available, key=score)
+
+        if best is not None:
+            session.accept(best["index"])
+            visited["offer_board.accept"] += 1
+            session.choose_deal(want_approvals=False)
+            visited["deal.approvals"] += 1
+            session.choose_prep("table_work")
+            visited["prep.table_work"] += 1
+            for episode in session.episode_labels():
+                for scene_choice in SCENE_POSITIONS:
+                    session.play_scene(scene_choice)
+                    for dial, position in scene_choice.items():
+                        visited[f"scene_position.{position}"] += 1
+            is_series_year = session.is_series()
+            result = session.choose_release("limited")
+            if not is_series_year:
+                visited["release.actor.request.limited"] += 1
+                visited[f"release.actor.resolved.{_RELEASE_LABEL_TO_STRATEGY.get(result['release_label'], 'unknown')}"] += 1
+            films_acted.append({
+                "genre": best["genre"], "billing": best["billing"], "studio_tag": best["studio_name"],
+                **result,
+            })
+            years_since_break += 1
+        else:
+            session.decline_board()
+            visited["offer_board.decline"] += 1
+
+        session.end_year()
+        if session.state.life.money.net_worth < 0.0:
+            session.cut_lifestyle_floor(session.state.life.money.lifestyle_floor * 0.5)
+            visited["life.lifestyle_floor.cut"] += 1
+        if session.is_over():
+            break
+
+    return {
+        "seed": seed, "archetype": "burnout_avoider", "age": session.age(),
+        "acting_credits": len(films_acted),
+        "agent_tier": session.leverage_status()["agent_tier"],
+        "net_worth": round(session.state.life.money.net_worth, 1),
+        "actor_standing": {k: round(session.state.actor.standing[k], 1) for k in ("heat", "prestige", "affection", "notoriety")},
+        "films_acted": films_acted,
+        "disappear_count": disappear_count,
+    }
