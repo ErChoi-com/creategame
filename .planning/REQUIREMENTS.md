@@ -23,9 +23,9 @@ Requirements for this milestone. Each maps to roadmap phases.
 
 ### Balance Analysis
 
-- [ ] **ANLZ-01**: Sweep data is analyzed to identify dominant strategies — any policy/build objectively outperforming all others on the outcome metrics that matter
-- [ ] **ANLZ-02**: Sweep data is analyzed to identify dead ends — choices or states that lead to boring, stuck, or unrecoverable outcomes
-- [ ] **ANLZ-03**: Sweep data is analyzed to identify low-variance clusters — meaningfully different choices that converge on statistically similar outcomes
+- [x] **ANLZ-01**: Sweep data is analyzed to identify dominant strategies — any policy/build objectively outperforming all others on the outcome metrics that matter
+- [x] **ANLZ-02**: Sweep data is analyzed to identify dead ends — choices or states that lead to boring, stuck, or unrecoverable outcomes
+- [x] **ANLZ-03**: Sweep data is analyzed to identify low-variance clusters — meaningfully different choices that converge on statistically similar outcomes
 
 ### Tuning
 
@@ -79,9 +79,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | POLICY-02 | Phase 1 | Complete |
 | SWEEP-01 | Phase 2 | Complete |
 | SWEEP-02 | Phase 2 | Complete |
-| ANLZ-01 | Phase 3 | Pending |
-| ANLZ-02 | Phase 3 | Pending |
-| ANLZ-03 | Phase 3 | Pending |
+| ANLZ-01 | Phase 3 | Complete |
+| ANLZ-02 | Phase 3 | Complete |
+| ANLZ-03 | Phase 3 | Complete |
 | TUNE-01 | Phase 4 | Pending |
 | TUNE-02 | Phase 4 | Pending |
 | TEST-01 | Phase 4 | Pending |
