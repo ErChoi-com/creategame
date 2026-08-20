@@ -4,6 +4,8 @@
 
 This milestone runs the Callback engine through a systematic playtest-and-tune pipeline rather than adding new gameplay. It starts by mapping the full decision space and building scripted policies that exercise it, then runs automated sweeps at volume to collect outcome data, analyzes that data for dominant strategies/dead ends/low-variance clustering, applies research-informed engine tuning to fix what's found (keeping tests and design docs in sync), and closes the loop by re-sweeping to confirm the fixes landed cleanly before writing up a findings report. Each phase is a horizontal layer of the same discover-tune-verify pipeline — earlier phases build the harness later phases depend on.
 
+**Guiding philosophy — immersiveness first.** The measurable balance goals (no dominant strategy, no dead ends, meaningful variance, emotional highs/lows) are the mechanism, not the point. At every stage — analysis in Phase 3, the fixes themselves in Phase 4, the write-up in Phase 5 — the standing question is whether a change makes the simulated career feel like a believable Hollywood career, not just whether it flattens a stat curve. A numerically "balanced" outcome that reads as arbitrary or gamey is a failure of this pass even if the stats look clean.
+
 ## Phases
 
 **Phase Numbering:**
@@ -41,14 +43,15 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: TBD
 
 ### Phase 3: Balance Analysis
-**Goal**: Sweep data is interpreted to surface which builds dominate, which choices dead-end, and which meaningfully-different choices converge on statistically similar outcomes.
+**Goal**: Sweep data is interpreted to surface which builds dominate, which choices dead-end, and which meaningfully-different choices converge on statistically similar outcomes — read for immersion-breaking patterns, not just raw stat outliers.
 **Depends on**: Phase 2
 **Requirements**: ANLZ-01, ANLZ-02, ANLZ-03
 **Success Criteria** (what must be TRUE):
   1. An analysis pass ranks policies/builds on the outcome metrics that matter and explicitly names any policy that dominates all others on those metrics, or confirms none does.
   2. An analysis pass lists specific choices/states identified as dead ends, each backed by the sweep runs that got stuck there.
   3. An analysis pass identifies clusters of meaningfully different choices whose sweep outcomes are statistically indistinguishable (low variance), each backed by the supporting sweep data.
-  4. All three findings sets (dominant strategies, dead ends, low-variance clusters) are written down together as the input list Phase 4 works from.
+  4. Each finding is annotated with why it matters in career-simulation terms (e.g. "a franchise-maximizer never goes broke regardless of choices" reads as immersion-breaking, not just as a stat anomaly) — findings are framed as believability problems the tuning phase must fix, not only as numbers to flatten.
+  5. All findings sets (dominant strategies, dead ends, low-variance clusters, each with its believability framing) are written down together as the input list Phase 4 works from.
 **Plans**: TBD
 
 ### Phase 4: Research-Informed Tuning
@@ -58,18 +61,19 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Success Criteria** (what must be TRUE):
   1. A research note documents how comparable career/Hollywood/RPG progression-sim games solve build-variety and immersiveness problems, with each applied pattern linked to the specific tuning decision it informed.
   2. Every dominant-strategy/dead-end/low-variance finding from Phase 3's list has a corresponding engine constant/formula change, with each change's docstring/comment citing the design-doc section it implements (and that section updated if the intended target itself changed).
-  3. All tuning changes follow existing conventions on inspection: frozen dataclasses updated via `dataclasses.replace(...)`, no engine dataclass crossing the `Session` boundary into `cli.py`, and the one-way `core → actor → other packages → simulation` dependency direction preserved.
-  4. `python -m unittest discover -s callback/engine/tests` passes, with every test whose assertions encoded a pre-tuning value updated to match the new intentional behavior.
+  3. Each fix is chosen for what it does to the believability of a career arc, not only to flatten a metric — a fix that resolves a stat imbalance by making the simulation feel arbitrary or gamey is rejected in favor of one that reads as a plausible Hollywood career consequence; where the two goals conflict, the fix note says which way it was resolved and why.
+  4. All tuning changes follow existing conventions on inspection: frozen dataclasses updated via `dataclasses.replace(...)`, no engine dataclass crossing the `Session` boundary into `cli.py`, and the one-way `core → actor → other packages → simulation` dependency direction preserved.
+  5. `python -m unittest discover -s callback/engine/tests` passes, with every test whose assertions encoded a pre-tuning value updated to match the new intentional behavior.
 **Plans**: TBD
 
 ### Phase 5: Verification Loop & Findings Report
-**Goal**: The tuning changes are confirmed to have resolved the targeted imbalances without introducing new ones, and the full pass is documented for future reference.
+**Goal**: The tuning changes are confirmed to have resolved the targeted imbalances without introducing new ones, and the full pass — including its immersiveness tradeoffs — is documented for future reference.
 **Depends on**: Phase 4
 **Requirements**: VRFY-01, RPRT-01
 **Success Criteria** (what must be TRUE):
   1. Re-running the Phase 2 sweep and Phase 3 analysis after tuning shows each originally-flagged dominant strategy, dead end, and low-variance cluster resolved.
   2. The re-run analysis introduces no new dominant strategy, dead end, or low-variance cluster as a side effect of the tuning changes (any that appear are looped back through Phase 4 before this phase is considered done).
-  3. A findings/changes report exists summarizing what was found broken or boring, what changed in response, why, and which design-doc sections were touched.
+  3. A findings/changes report exists summarizing what was found broken or boring, what changed in response, why, which design-doc sections were touched, and — for each change — how it affects the sense of an immersive, believable Hollywood career, not just its statistical effect.
   4. The report's list of changes is traceable one-to-one against the Phase 3 findings list — nothing flagged is left undocumented, nothing documented was never actually flagged.
 **Plans**: TBD
 
