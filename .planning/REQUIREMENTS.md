@@ -29,12 +29,12 @@ Requirements for this milestone. Each maps to roadmap phases.
 
 ### Tuning
 
-- [ ] **TUNE-01**: Each identified imbalance (from ANLZ-01/02/03) gets a corresponding fix to the responsible engine constant/formula, with the change traced to the design-doc section it implements (updating that section if the intended target itself changes)
-- [ ] **TUNE-02**: Tuning changes follow existing engine conventions — frozen dataclasses updated via `dataclasses.replace`, no engine dataclass crossing the `Session` boundary into `cli.py`, one-way `core → actor → other packages → simulation` dependency direction preserved
+- [x] **TUNE-01**: Each identified imbalance (from ANLZ-01/02/03) gets a corresponding fix to the responsible engine constant/formula, with the change traced to the design-doc section it implements (updating that section if the intended target itself changes)
+- [x] **TUNE-02**: Tuning changes follow existing engine conventions — frozen dataclasses updated via `dataclasses.replace`, no engine dataclass crossing the `Session` boundary into `cli.py`, one-way `core → actor → other packages → simulation` dependency direction preserved
 
 ### Test Suite
 
-- [ ] **TEST-01**: Existing tests whose assertions encode pre-tuning values are updated to match each intentional tuning change, so the suite reflects current design intent rather than stale numbers
+- [x] **TEST-01**: Existing tests whose assertions encode pre-tuning values are updated to match each intentional tuning change, so the suite reflects current design intent rather than stale numbers
 
 ### Verification Loop
 
@@ -42,7 +42,7 @@ Requirements for this milestone. Each maps to roadmap phases.
 
 ### Research
 
-- [ ] **RSCH-01**: Comparable career/Hollywood/RPG progression-sim games are researched for how they solve build-variety and immersiveness problems; applicable patterns inform tuning decisions, with immersiveness weighted over raw stat-balance when the two trade off
+- [x] **RSCH-01**: Comparable career/Hollywood/RPG progression-sim games are researched for how they solve build-variety and immersiveness problems; applicable patterns inform tuning decisions, with immersiveness weighted over raw stat-balance when the two trade off
 
 ### Reporting
 
@@ -82,10 +82,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ANLZ-01 | Phase 3 | Complete |
 | ANLZ-02 | Phase 3 | Complete |
 | ANLZ-03 | Phase 3 | Complete |
-| TUNE-01 | Phase 4 | Pending |
-| TUNE-02 | Phase 4 | Pending |
-| TEST-01 | Phase 4 | Pending |
-| RSCH-01 | Phase 4 | Pending |
+| TUNE-01 | Phase 4 | Complete |
+| TUNE-02 | Phase 4 | Complete |
+| TEST-01 | Phase 4 | Complete |
+| RSCH-01 | Phase 4 | Complete |
 | VRFY-01 | Phase 5 | Pending |
 | RPRT-01 | Phase 5 | Pending |
 

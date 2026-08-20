@@ -18,7 +18,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Decision Space & Playtest Policy Coverage** - Catalog every reachable decision point and build scripted policies that collectively exercise all of them
 - [x] **Phase 2: Automated Sweep Infrastructure** - Run the full policy set at volume across seeds, producing outcome stats and distinct dead-end flagging
 - [x] **Phase 3: Balance Analysis** - Analyze sweep data for dominant strategies, dead ends, and low-variance outcome clusters
-- [ ] **Phase 4: Research-Informed Tuning** - Fix identified imbalances in the engine, informed by comparable-game research, with tests and design docs kept in sync
+- [x] **Phase 4: Research-Informed Tuning** - Fix identified imbalances in the engine, informed by comparable-game research, with tests and design docs kept in sync
 - [ ] **Phase 5: Verification Loop & Findings Report** - Re-sweep and re-analyze to confirm fixes landed cleanly, then document what changed and why
 
 ## Phase Details
@@ -109,5 +109,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 1. Decision Space & Playtest Policy Coverage | 5/5 | Complete | 2026-08-20 |
 | 2. Automated Sweep Infrastructure | 1/1 | Complete | 2026-08-20 |
 | 3. Balance Analysis | 1/1 | Complete | 2026-08-20 |
-| 4. Research-Informed Tuning | 0/TBD | Not started | - |
+| 4. Research-Informed Tuning | 1/1 | Complete | 2026-08-20 |
 | 5. Verification Loop & Findings Report | 0/TBD | Not started | - |
