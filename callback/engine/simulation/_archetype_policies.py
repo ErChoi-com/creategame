@@ -18,10 +18,13 @@ from __future__ import annotations
 from collections import Counter
 
 from callback.engine.director import casting, development as director_development, shoot_style
+from callback.engine.simulation._franchises import REBOOT_MIN_DORMANT_YEARS, SEQUEL_ELIGIBLE_MAX_DORMANT_YEARS
 from callback.engine.simulation._release_labels import RELEASE_LABELS
 from callback.engine.simulation._sim_policy_shared import CONTRAST_SCENE_POSITIONS, SCENE_POSITIONS
 from callback.engine.simulation.session import Session
 from callback.engine.world.genre_cycle import genre_demand as world_genre_demand
+
+MOMENTUM_RANK = {"dead": 0, "fading": 1, "building": 2, "real heat": 3, "can't-miss": 4}
 
 
 def _prefer_self_release(bids):
@@ -619,4 +622,266 @@ def gambler(seed: int, years: int = 60, visited: Counter | None = None) -> dict:
         "net_worth": round(session.state.life.money.net_worth, 1),
         "actor_standing": {k: round(session.state.actor.standing[k], 1) for k in ("heat", "prestige", "affection", "notoriety")},
         "films_acted": films_acted,
+    }
+
+
+_BUDGET_TIER_CYCLE = ("micro", "low", "mid", "upper", "tentpole")
+_ADAPTATION_SOURCE_CYCLE = (
+    "public_domain", "foreign_remake", "stage_play", "true_story", "comic", "video_game", "toy_line",
+)
+
+
+def director_track(seed: int, years: int = 60, visited: Counter | None = None) -> dict:
+    """Director-only archetype (no acting-side calls at all) closing every remaining
+    director-mode coverage gap: all 5 budget tiers, self-financed projects, franchise
+    sequel/reboot/spinoff pitching, all 7 non-default adaptation source types, licensing
+    fraction, backend deal pushes, director script notes, director release variety, and the
+    two dev actions (self_finance, drawer) no existing report script ever exercises — closed
+    with explicit condition-based firing per project rather than a diluted modulo cycle
+    (Pitfall 2), matching CONTEXT.md's coverage rule."""
+    if visited is None:
+        visited = Counter()
+
+    session = Session(seed=seed)
+    session.start("conservatory", "work")
+    visited["character_creation.background.conservatory"] += 1
+    session.become_director()
+    visited["director.become_director"] += 1
+
+    genres = GENRES
+    genre_i = 0
+    project_count = 0
+    tick = 0
+
+    own_franchise_id: str | None = None
+    own_franchise_index: int | None = None
+    own_franchise_sequel_pitches = 0
+    own_franchise_last_pitch_year: int | None = None
+    reboot_pitched = False
+    spinoff_pitched = False
+    recast_done = False
+    write_out_done = False
+
+    self_finance_done = False
+    drawer_done = False
+    backend_push_done = False
+    script_note_clarity_done = False
+    script_note_ambiguity_done = False
+    adaptation_licensing_done = False
+    release_done = {"festival": False, "streaming": False, "shelved": False}
+
+    casting_cycle = list(casting.CASTING_CHOICES)
+    style_cycle = list(shoot_style.SHOOT_STYLES)
+
+    def _set_casting_and_style():
+        # Real quality signals (critic score -> director prestige) come from casting/shoot-style,
+        # not just picking a genre and walking away — mirrors _director_report.py's own pitch().
+        # Also cycles every casting/shoot_style option (Coverage Gap Inventory closure beyond
+        # items 17-25's explicit list, since these rows are still uncovered after Plans 01-02).
+        idx = session.director_status()["projects"][-1]["index"]
+        cast_choice = casting_cycle[project_count % len(casting_cycle)]
+        style_choice = style_cycle[project_count % len(style_cycle)]
+        session.choose_director_casting_action(idx, cast_choice)
+        visited[f"director.casting.{cast_choice}"] += 1
+        session.choose_director_shoot_style_action(idx, style_choice)
+        visited[f"director.shoot_style.{style_choice}"] += 1
+
+    def pitch(status, year):
+        nonlocal genre_i, project_count, own_franchise_id, own_franchise_index, own_franchise_last_pitch_year
+        nonlocal own_franchise_sequel_pitches, recast_done, write_out_done, adaptation_licensing_done
+        tier = _BUDGET_TIER_CYCLE[project_count % len(_BUDGET_TIER_CYCLE)]
+        self_financed = project_count % 5 == 0 and project_count > 0
+
+        # Own-franchise strategy: start it once, pitch a handful of sequels, then deliberately
+        # stop and let it go dormant so decay_dormant_franchises can retire it into
+        # retired_franchises — only then does pitch_reboot become reachable at all.
+        if own_franchise_id is None and own_franchise_index is None:
+            genre = genres[genre_i % len(genres)]
+            genre_i += 1
+            if session.start_directing_project(genre, tier, self_financed=self_financed, new_franchise=True):
+                own_franchise_index = len(status["projects"])  # about-to-be-appended slot
+                project_count += 1
+                visited[f"director.budget_tier.{tier}"] += 1
+                if self_financed:
+                    visited["director.project.self_financed"] += 1
+                visited["director.project.new_franchise"] += 1
+                _set_casting_and_style()
+            return
+
+        if own_franchise_id is not None and own_franchise_sequel_pitches < SEQUEL_ELIGIBLE_MAX_DORMANT_YEARS:
+            options = session.directing_franchise_options()
+            mine = next((o for o in options if o["id"] == own_franchise_id), None)
+            if mine is not None:
+                cast_decision = None
+                if not recast_done:
+                    cast_decision = "recast"
+                elif not write_out_done:
+                    cast_decision = "write_out"
+                if session.start_directing_project(mine["genre"], tier, franchise_id=own_franchise_id, cast_decision=cast_decision):
+                    project_count += 1
+                    own_franchise_sequel_pitches += 1
+                    own_franchise_last_pitch_year = year
+                    visited[f"director.budget_tier.{tier}"] += 1
+                    visited["director.project.franchise_sequel_pitch"] += 1
+                    if cast_decision == "recast":
+                        recast_done = True
+                        visited["director.project.cast_decision.recast"] += 1
+                    elif cast_decision == "write_out":
+                        write_out_done = True
+                        visited["director.project.cast_decision.write_out"] += 1
+                    _set_casting_and_style()
+                return
+
+        # Original/adaptation project — cycle non-default adaptation source types and licensing
+        # fraction on alternating projects (Coverage Gap Inventory items 20-21).
+        genre = genres[genre_i % len(genres)]
+        genre_i += 1
+        if project_count % 2 == 1:
+            source = _ADAPTATION_SOURCE_CYCLE[project_count % len(_ADAPTATION_SOURCE_CYCLE)]
+            session.choose_adaptation_source_type(source)
+            visited[f"director.adaptation.source_type.{source}"] += 1
+            if not adaptation_licensing_done:
+                session.choose_adaptation_licensing_fraction(0.8)
+                visited["director.adaptation.licensing_fraction"] += 1
+                adaptation_licensing_done = True
+        if session.start_directing_project(genre, tier, self_financed=self_financed):
+            project_count += 1
+            visited[f"director.budget_tier.{tier}"] += 1
+            if self_financed:
+                visited["director.project.self_financed"] += 1
+            _set_casting_and_style()
+
+    for year in range(years):
+        offer = session.check_for_hire_offer()
+        if offer is not None:
+            accept = session.director_status()["standing"] not in ("unknown",)
+            if accept:
+                session.accept_hire_offer()
+                visited["director.hire_offer.accept"] += 1
+            else:
+                session.decline_hire_offer()
+                visited["director.hire_offer.decline"] += 1
+
+        # Own-franchise dormancy watch: once far enough past the last sequel pitch, keep checking
+        # for the reboot opportunity every year until it lands or the run ends.
+        if (
+            own_franchise_id is not None and not reboot_pitched
+            and own_franchise_last_pitch_year is not None
+            and year - own_franchise_last_pitch_year >= REBOOT_MIN_DORMANT_YEARS
+        ):
+            reboot_options = session.directing_reboot_options()
+            if any(o["franchise_id"] == own_franchise_id for o in reboot_options):
+                if session.pitch_reboot(own_franchise_id):
+                    reboot_pitched = True
+                visited["director.franchise.reboot_pitch"] += 1
+
+        if not spinoff_pitched:
+            spinoff_options = session.directing_spinoff_options()
+            if spinoff_options:
+                target = spinoff_options[0]
+                new_id = session.launch_directing_spinoff(target["franchise_id"])
+                if new_id is not None:
+                    spinoff_pitched = True
+                    visited["director.franchise.spinoff_pitch"] += 1
+
+        while session.quarters_remaining_this_year() > 0:
+            status = session.director_status()
+
+            # Fire "drawer" once on a genuinely dead project instead of scrapping it outright —
+            # closes Coverage Gap Inventory item 25's other never-used dev action.
+            dead_projects = [s for s in status["projects"] if s["momentum_band"] == "dead"]
+            if dead_projects and not drawer_done:
+                idx = dead_projects[0]["index"]
+                session.advance_directing(idx, "drawer")
+                visited["director.dev_action.drawer"] += 1
+                drawer_done = True
+                status = session.director_status()
+            else:
+                for s in status["projects"]:
+                    if s["momentum_band"] == "dead":
+                        session.scrap_directing_project(s["index"])
+                        status = session.director_status()
+                        break
+
+            if status["can_start_new_project"]:
+                pitch(status, year)
+                status = session.director_status()
+
+            if own_franchise_id is None and own_franchise_index is not None:
+                # The franchise only registers in the shared pool once its first installment
+                # resolves — re-check every quarter until it appears.
+                for s in status["projects"]:
+                    if s["franchise_id"] is not None:
+                        own_franchise_id = s["franchise_id"]
+                        break
+
+            if not status["projects"]:
+                break
+
+            best = max(status["projects"], key=lambda s: MOMENTUM_RANK.get(s["momentum_band"], 0))
+            project_index = best["index"]
+
+            # Explicit, condition-based firing (not a diluted cycle) for the two dev actions no
+            # existing script ever exercises (Coverage Gap Inventory item 25).
+            action = None
+            if not backend_push_done and session.director_deal_available(project_index):
+                # Per decision-map.md's requested-vs-resolved rule: the ASK is what coverage
+                # counts, not whether Standing clears BOX_OFFICE_BONUS_STANDING_THRESHOLD — a
+                # real no-op (granted: False) is still a legitimate, tallied request, the same
+                # semantics deal.approvals/release-strategy rows already use.
+                session.push_director_deal_for_backend(project_index, "net_points")
+                visited["director.deal.backend_push"] += 1
+                backend_push_done = True
+                action = "rewrite"
+            elif not self_finance_done and best["momentum_band"] in ("fading", "dead") and not best["self_financed"]:
+                action = "self_finance"
+            elif not script_note_clarity_done:
+                session.choose_director_script_note_action(project_index, "clarity")
+                visited["director.script_note.clarity"] += 1
+                script_note_clarity_done = True
+                action = "rewrite"
+            elif not script_note_ambiguity_done:
+                session.choose_director_script_note_action(project_index, "ambiguity")
+                visited["director.script_note.ambiguity"] += 1
+                script_note_ambiguity_done = True
+                action = "rewrite"
+            else:
+                cycle = ["rewrite", "cut_budget", "call_in_favour", "option_adaptation", "new_financier", "take_to_market"]
+                action = cycle[tick % len(cycle)]
+            tick += 1
+
+            if action == "self_finance":
+                visited["director.dev_action.self_finance"] += 1
+                self_finance_done = True
+            else:
+                visited[f"director.dev_action.{action}"] += 1
+
+            result = session.advance_directing(project_index, action)
+
+            if result.get("greenlit"):
+                remaining = [s for s in ("festival", "streaming", "shelved") if not release_done[s]]
+                strategy = remaining[0] if remaining else "wide"
+                session.request_director_release_strategy(project_index, strategy)
+                visited[f"director.release.request.{strategy}"] += 1
+                if strategy in release_done:
+                    release_done[strategy] = True
+                session.request_director_marketing_push_action(project_index)
+                visited["director.marketing_push"] += 1
+
+        if session.director_awards_campaign_available():
+            session.run_director_awards_campaign(spend_millions=2.0)
+            visited["awards.director.campaign"] += 1
+
+        session.end_year()
+        if session.is_over():
+            break
+
+    d = session.director_status()
+    return {
+        "seed": seed, "archetype": "director_track", "age": session.age(),
+        "director_credits": d["credits"],
+        "director_standing": {k: round(session.state.director.standing[k], 1) for k in ("heat", "prestige", "affection", "notoriety")},
+        "net_worth": round(session.state.life.money.net_worth, 1),
+        "own_franchise_id": own_franchise_id,
+        "reboot_pitched": reboot_pitched,
     }

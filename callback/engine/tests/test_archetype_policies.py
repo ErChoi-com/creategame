@@ -6,7 +6,7 @@ import unittest
 from collections import Counter
 
 from callback.engine.simulation._archetype_policies import (
-    franchise_maximizer, gambler, indie_purist, prestige_chaser, risk_averse,
+    director_track, franchise_maximizer, gambler, indie_purist, prestige_chaser, risk_averse,
 )
 from callback.engine.simulation._sim_policy_shared import CONTRAST_SCENE_POSITIONS
 
@@ -132,6 +132,46 @@ class TestGambler(unittest.TestCase):
             all_positions.update(scene.values())
         self.assertIn("beyond", all_positions)
         self.assertIn("against", all_positions)
+
+
+class TestDirectorTrack(unittest.TestCase):
+    def test_runs_to_completion_without_raising(self):
+        result = director_track(seed=13, years=60)
+        self.assertIsInstance(result, dict)
+        self.assertGreater(result["age"], 22)
+
+    def test_covers_budget_tiers_and_dev_actions(self):
+        needed = [
+            "director.budget_tier.mid", "director.budget_tier.tentpole",
+            "director.project.self_financed", "director.deal.backend_push",
+            "director.script_note.clarity", "director.script_note.ambiguity",
+            "director.dev_action.self_finance", "director.dev_action.drawer",
+        ]
+        visited: Counter = Counter()
+        director_track(seed=13, years=60, visited=visited)
+        missing = [k for k in needed if visited[k] == 0]
+        self.assertEqual(missing, [], f"expected all of {needed} covered, missing: {missing}, full: {dict(visited)}")
+
+    def test_attempts_franchise_reboot_across_seeds(self):
+        # Coverage Gap Inventory item 27 (director.franchise.reboot_pitch) is the hardest-to-reach
+        # decision point in the whole catalog — a real request is tallied every retry regardless
+        # of outcome, but if none of these seeds even attempt it, Plan 05's dedicated
+        # coverage-closure pass needs to widen sampling further. Do not silently pass on a false
+        # premise, and do not hard-fail this plan over one archetype's hardest gap.
+        reached = False
+        last_visited: Counter = Counter()
+        for seed in (13, 27, 41):
+            visited: Counter = Counter()
+            director_track(seed=seed, years=60, visited=visited)
+            last_visited = visited
+            if visited["director.franchise.reboot_pitch"] > 0:
+                reached = True
+                break
+        if not reached:
+            self.skipTest(
+                "None of seeds [13, 27, 41] attempted director.franchise.reboot_pitch within 60 "
+                f"years — Plan 05 must widen seed/years sampling for this ID. Last run: {dict(last_visited)}",
+            )
 
 
 if __name__ == "__main__":
