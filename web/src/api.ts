@@ -148,6 +148,16 @@ export interface YearEvent {
   [key: string]: unknown;
 }
 
+export interface AwardsResult {
+  category: string;
+  won: boolean;
+  nominated: boolean;
+  category_fraud_attempted: boolean;
+  category_fraud_caught: boolean;
+}
+
+export interface HireOffer { genre: string; budget_millions: number; studio_name: string }
+
 export interface Obituary {
   credits: number;
   declined: { genre: string; roi_band: string; critic_band: string }[];
@@ -183,6 +193,7 @@ export function gameApi(id: string) {
   const c = <T>(method: string, args: Record<string, unknown> = {}) => api.call<T>(id, method, args);
   return {
     status: () => api.status(id),
+    autoPlay: (years: number) => api.autoPlay(id, years),
     offerBoard: () => c<Listing[]>('offer_board'),
     moreListings: () => c<Listing[]>('generate_more_listings'),
     accept: (index: number) => c<null>('accept', { index }),
@@ -205,11 +216,18 @@ export function gameApi(id: string) {
     awardsAvailable: () => c<boolean>('awards_campaign_available'),
     awardCategories: () => c<string[]>('available_award_categories'),
     runAwards: (category: string, spend_millions: number) =>
-      c<Record<string, unknown>>('run_awards_campaign', { category, spend_millions }),
+      c<AwardsResult>('run_awards_campaign', { category, spend_millions }),
     trades: () => c<string[]>('trades'),
     rolodex: () => c<{ id: string; type: string; relationship: string }[]>('rolodex_summary'),
     interact: (npc_id: string, action: string) => c<string>('interact', { npc_id, action }),
     becomeDirector: () => c<string>('become_director'),
+    directingUnlocked: () => c<boolean>('directing_unlocked'),
+    hireOffer: () => c<HireOffer | null>('check_for_hire_offer'),
+    acceptHireOffer: () => c<DirectingResult>('accept_hire_offer'),
+    declineHireOffer: () => c<null>('decline_hire_offer'),
+    scrapProject: (project_index: number) => c<null>('scrap_directing_project', { project_index }),
+    quartersRemaining: () => c<number>('quarters_remaining_this_year'),
+    tryAdvanceAgent: () => c<string>('try_advance_agent_tier'),
     directorStatus: () => c<DirectorStatus>('director_status'),
     startDirecting: (genre: string, budget_tier: string) => c<boolean>('start_directing_project', { genre, budget_tier }),
     advanceDirecting: (project_index: number, action: string) =>

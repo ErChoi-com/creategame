@@ -1,7 +1,9 @@
 // Player-facing copy: the words-not-numbers pass (callback/docs/ux/05). Session already hands over
 // bands ("cold", "a runaway hit"). This file only turns them into sentences and adds film titles,
 // which are presentation flavour and never feed back into the engine.
-import type { Listing } from './api';
+import type { Listing } from '../api';
+import { STANDING_ORDER, STANDING_PHRASE } from './content';
+import { npcName } from './names';
 
 export const cap = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
 export const pretty = (key: string) => cap(key.replace(/_/g, ' '));
@@ -22,7 +24,7 @@ export const billingLabel = (b: string) =>
 export function whyThisRole(o: Listing): string {
   if (o.guaranteed) return `${o.studio_name} owes you this one. It's in your deal.`;
   if (o.typecasting_note) return cap(o.typecasting_note.replace(/\.$/, '')) + '.';
-  if (o.director.known && o.director.relationship) return `The director is ${o.director.relationship}. They asked for you by name.`;
+  if (o.director.known && o.director.id) return `${npcName(o.director.id)} is directing, ${o.director.relationship ?? 'someone you know'}. They asked for you.`;
   if (o.installment_number >= 2) return `Installment ${o.installment_number} of ${o.franchise_scale}. The machine wants a familiar face.`;
   if (o.breaking_type) return `Against type. Somebody's betting you can stretch.`;
   if (o.in_your_lane) return `A role that fits how you've been reading lately.`;
@@ -48,32 +50,12 @@ export function filmTitle(seed: number, age: number, index: number): string {
   return `${TITLE_A[h % TITLE_A.length]} ${TITLE_B[(h >> 4) % TITLE_B.length]}`;
 }
 
-export const STANDING_ORDER = ['unknown', 'working', 'known', 'name', 'star', 'icon'];
-
 /** ux/03 §7: Standing's band-level change as a sentence, never a delta number. */
+export const standingPhrase = (band: string) => STANDING_PHRASE[band] ?? band;
 export function standingSentence(before: string, after: string): string {
-  if (before === after) return `You're still ${article(after)} ${after} — the town hasn't changed its mind about you.`;
   const b = STANDING_ORDER.indexOf(before);
   const a = STANDING_ORDER.indexOf(after);
-  if (a > b && b >= 0) return `Your name carries more weight than it did in January. You're ${article(after)} ${after} now.`;
-  if (a < b && a >= 0) return `The calls come a little slower. You've slipped to ${article(after)} ${after}.`;
-  return `You're ${article(after)} ${after} now.`;
+  if (a > b && b >= 0) return `Your name carries more weight than it did in January. You're ${standingPhrase(after)} now.`;
+  if (a < b && a >= 0) return `The calls come a little slower. You've slipped to ${standingPhrase(after)}.`;
+  return `Still ${standingPhrase(after)}. The town hasn't changed its mind about you.`;
 }
-const article = (w: string) => (/^[aeiou]/i.test(w) ? 'an' : 'a');
-
-export const AWARD_LABELS: Record<string, string> = {
-  lead_drama: 'Lead Performance — Drama',
-  lead_comedy: 'Lead Performance — Musical/Comedy',
-  supporting: 'Supporting Performance',
-  ensemble: 'Ensemble Cast',
-  breakthrough: 'Breakthrough Performance',
-  genre_excellence: 'Genre Excellence',
-  voice_performance: 'Voice Performance',
-};
-
-export const INTERACT_ACTIONS: [string, string][] = [
-  ['check_in', 'Check in'],
-  ['show_up', 'Show up for them'],
-  ['read_agenda', 'Read what they want'],
-  ['vouch', 'Vouch for them'],
-];

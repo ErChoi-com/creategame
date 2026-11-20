@@ -3,9 +3,8 @@ import { api, gameApi, type NewGame, type Options, type Status } from './api';
 import { CharacterCreation } from './screens/CharacterCreation';
 import { Hub } from './screens/Hub';
 import { Obituary } from './screens/Obituary';
-import { Busy, ErrorNote } from './components/ui';
-
-export interface Game { id: string; seed: number; intro: string; ambition: string; api: ReturnType<typeof gameApi> }
+import { Busy, ErrorNote } from './components/Data';
+import type { Game } from './lib/game';
 
 const SAVE_KEY = 'callback.game';
 
