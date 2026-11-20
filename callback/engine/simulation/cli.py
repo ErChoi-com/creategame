@@ -340,7 +340,7 @@ def release_screen(session: Session, auto: bool) -> dict:
         return bids[int(pick)]
 
     summary = session.choose_release(key, streaming_bid_selector=pick_bid, festival_bid_selector=pick_festival_bid)
-    if summary["studio_overruled"]:
+    if summary.get("studio_overruled"):  # a season has no release request to overrule (§5.18)
         print(f"    (You asked for {summary['requested_release']} — the studio went with "
               f"{summary['release_label']} instead.)")
     return summary
@@ -362,6 +362,13 @@ def post_release_screen(summary: dict) -> None:
     print(f"    Your work: {summary['performance_band']}")
     print(f"    Critics: {summary['critic_band']} ({summary['critic_score']}/100)")
     print(f"    Audience: {summary['audience_band']}")
+    if "n_episodes" in summary:
+        # §5.18 — a season resolves on retention and a license fee, not a box-office run.
+        print(f"    Season: {summary['n_episodes']} episodes, {summary['average_retention_pct']:.0f}% average retention, "
+              f"license ${summary['license_value_millions']:.1f}M ({summary['roi_band']})")
+        if summary.get("renewable"):
+            print(f"    Renewal: {'picked up for another season' if summary.get('renewed') else 'not renewed'}")
+        return
     print(f"    Release: {summary['release_label']}")
     if summary.get("rating_band"):
         rating_note = ""
@@ -619,6 +626,11 @@ def _print_directing_result(result: dict) -> None:
         elif result["self_finance_could_not_afford"]:
             print(f"    The studio wants ${result['self_finance_buyout_cost']:.1f}M for it and you don't "
                   f"have that kind of money — still theirs.")
+    elif result["greenlit"] and not result.get("resolved", True):
+        # v12 — a greenlight means "started shooting"; the finished film's numbers only exist once
+        # it resolves in end_year(), so there's no budget/reception to print yet.
+        left = result.get("quarters_remaining_in_shoot")
+        print("    GREENLIT — cameras are rolling" + (f", {left} quarter(s) of shooting left." if left else "."))
     elif result["greenlit"]:
         print(f"    GREENLIT — ${result['budget_millions']:.1f}M production, "
               f"${result['marketing_millions']:.1f}M marketing. Rated {result['rating_band']}. "
@@ -779,6 +791,23 @@ def year_screen(session: Session, auto: bool) -> None:
             directed = True
 
 
+def play_year(session: Session, auto: bool) -> None:
+    """One full calendar year: the pull menu, the year's work, then Session.end_year() and the
+    Reckoning. Shared by run() and mcp_server.py's auto_play tool, so both play the same loop."""
+    print(f"\n=== AGE {session.age()} ===")
+    pull_menu(session, auto)
+
+    year_screen(session, auto)
+
+    session.end_year()
+    print(f"  RECKONING — you are {session.standing_summary()} now.")
+
+    if session.age() % 5 == 0:
+        print("  THE TRADES:")
+        for line in session.trades():
+            print(f"    - {line}")
+
+
 def run(auto: bool, seed: int, max_years: int) -> None:
     session = Session(seed=seed)
     character_creation(session, auto)
@@ -786,18 +815,7 @@ def run(auto: bool, seed: int, max_years: int) -> None:
     for _ in range(max_years):
         if session.is_over():
             break
-        print(f"\n=== AGE {session.age()} ===")
-        pull_menu(session, auto)
-
-        year_screen(session, auto)
-
-        session.end_year()
-        print(f"  RECKONING — you are {session.standing_summary()} now.")
-
-        if session.age() % 5 == 0:
-            print("  THE TRADES:")
-            for line in session.trades():
-                print(f"    - {line}")
+        play_year(session, auto)
 
         if not auto:
             cont = prompt("\n[Enter] to continue, [q] to end the run:", "", auto)
