@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "creategame": {
+      "command": "node",
+      "args": ["mcp-server/server.js"],
+      "env": { "GAME_PORT": "8000" }
+    }
+  }
+}

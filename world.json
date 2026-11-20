@@ -1,0 +1,22 @@
+{
+  "grid": {
+    "width": 10,
+    "depth": 10,
+    "tileSize": 10,
+    "gap": 1,
+    "tileHeight": 10,
+    "color": "#ffffff",
+    "tiles": {}
+  },
+  "entities": [
+    {
+      "id": "player",
+      "type": "box",
+      "x": 0,
+      "z": 0,
+      "color": "#4287f5",
+      "size": 4
+    }
+  ],
+  "camera": "orbit"
+}
