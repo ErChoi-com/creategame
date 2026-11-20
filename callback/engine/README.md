@@ -1,0 +1,684 @@
+# CALLBACK engine
+
+Every system in `../docs/design/` and `../docs/ux/`, implemented and wired into one playable
+terminal prototype behind a single player-facing API. See the design doc for what each formula
+means; this package is where they run.
+
+## Layout
+
+```
+core/         generic, career-agnostic abstractions (Meter, StandingModel, the Stage protocol)
+actor/        the actor career's formulas (part-04-the-actor.md, part-05-the-work.md), plus
+              release.py — release strategies (wide/limited/festival/streaming/shelved) and the
+              weekly box-office trajectory
+rolodex/      the Rolodex + relationship layer (§4.12, §10.0, ux/04-pull-systems.md)
+leverage/     favours, approvals, indispensability + the holdout, a verb-catalogue subset (Part 6)
+life/         health, addiction, family, money, the obituary (Part 11)
+awards/       BuzzScore, narrative bonuses, category strategy, vote splitting (§4.11)
+director/     a second playable career, built on core/ and reusing actor/'s Utility (Part 7)
+world/        guilds, strikes, genre cycles, the background industry + trades digest (§10.0, Part 9)
+genre/        the franchise sequel-value curve (§9.5)
+studio/       slate-tier economics and the Marketing curve (§8.2)
+simulation/   career.py + full_career.py (orchestration), verify.py (verification against
+              design/part-14), session.py (the player-facing façade), cli.py (the terminal game)
+tests/        unit tests for every package above, including regression tests for the two
+              v9-fixed constants
+```
+
+Dependency direction is one-way: `core` imports nothing from this package; `actor` imports only
+`core`; every other package builds on `core`/`actor` (and `rolodex` where relationships matter)
+without reaching into another module's internals; `simulation` composes public functions only.
+`director/` reusing `core.meters.StandingModel` and `actor.offers.utility` instead of
+reimplementing Standing or casting math is `design/part-03` §3.3's "one spine" rule, held as
+architecture rather than a promise in prose.
+
+## The player-facing boundary: `simulation.session.Session`
+
+Every package above is engine — built to be composed and tested, not handed to a UI. `Session` is
+the one class meant to be. Its entire contract is plain method calls in, plain data out (strings,
+numbers, small dicts/tuples) — no `Role`, `ActorState`, `ReceptionResult`, `StandingModel`, or any
+other engine type ever crosses that boundary. `simulation/cli.py` proves the boundary holds: it
+imports exactly one thing from the engine, `Session`, and nothing else — every screen is built
+from what `Session`'s methods return, already shaped for printing. A future GUI or web frontend
+would sit at exactly the same seam, importing only `Session`.
+
+```
+Session.background_options() / ambition_options() / start()   character creation
+Session.offer_board() / accept() / decline_board()             the Offer Board
+Session.approvals_available() / choose_deal()                  the Deal
+Session.prep_options() / choose_prep()                         Prep
+Session.dial_options() / position_options() / play_scene()     the Shoot
+Session.release_options() / choose_release()                   Post & Release
+Session.awards_campaign_available() / run_awards_campaign()    a real BuzzScore campaign
+Session.trades() / rolodex_summary() / interact()               the pull menu: Trades, Rolodex
+Session.leverage_status() / try_advance_agent_tier() / disappear()   the pull menu: Leverage
+Session.franchise_status() / holdout_available() / request_holdout() the pull menu: Franchises
+Session.directing_unlocked() / become_director() / advance_directing()   a second career, fused in
+Session.end_year()                                              advances the shared calendar once
+Session.obituary_summary()                                      the closing obituary
+```
+
+## Running it
+
+From the repository root:
+
+```bash
+python3 -m unittest discover callback/engine/tests      # 117 tests
+python3 -m callback.engine.simulation.verify reception    # design/part-14 §14.1 checks
+python3 -m callback.engine.simulation.verify creative       # design/part-14 §14.6 checks
+python3 -m callback.engine.simulation.verify all
+
+python3 -m callback.engine.simulation.cli                    # play it — interactive
+python3 -m callback.engine.simulation.cli --auto --seed=7      # self-playing demo run
+```
+
+```python
+from callback.engine.simulation.session import Session
+
+session = Session(seed=42)
+session.start("conservatory", "work")
+board = session.offer_board()
+available = [o for o in board if o["available"]]
+if available:
+    session.accept(available[0]["index"])
+    session.choose_deal(want_approvals=False)
+    session.choose_prep("table_work")
+    for _ in range(3):
+        session.play_scene({d: "with" for d, _ in session.dial_options()})
+    print(session.choose_release("wide"))
+session.end_year()  # advances the shared calendar once — call after resolving whatever you did this year
+```
+
+Anything below `Session` (`full_career.py`, `career.py`, every `actor/`/`rolodex/`/`leverage/`
+module) is still directly importable for testing, scripting, or a future engine consumer that
+genuinely needs lower-level access — the façade doesn't hide the engine, it just means a UI never
+has to reach past it.
+
+## What's here now
+
+Every system named in `design/`'s Parts 0/3–11 has a real, tested implementation. Two audit passes
+went into confirming that, not just building it:
+
+**Every package is exercised, not just present.** An earlier check found several systems that were
+fully built and tested but had no path a player could ever actually reach: `rolodex/interactions.py`
+(check in / show up / read their agenda / vouch), `leverage/catalogue.py`'s agent-tier progression
+and Disappear/Scarcity, and all of `awards/awards.py` were sitting unimported outside their own
+packages and test files. `Session` is where that got fixed — see the method table above.
+
+**The box office model is a real mechanic, not just a final ROI number.** §3.4's core loop names
+"festival vs wide vs dumped vs shelved" as its own step; `actor/release.py` builds it: **Wide** (the
+original model, untouched), **Limited** (a smaller opening that leans on legs instead of
+marketing), **Festival** (§10.3's own published acquisition formula — an unsold film returns ROI
+0), **Streaming** (§8.3's flat buyout, no upside), and **Shelved** (a total loss). `weekly_gross_curve()`
+turns the single "Gross" number into a real week-by-week trajectory, and §9.3's `GenreHeat` —
+accumulated from every resolved film, including the background industry's — now feeds real
+`GenreDemand` into box-office math instead of each site sampling its own random value.
+
+**Movie-making has real, in-project choices now, not just prep/shoot/release.** Three more
+dormant-or-missing systems got wired into `Session` and the CLI, all scoped to the film you're
+actually making rather than life/politics side systems:
+
+- **Script notes** (`actor/script_notes.py`, design §5.15) — if the Deal secured script approval,
+  you get a real say before the shoot: push for clarity (audience up, critics down), ambiguity
+  (critics up, audience down, a shot at a cult-classic bonus), your part (you read better, the
+  script reads worse), or the whole film (no personal upside, but the film itself gets better).
+  `Session.script_notes_available()` / `script_note_options()` / `choose_script_note()`.
+- **Scene-partner orientation** — `actor/positions.py`'s `generosity()`/`upstaging()` formulas
+  existed but were never called from anywhere; picking a tracked Rolodex co-star and choosing to
+  play generous or upstage them now actually shifts Spotlight, Craft Contribution, and the relationship, and
+  generosity credits that NPC a Leverage favour. `Session.costar_options()` /
+  `orientation_options()` / `choose_orientation()`.
+- **Requesting your director** — spend a Leverage favour to pull a specific tracked Rolodex
+  director onto the project instead of the usual random NPC sample. Their own Standing (read via
+  `full_career.director_terms_for()`, not a second stat block) sets the project's director terms —
+  the same "one spine" reuse the Standing model already establishes elsewhere.
+  `Session.available_directors()` / `request_director()`.
+
+**Different studios finance and market your film differently** (`actor/studios.py`, reading
+design §8.2's Marketing(b) curve down onto a single project). Every offer is now attached to a
+producing studio — indie house, mid-major, prestige awards house, blockbuster machine, or
+streamer-backed — each with its own marketing share of budget, backend split, festival pull, and
+streaming buyout terms:
+
+- **Indie house** — thin marketing (20% of budget), but the best backend split and a real
+  festival-acquisition edge.
+- **Mid-major** — the old flat baseline (45% marketing, standard backend), unchanged for anyone
+  not passing a studio through.
+- **Prestige awards house** — spends more on campaigns than trailers (50% marketing skewed toward
+  festival pull), a slightly better backend, worse streaming terms.
+- **Blockbuster machine** — marketing scales with budget on §8.2's own tiered curve (35% under
+  $10M up to 80% over $100M), the worst backend split, weak festival pull.
+- **Streamer-backed** — almost no theatrical marketing (8%), but the biggest streaming-buyout
+  bonus if you pick that release strategy.
+
+This changes real numbers, not just flavor text: `reception.py`'s `resolve_reception()` takes
+optional `marketing_share`/`rights_share`/`opening_marketing_coef` params (a studio spending more
+than baseline buys a bigger opening weekend — visibility, never quality; the film's actual
+Project Quality/Critic/Audience scores are untouched), and `release.py`'s
+`apply_release_strategy()` takes the matching `marketing_share`/`rights_share`/
+`streaming_multiplier` so a chosen release strategy (Wide/Limited/Festival/Streaming/Shelved)
+plays out through *that* studio's money, not a flat constant.
+
+**Marketing is tracked as its own real figure, never folded silently into the production
+budget.** `ReceptionResult`/`ProjectResult` both carry a `marketing` field distinct from `budget` —
+Post & Release and a greenlit directed film both show them separately (e.g. "$0.9M production ·
+$0.2M marketing"). It's still computed as a share of budget (`marketing_share × budget`, per the
+studio financing it), but the two numbers stay visibly separate rather than becoming one blended
+"cost" — and the split is real, not cosmetic: Streaming (§8.3's own "no theatrical" framing),
+Shelved, and an unsold Festival submission all zero out `marketing` (no distributor ever spent it),
+while the production `budget` itself is untouched in every strategy.
+
+**Fixed a real scale bug in Streaming's ROI.** Every release path's `roi` is a multiple where 1.0
+means exact break-even (`simulation/bands.ROI_BANDS`' own scale: 0.9 "close to even", 1.3
+"profitable", ...) — Streaming's used to compute `(payout − budget) / budget`, a *gain fraction*
+where 0.0 means break-even instead. A guaranteed-profitable `streaming_multiplier > 1.0` deal (the
+whole point of the flat §8.3 buyout) was landing well under the 0.9 "close to even" threshold on
+that scale and banding as **"a loss"** every single time, despite always paying out more than the
+budget. Now `roi = payout / budget`, on the same scale as everything else.
+
+`offers.sample_role()` now assigns
+a studio weighted by the film's own budget (`studios.pick_studio()` — a $4M film never lands at
+the blockbuster machine, a $200M one never lands at the indie house), and the CLI/`Session`
+surface the studio's name and pitch on the Offer Board and again at Post & Release.
+
+**Streaming rights are a real bidding pool, not one flat buyout.** `studios.streaming_bidders()`
+gathers every studio whose money credibly plays at this budget (a wider band than who could have
+*financed* it — buying rights is a smaller commitment than making it), each offering its own
+`STREAMING_BUYOUT_MULTIPLIER + streaming_multiplier_delta` terms — deterministic, so it's a stable
+menu to compare rather than a fresh roll every time you look. The pool always includes the film's
+own financing studio, who can either bid their normal terms *or* — `SELF_DISTRIBUTE_MULTIPLIER`
+— just put it up on their own service for nothing: you get exactly your budget back, no more, no
+less, the literal "for nothing" option. `Session.streaming_bid_options()` surfaces a budget-only
+*preview* pool before the film is made — nobody's seen it yet, so it can't reflect quality.
+
+**The real sale happens after the movie is made, and quality decides who shows up.**
+`studios.quality_adjusted_bids()` is resolved inside `choose_release("streaming")` itself, once
+`resolve_reception()` has already produced the film's actual `film_critic_score`/`audience_score`
+(`career.py` never reorders this — the quality terms are computed before any release strategy is
+ever applied). Each outside bidder reads that quality with its own noise
+(`QUALITY_PERCEPTION_SPREAD`, "perception can differ and vary within a certain range"), and a buyer
+whose perceived read falls below `QUALITY_BID_FLOOR` simply doesn't bid — an awful film, especially
+one that never got a wide release, can draw a thin outside pool or none at all. `choose_release`
+takes an optional `streaming_bid_selector(bids) -> StreamingBid` callback (the CLI's
+`release_screen()` uses it to show the real, quality-shaped offers and let you pick); with no
+selector it auto-accepts the best offer. The financing studio's own terms and the
+`SELF_DISTRIBUTE_MULTIPLIER` "for nothing" option are always on the table regardless of quality —
+they already own the film either way.
+
+**The studio has the final say on release strategy — you only get real input, and it takes
+genuine, top-tier fame to actually move them.** `Session.choose_release(strategy)`'s `strategy`
+argument is a *request*, not a command: `studios.decide_release_strategy()` honors it with
+probability `actor_influence_on_release(trust, standing_score)`. Importance (Standing's own
+`standing_score`) is a steeply convex term (`STUDIO_INFLUENCE_IMPORTANCE_POWER=4`) — a merely
+above-average or "rising star" actor (importance 50-75) still gets overruled the large majority of
+the time (8%-30% influence); real command (70%+influence) only shows up past ~95 importance, right
+at the top of the scale. Trust (`studio_relations`, off actual project P&L) only modulates that
+term up or down within a bounded ±20% swing; it can never invert the ordering or manufacture fame
+that isn't there — a moderately-famous actor with a studio's total distrust still outweighs a
+maximally-trusted nobody, and a true nobody gets zero lift from trust at all. The studio always
+keeps some say either way (`STUDIO_INFLUENCE_FLOOR`/`CEILING` — never a guaranteed yes or no). The
+resolved summary reports both `requested_release` and whether `studio_overruled` it, and the CLI
+prints the override when it happens.
+
+**A single project's resolution is now four separable stages, not one ~150-line function.**
+`simulation/career.py` used to do the whole shoot-through-standing-update chain inline; it's now
+`resolve_shoot()` (prep/fit/chemistry/Performance/the three-scene shape), `resolve_quality()`
+(critic/audience score and baseline box office — resolved once, never touched again), `resolve_
+release_schedule()` (how the finished film actually reaches an audience, including the streaming
+bid pool above), and `resolve_standing_update()` (Standing/Persona/Attributes/Recognition deltas).
+Each stage is independently callable and testable through a plain `(state, rng) -> result`-shaped
+call. `simulate_project()` still just calls them in a straight line — no dynamic dispatch, no extra
+object churn, the exact same sequence of `rng` draws as the old monolithic version — so the split
+costs nothing at runtime and every existing seed still reproduces byte-for-byte identical results.
+
+**Fixed a real bug: a role's fee was drawn from the same 5-35% range regardless of billing, so a
+bit part could out-earn a lead.** `offers.sample_role()` used `budget * rng.uniform(0.05, 0.35)`
+for every billing tier alike — a background player on a $170M tentpole could draw a $59.5M fee,
+26% of the whole production, purely by chance. `BILLING_FEE_SHARE` now gives each billing its own
+real band (lead 1-30%, supporting 0.3-9%, bit 0.06-2%, extra 0.01-0.4%), and — per the request that
+nothing here should be a hard number — `negotiated_fee_share(billing, actor_leverage, rng)` picks
+the actual figure as a real negotiation outcome inside that band: `actor_leverage` (the actor's own
+`standing_score/100` — how big a name they already are, threaded in from `full_career.offer_this_
+year()`) pulls the outcome toward the top, with real Gaussian noise on top so even a maximally
+leveraged negotiation doesn't land on the same number twice, and a total nobody can still
+occasionally land a surprisingly generous offer. The Offer Board now shows both the film's real
+budget and the actor's own negotiated fee side by side.
+
+**Marketing spend is a real, reactive studio decision now, not a fixed studio/budget lookup**
+(`studios.decide_marketing_spend()`). The old `marketing_share_for(studio, budget)` — a flat number
+off two static facts — is still the anchor, but the actual spend now also moves on: how much this
+studio trusts you (`studio_relations`), your own current star power (Standing's `star_power`), how
+hot the genre is right now (`world/genre_cycle`), a real efficiency discount for a franchise/
+adaptation's built-in awareness, and — a new player action — lobbying the studio for a bigger
+campaign (`Session.request_marketing_push()`), honored by the same steeply fame-gated influence
+curve as a release-strategy request (the two now share one function,
+`actor_influence_on_studio_decision()`). Deliberately **not** a function of the film's own resolved
+quality: no studio executive gets to peek at the finished film's real critic/audience score before
+setting the campaign budget, so a confident push can still land on a flop and a real sleeper can
+still go out under-marketed — nobody in this model, including the studio, can reliably predict
+which. `MARKETING_NOISE_SD` is deliberately the largest single term in the formula, verified by a
+regression test asserting identical inputs can still swing marketing_share by 0.4+ across a run —
+real, irreducible uncertainty, not just flavor text about it. The Post & Release summary reports
+whether a push was requested and whether it was honored.
+
+**Fixed a real conflation bug: a role's own fee and the film's whole production budget were the
+same number.** `offers.sample_role()` always sampled a real film budget (median $12M, up to a
+$300M tentpole) to pick which studio could plausibly finance it — then discarded that number,
+keeping only `budget_for_role`, a 5-35% slice of it meant to represent the actor's own fee ceiling.
+That slice was then reused for *everything* downstream: reception/marketing/ROI (`reception.budget`
+— literally commented "production budget," landing on a fee-sized number instead), studio-relations
+P&L, guild residuals, and the actor's own Deal negotiation, simultaneously. In practice this meant
+box-office math almost never ran against a genuine $80M+ production, even when the underlying film
+really was one, and a franchise holdout raise was inflating the film's whole reported "budget"
+instead of just the actor's own cut of it. `Role` now carries `film_budget_millions` (the real,
+independently-sampled production budget — drives reception/marketing/ROI/studio-selection/P&L) as
+a real field distinct from `budget_for_role` (the actor's own fee — drives only the Deal's fee
+negotiation and quote comparisons); `__post_init__` defaults `film_budget_millions` to
+`budget_for_role` for any hand-built `Role` that predates this field, so nothing that isn't
+`sample_role()` itself changes behavior. The Offer Board now shows both: the film's real budget
+and, separately, `(your fee: $X.XXM)`.
+
+**Multi-picture deals — future terms, not just this project's** (`leverage/multi_picture_deal.py`).
+Once Standing clears `MULTI_PICTURE_MIN_STANDING`, right after accepting a role, the actor can lock
+in 2-5 future films with that role's own financing studio at a fixed budget floor
+(`DEAL_LOCKED_QUOTE_PREMIUM` over their quote *right now*) — real security traded for the freedom
+to negotiate project-by-project. Each signed film shows up as a guaranteed, always-available
+listing on a future `offer_board()` (`Session._guaranteed_listing()`) until the deal is worked off;
+walking away early (`break_multi_picture_deal()`) costs real notoriety, the same asymmetric-trust
+read `simulation/_relationships.py` already applies to a studio you've burned.
+
+**Franchise spin-offs — indispensability becomes a new property, not just a bigger recast cost**
+(`simulation/_franchises.create_spinoff_entry`/`spinoff_available`). Once a character's
+Indispensability crosses `SPINOFF_INDISPENSABILITY_THRESHOLD`, the actor can pitch a spin-off:
+a brand-new franchise, same studio and genre as the parent, seeded with a real head-start audience
+bonus off the parent's own indispensability rather than starting cold. It guarantees its own
+installment 1 on the next `offer_board()`, reusing the same guaranteed-listing plumbing multi-
+picture deals use.
+
+**Franchise sequels now read spacing, not just prior reception** (`genre/franchise.
+spacing_modifier()`). A sequel rushed out within `FATIGUE_WINDOW_YEARS` of the last installment
+reads as oversaturated (a real audience-score penalty); one given real room to breathe
+(`ANTICIPATION_GAP_YEARS`+) earns a genuine anticipation bonus instead. Composed directly into
+`franchise_audience_bonus()` alongside the existing prior-reception scaling — a well-loved
+franchise released too fast can still underperform a modest one that was paced well.
+
+**Adaptations — a second kind of built-in audience, distinct from being a sequel**
+(`genre/adaptation.py`, `simulation/_adaptations.py`). An original (non-franchise) role can roll as
+an adaptation of a novel/comic/true story/video game/stage work — a real, flat audience bonus
+(people already know the story) paired with a real critic-score risk (the "the book was better"
+fidelity scrutiny an original screenplay never answers for). Kept structurally separate from the
+sequel curve rather than folded in: the source of the audience's familiarity is different, and a
+role is never both a sequel *and* an adaptation at once. Shows up on the Offer Board and in the
+CLI as `[ADAPTED FROM A NOVEL]` etc.
+
+**Franchises and directors are now real, interacting systems, not just data sitting in `genre/`
+and `director/` unreached** (`simulation/_franchises.py`). Two previously-dormant systems —
+§9.5's sequel-value curve (`genre/franchise.py`) and §6.4-6.5's Indispensability holdout
+(`leverage/indispensability.py`) — are composed together and wired into the regular game loop,
+not bolted on as a side mode:
+
+- **Offers can be franchise entries — and whether a sequel gets greenlit at all now actually reads
+  the last installment, not a flat coin flip.** `offer_this_year()` sometimes turns a freshly
+  sampled role into either the first installment of a brand-new franchise, or — if you already have
+  an open one — its next sequel, matching that franchise's genre and staying with the studio that
+  financed the original (continuity, not a fresh random studio each time). Whether that actually
+  happens this year used to be one flat 35% roll regardless of how the franchise was doing;
+  `sequel_probability()` replaces that with a real function of the prior installment's own
+  `AudienceScore` (a sigmoid centred on the same reception midpoint `genre/franchise.py`'s box-office
+  bonus already uses, so a $3M festival flop's sequel is a genuine long shot while a hit's is far
+  more likely) and the franchise's built-up Indispensability (a character audiences have identified
+  with keeps getting greenlit even past a middling number, capped well short of guaranteed). With
+  more than one open franchise, each now gets its own independent roll off its own reception —
+  a beloved hit and a franchise nobody liked are no longer drawing from the same pool. The Offer
+  Board tags these `[NEW FRANCHISE]` / `[SEQUEL — Part N]`.
+- **A real box-office bonus, not flavor text.** `franchise_audience_bonus()` reuses
+  `genre/franchise.py`'s `sequel_bonus()` exactly as designed — scaled by how well the *previous*
+  installment's audience actually responded, added straight onto AudienceScore alongside every
+  other reception input. A sequel to a poorly-received film earns far less than one following a
+  hit, the same asymmetry real franchises show.
+- **A returning director gets a mechanical bonus, not just a line of dialogue.** If you spend a
+  Leverage favour to request the *same* director who helmed the franchise's last installment
+  (`Session.request_director()`), `director_continuity_bonus()` applies `director/skill.py`'s own
+  passion-project engagement bump to their skill term — continuity is rewarded the same way the
+  formula already rewards a director who cares about the project.
+- **Indispensability is a real, playable holdout, not a stat that just sits there.** Every sequel
+  updates `character_identification()`/`indispensability()` off your real Spotlight, the audience's
+  response, and your own Standing's `star_power()`. Once it crosses a threshold,
+  `Session.holdout_available()` opens up `Session.request_holdout()` — the studio either pays a
+  real fee increase, calls your bluff and proceeds at the original terms, or recasts the part
+  entirely (voiding the project for that year and hitting your Standing's notoriety meter), per
+  `leverage/indispensability.resolve_holdout()`. A franchise left dormant too long decays
+  (`decay_dormant_franchises()`, honoring §6.4's v9 fix: decay always runs, and a property that
+  crosses the release floor drops out of tracking rather than sticking around forever) and stops
+  offering you sequels.
+- **Reachable everywhere a player already looks.** `Session.franchise_status()` shows in the pull
+  menu next to Rolodex/Leverage; Post & Release tags which installment you just played; the whole
+  system interacts with Studios (financing continuity), the Rolodex (the requested director),
+  Leverage (favours spent, the holdout itself), and Standing (notoriety on a failed holdout,
+  star_power feeding indispensability) rather than living in its own silo.
+
+**Directing is a real second career now, fused into this same `Session`/`FullState` rather than a
+separate one** (`simulation/_director.py`). `become_director()` is reachable from year one —
+**not** gated behind acting Prestige/credits (an earlier pass gated it behind
+Prestige≥55 + 5 credits, which turned out to be structurally unreachable: brute-forcing every
+scene-position allocation within a typical contrast budget tops spotlight out around 40, and
+`delta_prestige` needs spotlight past 54 just to stop bleeding — a real, well-played actor could
+never clear the bar). Once directing, your films' quality comes entirely from a real, independent
+stat block, `director/attributes.py`'s `DirectorAttributes` (vision/command/craft/taste/
+efficiency) — it never reads the actor's own Standing at all, so there's no acting-side
+prerequisite to satisfy; the two tracks are genuinely parallel, not sequential. The CLI's "This
+year: act, or direct?" choice is a genuinely distinct menu, not the acting screens repurposed:
+
+- **Development hell is real**, not a single roll: `director/development.py`'s `DevProject`
+  (momentum, budget ask, an attached star) advances one action a year — rewrite, attach a star,
+  cut the budget, find a new financier, take it to market, self-finance, or shelve it — through
+  the same `package_strength()`/`greenlight_probability()` formulas, until it either greenlights,
+  dies in development, or keeps going.
+- **A director's own Craft and Efficiency steer the edit**, not just luck: `director/edit.py`'s
+  `steered_post_luck()` shifts PostLuck's mean before the roll — reception.py grew an optional
+  `post_luck_override` param specifically so a director's film isn't subject to the actor path's
+  blind `N(52, 14)` sample.
+- **The same money, marketing, and box-office math the actor's films use** — a directed film is
+  cast through `studios.pick_studio()`/`marketing_share_for()` exactly like an acting role,
+  resolved through the same `resolve_reception()`, and feeds the same `world.genre_cycle` heat and
+  Guild residuals afterward. One box-office model, not two.
+- **One shared calendar, one Standing philosophy — and acting and directing no longer compete for
+  it.** A directed project's own `StandingModel` is the same `core.meters.StandingModel`
+  actor/standing.py configures (§3.3's "one Standing model" rule, made literal again) — grown off
+  the same `delta_heat`/`delta_prestige`/`delta_affection` formulas, just with a director's own
+  billing weight (always 1.0 — you're the whole show). Every action that resolves an outcome
+  (`choose_release()`, `decline_board()`, `request_holdout()`, `advance_directing()`,
+  `disappear()`) applies its own Standing/money/state deltas immediately but no longer touches the
+  calendar itself — `Session.end_year()` is the one call that actually advances it.
+- **Each block is a clean either/or, but you can work both blocks in the same year.** The CLI's
+  `year_screen()` presents one menu — "Work on acting" / "Work on directing" / "That's it for this
+  year" — and loops after each pick, so choosing acting doesn't remove directing from the menu; it
+  removes *itself*, letting you circle back for the other before the calendar moves. `Session`
+  itself has no "which mode" flag to keep in sync — `year_screen()` is UI-layer sequencing over
+  two already-independent Session tracks, not a new engine concept.
+
+**A box-office bonus is a real, higher-bar Deal option** (`leverage/approvals.py`'s
+`BOX_OFFICE_BONUS_STANDING_THRESHOLD`, deliberately set well above the 65-Standing bar approvals
+already use — a real backend point is a rarer get than script/co-star approval). Negotiating it
+(`Session.box_office_bonus_available()` / `choose_deal(..., want_box_office_bonus=True)`) pays out
+3% of the film's Gross, but only if it actually clears break-even (`box_office_bonus_earned()`
+returns 0 on anything that lost money — a real gross-points deal, not a guaranteed top-up). The
+payout flows straight into `life/money.py` as real income (`advance_between_years()`'s new
+`bonus_income` param), same as your quote already does.
+
+**Studios and directors remember profit and loss** (`simulation/_relationships.py`). Every
+resolved project updates a `Relationship` (project count, running net P&L, a 0-100 trust score)
+keyed to that film's financing studio, and — if you spent a Leverage favour to request them — to
+that specific director. Trust moves asymmetrically off ROI, the same loss-averse read every other
+risk-facing formula in this engine already uses: a big loss costs more trust than an equivalent
+win earns back. That trust then changes real numbers, not just a ledger:
+
+- **A studio's trust in you shifts how easily they cast you.** `Session.offer_board()` adds
+  `utility_bonus_from_trust()` straight onto that listing's Utility before the casting-path/offer-
+  probability roll — a studio you've made money for offers more readily, one you've burned goes
+  measurably cold (an instrumented check: distrust dropped one studio's own offer-availability
+  rate from ~12% to ~5% against otherwise-identical listings).
+- **A director's trust in you sharpens their own skill reading**, stacking with (not replacing)
+  the franchise-specific continuity bonus a *returning* director on the same franchise already
+  earns — two different, real reasons a repeat collaborator reads better.
+- **Reachable everywhere a player already looks**: `Session.studio_relations_status()` /
+  `director_relationship_status()` show in the pull menu next to Rolodex/Franchises/Leverage, and
+  `available_directors()` now shows trust alongside the existing relationship/favour-balance read.
+
+**Directing a film now has the same in-project creative choices acting does, not just
+development-hell actions** (`actor/script_notes.py`, `actor/studios.py`, `simulation/_director.py`).
+A director starting a new project makes three real calls before it ever reaches a greenlight:
+
+- **Script notes**, reusing `apply_script_note()` directly — but through
+  `DIRECTOR_SCRIPT_NOTE_OPTIONS`, a three-option subset (clarity, ambiguity, whole film) that drops
+  the actor-only "your part" choice, since a director pushing notes on their own film has no
+  separate on-screen role to angle for. `Session.director_script_note_options()` /
+  `choose_director_script_note_action()`.
+- **A release-strategy request** — a directed film was always hardcoded Wide; now
+  `request_director_release_strategy()` lets you ask for any of `RELEASE_STRATEGIES`, resolved
+  through the same `decide_release_strategy()` the actor path uses.
+- **A marketing-push request** — `request_director_marketing_push_action()` reuses
+  `decide_marketing_spend()`'s existing `requested_push` lever, previously only reachable from the
+  actor side.
+
+Both requests are genuinely negotiated, not guaranteed: `decide_release_strategy()` and
+`decide_marketing_spend()` gained an `influence_fn` parameter so they can be steered by a curve
+other than the actor's own `actor_influence_on_studio_decision()`. Directors get
+`director_influence_on_studio_decision()` — same convex shape, same 0.92 ceiling as the actor
+curve (never a higher roof), but a real, higher floor (0.08 vs 0.02) and a gentler power (cubed,
+not to the fourth) so it climbs faster through the low-and-middle range: it's their own picture,
+their name on it either way, which is a genuinely stronger position than a hired actor lobbying on
+someone else's film. `Session.director_release_options()` and the CLI's directing block surface
+both requests, and a GREENLIT result now reports whether the requested strategy/push was honored or
+overruled.
+
+**Script notes moved to `core/`, and the director is now every film's primary creative authority —
+in relative weight, not by shutting the actor out** (`core/script_notes.py`,
+`simulation/career.py`). The mechanic used to live in `actor/script_notes.py`, which was really a
+layering bug: a director shaping their own film and an actor holding script approval on someone
+else's are the same underlying choice at different weights, not two separate systems, so it moved
+to `core/` per §3.3's own rule — both `actor/` and `director/`-driven code import one module, not
+one reaching into the other's package.
+
+That move is also what made the actual rebalance possible. Every film an actor works on now has its
+own NPC director (`career.DirectorTerms`, already sampled per-project) contribute a real script
+note of their own — `core.script_notes.sample_director_note()`, biased toward "whole film" by their
+skill/command, the same way a more capable director in real life reaches for the subtler fix more
+often. That note applies at full strength (`DIRECTOR_NOTE_WEIGHT = 1.0`); if the actor also holds
+script approval and pushes their own note, it layers on top at a reduced weight
+(`ACTOR_FILM_NOTE_WEIGHT = 0.4`, `ScriptNoteEffect.scaled()`/`.combined_with()`) — a real, always-
+present secondary voice, never the deciding one, on someone else's film. `fit_delta` — the "your
+part" option's whole reason to exist — is never scaled by either side's weight: an actor's read on
+their own performance stays entirely theirs regardless of who else weighs in, which is the flip
+side of the rebalance ("the actor changes their own performance; the director changes the film").
+On a director's *own* project their note is still the film's only one, at full weight, exactly as
+before — this rebalance is about the actor path, where two people's notes were always meeting on
+the same film but only one of them was real. `post_release_screen()` now names whose note carried
+the film (`ProjectResult.director_note_choice`), so the mutual-but-unequal push is visible, not just
+mechanical.
+
+**Self-financing a directed project is a real acquisition, not a same-year guarantee**
+(`director/development.py`, `simulation/_director.py`). It used to mean "better odds at the usual
+studio-greenlight roll"; now it means what the name says: you take the project away from whoever's
+been financing it, and every call a studio would normally make becomes genuinely yours instead.
+
+- **The studio has to actually let go of it.** Choosing `self_finance` on a project you don't yet
+  own is an acquisition attempt, not a development beat: `studio_release_probability(momentum)`
+  rolls whether they just hand it over for nothing — a limping, low-momentum project isn't worth
+  holding onto — or `self_finance_buyout_cost(budget_ask)` (15% of the budget ask) is what it costs
+  you to buy them out instead, checked against your own real net worth
+  (`Session.advance_directing()` now threads `life.money.net_worth` in as `available_money`). Can't
+  afford it and the studio won't release it for free? Nothing happens that year — the project stays
+  theirs, try again later.
+- **Once it's actually yours, choosing self_finance again guarantees the film gets made** — no
+  package_strength/difficulty roll, because there's no studio left to say yes or no to. This is
+  deliberately a two-step process (acquire, then decide to shoot) rather than one action doing
+  both, so a player can keep rewriting/attaching stars on an owned project before pulling the
+  trigger, same as before.
+- **You assume the money risk for real, twice over.** The buyout cost (if any) comes out of your
+  own net worth the moment you acquire it; the *entire production budget* comes out of your own net
+  worth again the moment the film actually gets made (`Session.advance_directing()`'s existing
+  self-financed budget deduction, now paired with the buyout deduction above) — a studio's money
+  was never in this film at any point.
+- **Release strategy and marketing spend become genuinely, unconditionally yours.**
+  `_resolve_directed_film()` skips `decide_release_strategy()`/`decide_marketing_spend()`'s
+  studio-negotiation path entirely for a self-financed project — your requested release strategy
+  is never overruled, your marketing push is never ignored, and the full rights share is yours
+  (no studio's cut coming off the top).
+
+**Affection's decay was structurally impossible to outrun, now matched to Prestige's own rate**
+(`actor/standing.py`). `delta_affection` — unlike Heat's `HEAT_BASE` (a guaranteed gain "just for
+working") or Prestige's own critic-driven baseline — has no floor term of its own: it's pure
+`0.10 × (audience_score − 55)`, so anything short of consistently above-average reception nets flat
+or negative, on top of a decay that used to erase 4%/year regardless. A real trial run (a maxed-out,
+always-lead, "biggest star ever" strategy, genuinely landing several "a phenomenon" results) still
+finished with Affection bouncing between single digits and the low-20s the whole career, never
+compounding — the meter behaved as if it were actively working against a well-liked star, not just
+a neutral one. A first pass moved `AFFECTION_DECAY` from 0.96 to 0.975; a second pass set it equal
+to `PRESTIGE_DECAY` (0.985) outright — Affection has no per-film floor the way the other three
+meters effectively do, so there's no principled reason for it to decay *faster* than Prestige, only
+a reason for it to still decay at all. A follow-up trial (same "biggest star" strategy) rode one
+scifi franchise through 5 installments and 6 spin-off chains, landed "a phenomenon" audience
+reception on more than half its films, and Affection genuinely compounded — peaking at 91.3 and
+finally crossing both the 65 (approvals) and momentarily the 80 (box office bonus) Standing
+thresholds, unlocking 35/45 approvals in a single run for the first time.
+
+**The box-office bonus threshold turned out to be barely reachable even at the top of the game —
+brought down from 80 to 75** (`leverage/approvals.py`). `box_office_bonus_available()` checks the
+actor's Standing *before* that year's own film resolves — the only sensible timing, you negotiate
+before you shoot — and a trial run instrumented to log every year's check confirmed it wasn't a
+stale-data problem: a "biggest star" run genuinely sustained a weighted Standing score of 68-79.8
+for 25+ consecutive years and still only crossed 80 in exactly one of them. `BOX_OFFICE_BONUS_
+STANDING_THRESHOLD` moved to 75 — still a real bar clearly above approvals' 65 (a rarer, harder
+get, same as before), just no longer one that a sustained star can hold for over two decades and
+still only clear once by luck.
+
+## Known gaps and simplifications (documented inline at each site too)
+
+- **`actor/offers.sample_role()`** is still a placeholder role generator — it doesn't scale a
+  role's difficulty to the actor's own Standing the way the real offer board's Rolodex/agent-reach
+  filtering would. This is the reason a headless career still lands relatively few credits per
+  offer seen: most individual rolls are simply too hard for a fresh actor. The fix is a real
+  Standing-aware listing generator, not a new formula — everything downstream of "you got the
+  part" is already correct. Its budget draw (`sample_budget_millions()`) got the same
+  not-yet-Standing-aware treatment: a log-normal spread from $1.5M to a real $300M tentpole
+  ceiling, median ~$12M, replacing the old fixed five-tier list — every value in range is
+  reachable, not just five discrete stops, but which budget you personally get offered still
+  isn't scaled to your own career yet.
+- **`Session.offer_board()`** mitigates the same gap from the other direction: instead of one
+  role rolled per year, it procedurally generates at least 20 listings (`OFFER_BOARD_MIN_LISTINGS`,
+  up to `OFFER_BOARD_MAX_LISTINGS`), each independently run through `utility()`/
+  `offer_probability()` against your real Standing — more looks at the dice each year, not a
+  smarter die. If that still isn't enough, `generate_more_listings()` appends another batch on
+  demand (the CLI's "keep looking" option, capped at `OFFER_BOARD_HARD_CAP` as a safety valve, not
+  a design limit) rather than resetting the board — nothing about the board size is hard-stopped.
+  Accepting one listing quietly resolves every other listing on that board through the background
+  industry (§10.0), the same as a single declined offer always has; declining the whole board
+  (`decline_board()`) does the same for all of them and advances the year once. Still 0-1 projects
+  per year — more choice about *which* film, not more films at once. This is the only offer-board
+  implementation in the playable game — `simulation/cli.py` reaches it exclusively through
+  `Session`, never a second, parallel code path; `simulation/career.py`'s single-role-per-year
+  `simulate_year()` is a separate, intentionally minimal harness used only by `verify.py`'s
+  statistical checks, not part of the player-facing game.
+- **`actor/palette.GENRE_DIAL_WEIGHTS`** and **`CANONICAL_ARCHETYPES`** are this pass's own
+  documented readings, not undisclosed exact `design/` constants (§5.3 publishes target
+  correlations, not the weight table itself). `verify.py creative` reports honestly against that
+  gap rather than faking a pass.
+- **Directing still doesn't touch franchises.** A directed film never participates in the sequel
+  system (`simulation/_franchises.py`) — a real, bounded follow-up, not attempted in this pass.
+  (Release strategy is *not* a gap — a directed film's own release request has been real since an
+  earlier pass, and v10 gave it a real rating and a real Limited/Festival expansion path too; see
+  "What's here now" below for both.)
+- **The full multi-offer calendar/deal-negotiation UI** isn't built — one project a year, not
+  overlapping offers or the full fee/billing/options/pay-or-play deal space (only the
+  approvals-for-fee trade is wired up).
+- **Studio mode** is numeric primitives only (slate tiers, the Marketing curve) — no financing
+  stack, release-date warfare, or board/executive layer, matching `design/`'s own "build it last"
+  framing for that layer.
+- **`world.guild.is_eligible()`** isn't literally wired into `actor.offers`' own (consistent, but
+  separately-implemented) union-credit check — noted at the import site in `full_career.py`.
+- **Politics (§11.5), festivals-as-submission (§10.3 beyond the release-strategy acquisition
+  formula), international industries (§10.5), tech eras (§10.6), censorship (§10.7), and
+  merchandise/tie-ins (§9.7–9.9)** are not implemented — genuinely out of scope for this pass
+  rather than simplified.
+
+## v10 — the director's own greenlight stopped being one silent function call
+
+`design/part-07-the-director.md` §7.5–§7.7 always specified casting, the shoot, and the edit as
+three of the director career's own real decisions; the engine collapsed all three into one call
+(`_resolve_directed_film()`) that sampled `cast_star_power`/`craft_contribution`/the edit blind, with
+no player input between a greenlight and a finished film. v10 makes that real:
+
+- **Casting (`director/casting.py`)** — five real choices (the bankable star wrong for the part,
+  the right actor with no heat, a discovery, your roster, the difficult genius), each a real trade
+  on `cast_star_power`/fit/`chaos`, plus §7.5's own budget-unlock formula
+  (`max_budget_from_bankability`). The pre-existing `evaluate_candidate()` (a thin wrapper around
+  `actor.offers.utility()`, "you run the utility function from the other side") stays exactly as it
+  was — this is additive, not a rewrite of what was already there.
+- **The shoot's style (`director/shoot_style.py`, new)** — five named approaches, each a real
+  `craft_contribution` delta, plus the real `Overage%` roll (`0.35·ambition + 0.40·chaos −
+  0.006·Efficiency`) that can cost a project its final cut this film or raise the next one's
+  `Difficulty`.
+- **The edit (`director/edit.py`, expanded)** — `has_final_cut()` (Prestige>70, two consecutive
+  profitable films, or an explicit fee-cut trade — the last one newly wired up via
+  `request_final_cut_fee_cut()`), and a real "studio/you/contested" resolution
+  (`resolve_edit()`) — contested reshoots at most once, a real cap, not an open loop.
+- **"Attach a star" is now one action with a real range, not a flat number** — reads whoever you
+  actually target's real Rolodex relationship state (`Session.attach_star_target_options()`/
+  `choose_attach_star_target()`); a Rival poach costs real Notoriety, scaled by how established the
+  rivalry already is. Two more real dev actions: `call_in_favour` (spends a real Leverage favour
+  instead of money) and `option_adaptation` (reuses `genre/adaptation.py`'s existing audience-bonus/
+  critic-risk trade from the director's own side).
+- **Momentum is a word, not a float, to the player** — `director/development.py`'s
+  `momentum_band()` ("dead"/"fading"/"building"/"real heat"/"can't-miss"), same treatment the
+  actor's Indispensability already gets. The CLI used to print the raw number directly; that was a
+  real §15 violation, fixed alongside everything else here, not left as a known gap.
+- **Development has real per-quarter events**, not just the one action you took — reads real
+  `GenreHeat`, and a "rival attachment scare" only enters the pool at all if a tracked Rolodex Rival
+  actually exists. Bounded inside the existing action-delta range on purpose (`EVENT_MOMENTUM_LO`/
+  `_HI`), never the dominant term.
+- **A directed film gets a real content rating (§5.19)** — it never had one before v10. No full
+  six-dial `Palette` is generated for a directed project (out of scope this pass), so the director's
+  own Vision stands in for Intensity's real driver, with real noise — a named simplification, not a
+  silent one.
+- **Platform expansion (`Session.platform_expansion_available()`/`request_platform_expansion()`)** —
+  a director's Limited/Festival film that actually landed (critic ≥ "warm" or audience ≥ "a real
+  draw", and for Festival, actually sold) can earn one real, capped push for a wider release. Gated
+  on the same `director_influence_on_studio_decision()` curve every other studio ask in this engine
+  uses, plus a small rating-band dampener that reads which studio's financing the ask
+  (`effective_rating_ceiling`'s own idea, read from the other direction). One ask, not a ladder.
+- **Director-for-hire (`Session.check_for_hire_offer()`/`accept_hire_offer()`)** — the studio can
+  come to you. Mechanizes what `design/part-07` §7.10's own career-shape diagram always narrated
+  ("the sellout decision") but never computed. Skips development hell outright
+  (`DevProject.guaranteed_greenlight`); reads real Standing and real `GenreHeat`. The genre-fit term
+  is a flat, honest placeholder until Signature/Legibility (§7.8) is actually built — a naive
+  "more fame, more offers" version was checked against §7.8's own non-monotonic rule during design
+  and explicitly rejected; a neutral placeholder is the honest stand-in, not a silent guess.
+
+**A real mistake made and caught during this pass, worth naming rather than quietly fixing**: an
+early draft of `director/casting.py` used `Write` and overwrote a pre-existing, committed module
+(the `evaluate_candidate()` wrapper above) instead of extending it. Caught by the test suite
+(`test_director.py` failed to import), recovered from git history, and merged rather than left
+clobbered — a reminder to check whether a file already exists before writing one in a codebase this
+size, not just at the start of a session.
+
+**Known gaps in this pass, same discipline as everything else above**: none of v10's new numbers
+(the Bankability-scaled ranges, the event-probability formula, the rating dampener, the hire-offer
+probability) have been through the simulation-verification pass §7.4's own pipeline table already
+went through — see `design/part-07` §7.4/§7.12/§7.13's own "verification status" notes. The Casting/
+Shoot/Edit choices are set once at `start_directing_project()` time (the same pattern the existing
+script-note/release/marketing-push pending fields already use), not re-prompted at the exact moment
+a greenlight lands mid-resolution — greenlight timing isn't knowable in advance, so this was the
+correct seam, not a shortcut. Signature/Legibility (§7.8) and the Unit (§7.9) remain unbuilt.
+
+## v15 — the slate: working more than one directed project at once
+
+Diagnosing "why so few films get made" (instrumenting `PackageStrength` vs `Difficulty` directly
+across a live career) found a second, structural bottleneck sitting on top of §7.4's own
+intentionally-bleak newcomer baseline: one stalled project occupied a director's *entire* yearly
+action for 20+ years at a stretch, with nothing else able to happen in parallel. `design/part-07`
+§7.14 is the mechanic; `simulation/_director.py` is the implementation:
+
+- `DirectorState.slate: tuple[ShelvedProject, ...]` — a real backlog, capacity-gated by
+  `slate_capacity(standing_score)` (1 project at newcomer Standing, up to 4 at the top band). The
+  yearly action still only ever touches one project (§0.2's decision budget is untouched); the new
+  decision is triage — which project gets this year's attention.
+- `start_development()` shelves a second/third/fourth project into the slate rather than displacing
+  the active one, once capacity allows. `switch_active_project()` (free, no roll) and
+  `scrap_project()` (free, permanently drops a slot) are the two ways a slate entry stops sitting
+  still. `accept_hire_offer()` displaces the active project into the slate the same way a
+  focus-switch does, rather than silently discarding it.
+- `age_slate()` runs every year alongside the active project's own attachment-aging: a shelved
+  project's momentum is frozen (no event roll, no `Difficulty` check while parked), but anyone
+  already attached to it keeps aging and risking dropout — the same attrition the active roster
+  already models, read off a paused project instead of a live one.
+- Session: `director_status()` now reports `slate_capacity`/`projects_in_play`/`can_start_new_project`/
+  `slate` (list of shelved-project summaries); `start_directing_project()` returns `False` rather
+  than silently doing nothing when the slate's already full; `switch_active_directing_project()` /
+  `scrap_directing_project()` are the two new player-facing actions. `cli.py`'s `directing_block()`
+  prints the slate and offers switch/scrap/pitch-a-second-project prompts.
+
+**Known gap**: unverified against simulation, same caveat as the rest of v10/v13 — see §7.14's own
+note. `_director_report.py`'s comparison (single-track baseline vs a real triaging slate policy) is
+the first empirical read on whether this meaningfully raises films-per-career, or whether the
+underlying `PackageStrength`/`Difficulty` gap dominates regardless of how many projects are in play.

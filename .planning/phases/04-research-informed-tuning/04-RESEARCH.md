@@ -1,0 +1,15 @@
+# Phase 4: Research-Informed Tuning — Research Note (RSCH-01)
+
+No external web research tools are enabled in this environment (`.planning/config.json` has all research providers disabled). This note is reasoned from established career/RPG progression-sim design patterns rather than live sources — flagged honestly rather than fabricating citations.
+
+## Comparable-game patterns applied
+
+**BitLife/career-sim genre convention — "the grind is real, breakthroughs are rare but visible."** Career sims that feel alive (as opposed to a flat stat-treadmill) share one trait: most playthroughs plateau at a believable "working professional" tier, but a visible minority of runs break into a qualitatively different "star" tier, and the player can *see* the mechanism (a hit film, a big year) that did it — not just a slow number creep. Callback's own design doc already encodes this exact philosophy (`part-14-tuning-targets.md` §14.9: "~18% of careers reach Heat > 80"), which is why Phase 4's fix targeted making that documented target actually achievable rather than inventing a new one.
+
+**RPG stat-gate pattern — gates should be reachable by the build they're themed for.** A common RPG pitfall is a "prestige" stat whose unlock gate is calibrated against a hypothetical maximally-optimized build that no actual scripted or player build ever executes — the gate becomes decorative. Phase 1's archetype sweep proved this was happening here: `prestige_chaser`, an archetype built specifically to chase Prestige, still couldn't approach the Approvals gate. The fix (raising gain coefficients, not lowering the gate) follows the convention of making the *reward path* real rather than lowering the bar to meet weak builds — consistent with "earned, not free" (§4.3's own stated design intent).
+
+**Diminishing-returns decay vs. flat decay.** Many progression systems use decay that flattens near the top (e.g., percentage-of-remaining-headroom) specifically so elite tiers, once reached, are sticky rather than requiring constant maintenance just to avoid falling back out. Callback's `PRESTIGE_DECAY`/`AFFECTION_DECAY` are flat multiplicative (0.985) regardless of current value — this wasn't changed in this pass (out of scope for the time available) but is flagged as the next candidate lever if coefficient tuning alone doesn't fully close the gap (see 04-CHANGELOG.md).
+
+## Immersiveness note
+
+Per this project's stated priority (PROJECT.md, ROADMAP.md), the fix was evaluated for narrative plausibility, not just the stat target: raising *gain* coefficients while leaving the *centre* constants alone means an average, unremarkable film still nets roughly zero Standing change — a mediocre career stays mediocre, which reads as realistic. Only genuinely above-average work (better critics, more spotlight, better audience reception) compounds toward stardom. This was preferred over the alternative of simply lowering the elite-tier thresholds (65/75/85), which would have made stardom cheaper rather than making the climb toward it real.
