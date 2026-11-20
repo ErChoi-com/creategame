@@ -1,9 +1,8 @@
 {
   "mcpServers": {
-    "creategame": {
-      "command": "node",
-      "args": ["mcp-server/server.js"],
-      "env": { "GAME_PORT": "8000" }
+    "callback": {
+      "command": "python3",
+      "args": ["-m", "callback.engine.simulation.mcp_server"]
     }
   }
 }
